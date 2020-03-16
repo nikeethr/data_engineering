@@ -1,0 +1,26 @@
+.box div.month-text {
+  font-family: 'monospace';
+  font-size: 10px;
+  font-color: grey;
+  background-color: #EEE;
+  margin-bottom: 2px;
+  padding: 2px;
+}
+
+.box {
+  margin: 10px;
+}
+
+#container {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.wrap {
+  -webkit-flex-wrap: wrap;
+  flex-wrap: wrap;
+}
+
+rect {
+  shape-rendering: crispEdges;
+}

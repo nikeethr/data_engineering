@@ -1,0 +1,15 @@
+Package: dashCustomComponents
+Title: Set of experimental dash components.
+Version: 0.0.1
+Description: Set of experimental dash components.
+Depends: R (>= 3.0.2)
+Imports: 
+Suggests: 
+License: MIT + file LICENSE
+URL: https://github.com/nikeethr/dash-custom-components
+BugReports: https://github.com/nikeethr/dash-custom-components/issues
+Encoding: UTF-8
+LazyData: true
+KeepSource: true
+Author: Nikeeth Ramanathan [aut]
+Maintainer: Nikeeth Ramanathan <nikeeth.ramanathan@gmail.com>

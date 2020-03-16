@@ -1,0 +1,16 @@
+HYFS_STATIONID,QSIM_URBSID,QRESIN_URBSID,QRESOUT_URBSID,OUT_URBS_SUBCATCHID,VBFNAME_URBS,QIN_URBSID,IN_URBS_SUBCATCHID,QRWIN_URBSID,RWIN_URBS_SUBCATCHID,URBS_TIMESTEP_IN_HRS,URBS_CATCHMENT_ID,SWIFT_CATCHMENT_ID,SWIFT_SUBCATCH_ID
+H083001,,,,,,,,,,,,ovens,ovens_1
+H583148,,,,,,,,,,,,ovens,ovens_2
+H583003,,,,,,,,,,,,ovens,ovens_3
+H582027,,,,,,,,,,,,ovens,ovens_4
+H582014,,,,,,,,,,,,ovens,ovens_8
+H583000,,,,,,,,,,,,ovens,ovens_5
+H083018,,,,,,,,,,,,ovens,ovens_6
+H583007,,,,,,,,,,,,ovens,ovens_7
+H582033,,,,,,,,,,,,ovens,ovens_13
+H082128,,,,,,,,,,,,ovens,ovens_9
+H583002,,,,,,,,,,,,ovens,ovens_10
+H082105,,,,,,,,,,,,ovens,ovens_11
+H582004,,,,,,,,,,,,ovens,ovens_12
+H582002,,,,,,,,,,,,ovens,ovens_14
+H582021,,,,,,,,,,,,ovens,ovens_15
