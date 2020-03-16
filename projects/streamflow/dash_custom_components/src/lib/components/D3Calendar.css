@@ -1,0 +1,35 @@
+h1 {
+    font-size: 1.5em;
+    color: slategray;
+    font-family: monospace;
+    border-bottom: 0.5rem ridge rgba(100,130,150,0.5);
+}
+
+div.year-heading {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 0px;
+    background: white;
+}
+
+div.month-grid-container {
+    display: flex;
+    flex-wrap: wrap;
+    display: -webkit-box;
+    display: -moz-box;
+    display: -ms-flexbox;
+    display: -moz-flex;
+    display: -webkit-flex;
+}
+
+div.month-grid {
+    margin-right: 1rem;
+    margin-bottom: 1rem;
+    border: solid #DDDDDD 1px;
+    padding: 2px;
+    padding-bottom: 1px;
+}
+
+rect {
+    shape-rendering: crispedges;
+}
