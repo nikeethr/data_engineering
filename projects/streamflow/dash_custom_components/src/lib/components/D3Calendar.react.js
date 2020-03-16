@@ -1,7 +1,6 @@
 import * as d3 from 'd3';
 import './D3Calendar.css';
 
-
 const MONTHS_SHORT = [
     'jan', 'feb', 'mar', 'apr', 'may', 'jun',
     'jul', 'aug', 'sep', 'oct', 'nov', 'dec'
@@ -13,37 +12,56 @@ const GRID_SPACING = 2  // px
 
 function plotMonthGrids(monthGrids) {
     var divs = monthGrids.selectAll('.month-grid')
-        .data(function(d) {
-            return d.values;
-        })
-        .enter()
+        .data(
+            function(d) { return d.values; },
+            function(d) { return d.key; }
+        )
+
+    divs.exit().remove()
+
+    var divsEnter = divs.enter()
         .append('div')
-            .attr('class', 'month-grid')
 
-    var svgs = divs.append('svg')
-    var gs = svgs.append('g')
+    divsEnter
+        .append('svg')
+        .append('g')
+            .attr('class', 'month-grid-group')
 
-    gs.selectAll('rect')
+    var merged = divsEnter
+        .merge(divs)
+
+    merged
+        .attr('class', 'month-grid')
+
+    var gs = merged.select('g.month-grid-group')
+
+    var rects = gs.selectAll('rect')
         .data(function(d) {
             const OFFSET = d.values[0].date.getDay()
             for (var i = 0; i < d.values.length; i++) {
                 d.values[i].pos = i + OFFSET
             }
             return d.values;
-        })
-        .enter()
-        .append('rect')
-            .attr('x', function(d) {
-                return (d.pos % DAYS_IN_WEEK) * (GRID_SIZE + GRID_SPACING)
-            })
-            .attr('y', function(d) {
-                return ((d.pos / DAYS_IN_WEEK) >> 0) * (GRID_SIZE + GRID_SPACING)
-            })
-            .attr('width', GRID_SIZE)
-            .attr('height', GRID_SIZE)
-            .attr('fill', function(d) { return d3.interpolateViridis(d.value) })
-            .attr('class', '.grid-rect')
+        }, function(d) { return d.date.toString(); } )
 
+
+    rects.exit().remove()
+
+    rects.enter().append('rect')
+
+    rects
+        .attr('x', function(d) {
+            return (d.pos % DAYS_IN_WEEK) * (GRID_SIZE + GRID_SPACING)
+        })
+        .attr('y', function(d) {
+            return ((d.pos / DAYS_IN_WEEK) >> 0) * (GRID_SIZE + GRID_SPACING)
+        })
+        .attr('width', GRID_SIZE)
+        .attr('height', GRID_SIZE)
+        .attr('fill', function(d) { return d3.interpolateViridis(d.value) })
+        .attr('class', '.grid-rect')
+
+    var svgs = merged.select('svg')
     svgs
         .attr('width', function(d, i) {
             var g = this.childNodes[0];
@@ -57,37 +75,52 @@ function plotMonthGrids(monthGrids) {
 
 function plotCalendar(nestedData, el) {
     var chart = d3.select(el)
-    var divYears = chart.selectAll('.row-year')
-        .data(nestedData).enter()
-        .append('div')
-            .attr('id', function(d) { return 'year' + '-' + d.key })
+    var divYearsData = chart.selectAll('.row-year').data(
+        nestedData, function(d) { return d.key; }
+    )
 
-    var yearHeading = divYears
+    var exit = divYearsData.exit().remove()
+
+    var divYearsEnter = divYearsData
+        .enter().append('div')
+
+    divYearsEnter
         .append('div')
             .attr('class', 'year-heading')
         .append('h1')
             .text(function(d) { return d.key })
 
-    var monthGrids = divYears.append('div')
+    divYearsEnter.append('div')
         .attr('class', 'month-grid-container')
 
-    plotMonthGrids(monthGrids)
+    var merged = divYearsEnter
+        .merge(divYearsData)
+
+    merged
+        .attr('id', function(d) { return 'year' + '-' + d.key })
+        .attr('class', 'row-year')
+
+    plotMonthGrids(merged.select('.month-grid-container'))
 }
 
 
 /* Main */
 function plot(data, el) {
     var parseTime = d3.timeParse('%Y-%m-%d')
-    data.forEach(function(d) {
-        d.date = parseTime(d.date)
-        d.value = parseFloat(d.value)
-    })
+    var data_copy = new Array(data.length)
 
+    for (var i = 0; i < data_copy.length; i++) {
+        data_copy[i] = {
+            date: parseTime(data[i].date),
+            value: parseFloat(data[i].value)
+        }
+    }
 
     var nestedData = d3.nest()
         .key(function(d) { return d.date.getFullYear() })
-        .key(function(d) { return MONTHS_SHORT[d.date.getMonth()] } )
-        .entries(data)
+    .key(function(d) { return d.date.getFullYear() +
+        '-' + MONTHS_SHORT[d.date.getMonth()] } )
+        .entries(data_copy)
 
     plotCalendar(nestedData, el)
 }
@@ -101,6 +134,7 @@ D3Calendar.create = (el, data, configuration) => {
 
 D3Calendar.update = (el, data, configuration, chart) => {
     // D3 Code to update the chart
+    plot(data, el)
 };
 
 D3Calendar.destroy = () => {

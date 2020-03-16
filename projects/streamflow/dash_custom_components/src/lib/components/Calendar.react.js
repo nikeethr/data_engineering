@@ -38,8 +38,6 @@ export default class Calendar extends Component {
     }
 
     render() {
-        const {id, label, setProps, value} = this.props;
-
         return (
           <div className='calendar-container' ref={this._setRef.bind(this)} />
         );
