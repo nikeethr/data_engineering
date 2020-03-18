@@ -29,7 +29,12 @@ TODO:
 [x] Push dash-app to `data_engineering` repo
 
 Calendar component
-- [ ] events
+- [x] test out events
+- [ ] hover over tooltip
+- [ ] brainstorm app layout
+- [ ] onclick event
+      - [ ] generate random data based on date/station as seed (python function)
+- [ ] styling
     - e.g. dropdown to change colourScheme (via config?)
     - how does componentDidUpdate etc. come into play?
     - how do styles come into play
@@ -54,4 +59,6 @@ Creating the component was pretty straightforward.
     ```
 
 # Calendar component Events
+- register event using CustomEvent()
+- addEventListener in react component and bind to listen for events.
 

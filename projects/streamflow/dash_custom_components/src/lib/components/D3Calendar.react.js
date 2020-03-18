@@ -10,6 +10,36 @@ const DAYS_IN_WEEK = 7
 const GRID_SIZE = 12  // px
 const GRID_SPACING = 2  // px
 
+
+function plotTooltip(el) {
+    var chart = d3.select(el)
+    if (chart.select('div.tooltip').empty()) {
+        chart
+            .append('div')
+            .attr('class', 'tooltip')
+    }
+}
+
+function showTooltip(d, el) {
+    var div = d3.select(el).select('.tooltip')
+    div.transition()
+        .duration(200)
+        .style("opacity", .9);
+
+    var formatTime = d3.timeFormat("%d %b %Y");
+    div.html(formatTime(d.date) + "<br/>"  + d.value)
+        .style("left", (d3.event.pageX) + "px")
+        .style("top", (d3.event.pageY - 28) + "px");
+}
+
+function hideTooltip(d, el) {
+    var div = d3.select(el).select('.tooltip')
+    div.transition()
+        .duration(200)
+        .style("opacity", 0)
+}
+
+
 function plotMonthGrids(monthGrids, el) {
     var divs = monthGrids.selectAll('.month-grid')
         .data(
@@ -58,11 +88,15 @@ function plotMonthGrids(monthGrids, el) {
         })
         .attr('width', GRID_SIZE)
         .attr('height', GRID_SIZE)
-        .attr('fill', function(d) { return d3.interpolateViridis(d.value) })
         .attr('class', '.grid-rect')
         .on('click', function(d, i) {
             el.dispatchEvent(new CustomEvent('click_data', { detail: d }));
         })
+        .on('mouseover', function(d) { showTooltip(d, el) })
+        .on('mouseout', function(d) { hideTooltip(d, el) })
+
+    rects.transition().duration(1000)
+        .attr('fill', function(d) { return d3.interpolateViridis(d.value) })
 
     var svgs = merged.select('svg')
     svgs
@@ -82,7 +116,19 @@ function plotCalendar(nestedData, el) {
         nestedData, function(d) { return d.key; }
     )
 
-    var exit = divYearsData.exit().remove()
+    var exit = divYearsData.exit()
+    var DURATION = 400
+    exit.select('div.month-grid-container')
+        .style('overflow-y', 'hidden')
+        .style('max-height', function() {
+            return this.scrollHeight.toString() + 'px'
+        })
+        .transition()
+        .duration(2*DURATION)
+        .style('max-height', '0px')
+    exit.transition().delay(2 * DURATION).duration(DURATION)
+        .style('width', '0px')
+        .remove()
 
     var divYearsEnter = divYearsData
         .enter().append('div')
@@ -103,6 +149,7 @@ function plotCalendar(nestedData, el) {
         .attr('id', function(d) { return 'year' + '-' + d.key })
         .attr('class', 'row-year')
 
+    plotTooltip(el)
     plotMonthGrids(merged.select('.month-grid-container'), el)
 }
 
