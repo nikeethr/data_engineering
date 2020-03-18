@@ -1,3 +1,4 @@
+TODO:
 [x] Create conda environment with
   - pandas
   - numpy
@@ -24,12 +25,21 @@
   - [ ] hover over info
   - [x] limit to daily
 
+
+[x] Push dash-app to `data_engineering` repo
+
+Calendar component
+- [ ] events
+    - e.g. dropdown to change colourScheme (via config?)
+    - how does componentDidUpdate etc. come into play?
+    - how do styles come into play
+
 # bump function
 f = exp(-1 / (1 - x^2)), x = (-1, 1)
 
 
 
-# 2020-03-16
+# Creating boilerplate component
 
 Creating the component was pretty straightforward.
 - Setup the boilerplate via cookiecutter.
@@ -43,14 +53,5 @@ Creating the component was pretty straightforward.
       <div className='calendar-container' ref={this._setRef.bind(this)} />
     ```
 
+# Calendar component Events
 
-
-TODO:
-- [ ] Push dash-app to `data_engineering` repo
-
-Calendar component
-- [ ] events
-    - e.g. dropdown to change colourScheme (via config?)
-    - how does componentDidUpdate etc. come into play?
-    - how do styles come into play
-- [ ]

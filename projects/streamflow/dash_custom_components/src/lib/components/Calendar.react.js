@@ -10,36 +10,61 @@ import D3Calendar from './D3Calendar.react.js';
  * which is editable by the user.
  */
 export default class Calendar extends Component {
+    constructor(props) {
+        super(props);
+        this.gd = React.createRef();
+        this.bindEvents = this.bindEvents.bind(this);
+        this.unbindEvents = this.unbindEvents.bind(this);
+        this.handleClickData = this.handleClickData.bind(this);
+    }
+
     componentDidMount() {
         // D3 Code to create the chart
         this._chart = D3Calendar.create(
-            this._rootNode,
+            this.gd.current,
             this.props.data,
-            this.props.config
+            this.bindEvents
         );
+
+        this.bindEvents();
     }
 
     componentDidUpdate() {
         // D3 Code to update the chart
         D3Calendar.update(
-           this._rootNode,
-           this.props.data,
-           this.props.config,
-           this._chart
+            this.gd.current,
+            this.props.data,
+            this.bindEvents
         );
     }
 
     componentWillUnmount() {
-        D3Calendar.destroy(this._rootNode);
+        D3Calendar.destroy(this.gd.current);
     }
 
-    _setRef(componentNode) {
-        this._rootNode = componentNode;
+    handleClickData(e) {
+        const { setProps } = this.props;
+
+        setProps({clickData: e.detail});
+    }
+
+    bindEvents() {
+        this.unbindEvents()
+
+        const gd = this.gd.current;
+
+        gd.addEventListener('click_data', this.handleClickData, false);
+    }
+
+    unbindEvents() {
+        const gd = this.gd.current;
+
+        gd.removeEventListener('click_data', this.handleClickData, false);
     }
 
     render() {
         return (
-          <div className='calendar-container' ref={this._setRef.bind(this)} />
+          <div className='calendar-container' ref={this.gd} />
         );
     }
 }

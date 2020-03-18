@@ -10,7 +10,7 @@ const DAYS_IN_WEEK = 7
 const GRID_SIZE = 12  // px
 const GRID_SPACING = 2  // px
 
-function plotMonthGrids(monthGrids) {
+function plotMonthGrids(monthGrids, el) {
     var divs = monthGrids.selectAll('.month-grid')
         .data(
             function(d) { return d.values; },
@@ -60,6 +60,9 @@ function plotMonthGrids(monthGrids) {
         .attr('height', GRID_SIZE)
         .attr('fill', function(d) { return d3.interpolateViridis(d.value) })
         .attr('class', '.grid-rect')
+        .on('click', function(d, i) {
+            el.dispatchEvent(new CustomEvent('click_data', { detail: d }));
+        })
 
     var svgs = merged.select('svg')
     svgs
@@ -100,7 +103,7 @@ function plotCalendar(nestedData, el) {
         .attr('id', function(d) { return 'year' + '-' + d.key })
         .attr('class', 'row-year')
 
-    plotMonthGrids(merged.select('.month-grid-container'))
+    plotMonthGrids(merged.select('.month-grid-container'), el)
 }
 
 
@@ -127,14 +130,16 @@ function plot(data, el) {
 
 const D3Calendar = {};
 
-D3Calendar.create = (el, data, configuration) => {
+D3Calendar.create = (el, data, bindEvents) => {
     // D3 Code to create the chart
     plot(data, el)
+    bindEvents()
 };
 
-D3Calendar.update = (el, data, configuration, chart) => {
+D3Calendar.update = (el, data, bindEvents) => {
     // D3 Code to update the chart
     plot(data, el)
+    bindEvents()
 };
 
 D3Calendar.destroy = () => {
