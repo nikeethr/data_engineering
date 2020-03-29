@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
-from dcc_custom import Calendar
+from dash_custom_components import Calendar
 
 import dash
 import dash_bootstrap_components as dbc
@@ -26,16 +26,16 @@ cache = Cache(app.server, config={
 
 # TODO: investigate 'CACHE_THRESHOLD'
 
-df_fc = pd.read_csv('fc01.csv', index_col='time', parse_dates=True)
-df_obs = pd.read_csv('obs01.csv', index_col='time', parse_dates=True)
+df_fc = pd.read_csv('../fc01.csv', index_col='time', parse_dates=True)
+df_obs = pd.read_csv('../obs01.csv', index_col='time', parse_dates=True)
 
 
 # mapbox_key = 'lipk.eyJ1IjoibmlrZWV0aHIiLCJhIjoiY2ptanY2YzZtMGVlZjNrbXFxZHY2Nm5qMCJ9.sG3MSE3-VfhZq36l_15xkw'
 
-with open('x.geojson') as f:
+with open('../x.geojson') as f:
     geojson = json.load(f)
 
-df_ovens_info = pd.read_csv('ovens/VIC_station_model_idmap_ovens.csv')
+df_ovens_info = pd.read_csv('../ovens/VIC_station_model_idmap_ovens.csv')
 df_ovens_info_json = df_ovens_info.to_json(indent=4)
 
 def hex_to_rgb(h):
@@ -272,18 +272,18 @@ def form_tag(text):
 
 modal = html.Div(
     [
-        dbc.Button("Open Calendar", id="calendar-button"),
+        dbc.Button("Open Calendar", id="open"),
         dbc.Modal(
             [
-                dbc.Button("Regenerate", id="open"),
+                dbc.Button("Regenerate", id="calendar-button"),
                 dbc.ModalHeader("Outlier Calendar"),
-                dbc.ModalBody(
+                dbc.ModalBody(html.Div(
                     Calendar(
                         id='calendar',
                         value='my-value',
                         label='my-label',
                         data=random_data()
-                )),
+                    ), style={'overflow-x': 'hidden', 'margin-top': 0, 'padding-top': 0})),
                 dbc.ModalFooter(
                     dbc.Button("Close", id="close", className="ml-auto")
                 ),
@@ -375,8 +375,8 @@ def toggle_modal(n1, n2, is_open):
         return not is_open
     return is_open
 
-@app.callback(Output('calendar', 'data'), [Input('calendar-button', 'n_clicks')])
-def display_output(n_clicks):
+@app.callback(Output('calendar', 'data'), [Input('calendar-button', 'n_clicks'), Input('open', 'n_clicks')])
+def display_output(n_clicks, n_clicks_2):
     d = random_data()
     return d
 

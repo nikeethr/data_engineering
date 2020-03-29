@@ -28,8 +28,14 @@ function showTooltip(d, el) {
 
     var formatTime = d3.timeFormat("%d %b %Y");
     div.html(formatTime(d.date) + "<br/>"  + d.value)
-        .style("left", (d3.event.pageX) + "px")
-        .style("top", (d3.event.pageY - 28) + "px");
+        .style("left", function(d) {
+            var coords = d3.mouse(el.parentNode)
+            return coords[0] + 'px'
+        })
+        .style("top", function(d) {
+            var coords = d3.mouse(el.parentNode)
+            return (coords[1] + 28) + 'px'
+        })
 }
 
 function hideTooltip(d, el) {

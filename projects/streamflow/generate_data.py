@@ -12,19 +12,21 @@ START_DATE_OBS='2020-03-01'
 END_DATE_OBS='2020-03-12'
 
 SF_OFFSET = 1
+SF_OFFSET_MAX = 3
 SF_SCALE = 10.0 # size of bump
 Q_PERC = [5, 25, 50, 75, 95]
 
+# bump function
+def f_bump(x, scale, offset):
+    if x <= -1 or x >= 1:
+        res = 0
+    else:
+        res = scale * np.exp(-1.0 / (1 - x**2))
+    return res + offset
 
-def generate_obs(dt):
-    res = np.random.normal(SF_OFFSET, SF_SCALE/200, size=(len(dt)))
-    df = pd.DataFrame(res, columns=['obs'])
-    df.index = dt
-    df.index.name = 'time'
-    return df
+vf_bump = np.vectorize(f_bump, otypes=[np.float])
 
-
-def generate_fc(dt):
+def generate_bump(dt):
     L = len(dt)
     L_BUMP = int(0.9*L) - int(0.1*L)
     mid = np.linspace(start=-0.99, stop=0.99, num=L_BUMP)
@@ -34,18 +36,31 @@ def generate_fc(dt):
     pad_end = np.array([2] * (L - len(mid) - len(pad_start)))
     idx = np.concatenate([pad_start, mid, pad_end])
 
-    # compute streamflow
-    def bump(x):
-        if x <= -1 or x >= 1:
-            res = 0
-        else:
-            res = SF_SCALE * np.exp(-1.0 / (1 - x**2))
-        return res + SF_OFFSET
+    scale = np.abs(np.random.normal(SF_SCALE, SF_SCALE/2))
+    offset = np.random.uniform(0.1, SF_OFFSET_MAX)
+    res = vf_bump(idx, scale=scale, offset=offset)
+    return res
 
-    vbump = np.vectorize(bump, otypes=[np.float])
-    res = vbump(idx)
+
+def generate_obs(dt):
+    scale = np.abs(np.random.normal(SF_SCALE, SF_SCALE/2))
+    offset = np.random.uniform(0.1, SF_OFFSET_MAX)
+
+    res = generate_bump(dt)
+
+    df = pd.DataFrame(res, columns=['obs'])
+    df.index = dt
+    df.index.name = 'time'
+    return df
+
+
+def generate_fc(dt, station=None):
+    scale = np.abs(np.random.normal(SF_SCALE, SF_SCALE/2))
+    offset = np.random.uniform(0.1, SF_OFFSET_MAX)
+    res = generate_bump(dt)
 
     # perturbation (401 ensemble members)
+    L = len(dt)
     N_ENS = 401
     pert = np.zeros((L, N_ENS))
     std = np.linspace(start=SF_SCALE/100, stop=SF_SCALE/10, num=L)

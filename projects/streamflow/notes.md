@@ -30,14 +30,18 @@ TODO:
 
 Calendar component
 - [x] test out events
-- [ ] hover over tooltip
-- [ ] brainstorm app layout
+- [x] hover over tooltip
 - [ ] onclick event
-      - [ ] generate random data based on date/station as seed (python function)
+    - [ ] generate random data based on date/station as seed (python function)
 - [ ] styling
     - e.g. dropdown to change colourScheme (via config?)
     - how does componentDidUpdate etc. come into play?
     - how do styles come into play
+
+
+Backlog
+- [ ] brainstorm app layout
+- [ ] random function generator
 
 # bump function
 f = exp(-1 / (1 - x^2)), x = (-1, 1)
