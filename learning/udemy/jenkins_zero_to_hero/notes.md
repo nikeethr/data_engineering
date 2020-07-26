@@ -45,3 +45,12 @@ Networking:
 
 Setup Jenkins in VM using Docker:
 
+- Follow instructions for debian - https://docs.docker.com/engine/install/debian/
+- Add service to run on startup:
+    ```
+	    sudo systemctl docker enable
+	```
+- Adjust groups so that main user is part of `docker` group:
+    ```
+	    sudo usermod -aG docker jenkins
+	```
