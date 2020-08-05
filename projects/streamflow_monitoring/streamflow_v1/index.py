@@ -1,4 +1,4 @@
-from app import app
+from streamflow.app import app
 from streamflow.layouts import layout_main
 import streamflow.callbacks
 

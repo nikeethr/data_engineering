@@ -1,0 +1,26 @@
+#app-content {
+  background-color: grey;
+}
+
+#app-nav {
+}
+
+#date-picker {
+  font-size: 8px;
+}
+
+#toggle-freq {
+  display: inline-block;
+  margin-left: 4px;
+  margin-right: 4px;
+}
+
+#toggle-freq-container {
+  font-size: 12px;
+}
+
+#label-daily,
+#label-hourly {
+  display: inline-block;
+  font-size: 12px;
+}

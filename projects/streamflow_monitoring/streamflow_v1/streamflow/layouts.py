@@ -1,9 +1,13 @@
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 import dash_html_components as html
+import dash_daq as daq
 import plotly.graph_objects as go
 import numpy as np
+import pandas as pd
 import datetime
+from . import dummy_data as dd
+from . import figures as fg
 
 
 def layout_main():
@@ -12,71 +16,116 @@ def layout_main():
             dbc.Col(
                 layout_nav(),
                 width=12,
-                md=3
+                lg=3
             ),
             dbc.Col(
                 layout_content(),
                 width=12,
-                md=9
+                lg=9
             )
         ], no_gutters=False),
     )
 
 
 def layout_nav():
-    CATCHMENTS = [
-        {'label': 'ovens', 'value': 'ovens'},
-        {'label': 'uppermurray', 'value': 'uppermurray'},
-        {'label': 'kiewa', 'value': 'kiewa'}
+    catchments = dd.get_catchments()
+    catchment_options = [
+        {'label': x, 'value': x}
+        for x in catchments
     ]
     return dbc.Card([
-        dbc.CardHeader("NAVIGATION"),
+        dbc.CardHeader("Controls"),
         dbc.CardBody(dbc.Row([
             dbc.Col(html.Div([
                 dbc.Label('Catchments'),
                 dcc.Dropdown(
-                    options=CATCHMENTS,
+                    options=catchment_options,
                     multi=True,
                     id='catchment-dropdown'
                 )
-            ]), width=6, md=12),
+            ]), width=6, lg=12),
             dbc.Col(html.Div([
                 dbc.Label('Date range'),
                 dcc.DatePickerRange(id='date-picker')
-            ]), width=6, md=12)
+            ]), width=6, lg=12)
         ]))
     ], id='app-nav')
 
-def get_figure():
-    np.random.seed(1)
 
-    programmers = ['Alex','Nicole','Sara','Etienne','Chelsea','Jody','Marianne']
-
-    base = datetime.datetime.today()
-    dates = base - np.arange(60) * datetime.timedelta(days=1)
-    z = np.random.poisson(size=(len(programmers), len(dates)))
-
+def get_fig_matrix():
+    x, y, z = dd.get_matrix_data()
     fig = go.Figure(data=go.Heatmap(
-            z=z,
-            x=dates,
-            y=programmers,
-            colorscale='Blues',
-            showscale=False,
-            xgap=2,
-            ygap=2))
-
+        x=x, y=y, z=z, xgap=2, ygap=2,
+        colorbar=dict(
+            title="<b>match score</b>",
+            titleside="right",
+            thickness=10
+        ),
+        colorscale="YlGnBu"
+    ))
     fig.update_layout(
-        xaxis_nticks=36,
-        xaxis_fixedrange=True,
-        yaxis_fixedrange=True,
-        showlegend=False,
-        margin=dict(r=0,l=0,t=0,b=0)
+        xaxis_title="<b>forecast date</b>",
+        yaxis_title="<b>lead time</b>",
+        legend_title="forecast vs. observation match score",
+        font=dict(
+            size=12,
+            color="Black"
+        ),
+        height=300,
+        margin=dict(r=5,l=5,t=30,b=10),
+#       # For highlights
+#       shapes= [dict(
+#           yref="paper",
+#           type="line",
+#           x0=pd.to_datetime('2020-01-13'),
+#           y0='0',
+#           x1=pd.to_datetime('2020-01-13'),
+#           y1='1'
+#       )]
     )
+    return fig
 
+def layout_match_matrix():
+    fig = get_fig_matrix()
     return dbc.Card([
-        dbc.CardHeader('GitHub commits per day'),
+        dbc.CardHeader('Daily Obs/Fcst Match Score'),
         dbc.CardBody(dcc.Graph(figure=fig))
     ])
 
+
+def layout_toggle(daily=True):
+    # Hidden div inside the app that stores the intermediate value
+    return html.Div([
+        html.Div("DAILY", id='label-daily'),
+        daq.ToggleSwitch(id='toggle-freq', size=40),
+        html.Div("HOURLY", id='label-hourly')
+    ], id='toggle-freq-container')
+
+def layout_streamflow_graph(daily=True):
+    # hourly for now
+    fig = go.Figure()
+
+    return dbc.Card([
+        dbc.CardHeader('Streamflow Time-series'),
+        dbc.CardBody([
+            html.Div(
+                dd.dump_streamflow_json_data(),
+                id='intermediate-sf-value',
+                style={'display': 'none'}
+            ),
+            layout_toggle(),
+            dbc.Spinner(dcc.Graph(figure=fig, id='streamflow-graph'))
+        ])
+    ])
+
 def layout_content():
-    return get_figure()
+    return dbc.Row([
+        dbc.Col(
+            layout_match_matrix(),
+            width=12
+        ),
+        dbc.Col(
+            layout_streamflow_graph(),
+            width=12
+        )
+    ])
