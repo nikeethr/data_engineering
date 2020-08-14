@@ -52,6 +52,7 @@ def layout_nav():
     ], id='app-nav')
 
 
+# TODO should go into figures.py
 def get_fig_matrix():
     x, y, z = dd.get_matrix_data()
     fig = go.Figure(data=go.Heatmap(
@@ -71,25 +72,39 @@ def get_fig_matrix():
             size=12,
             color="Black"
         ),
+        xaxis_showspikes=True,
+        xaxis_spikemode="across",
         height=300,
         margin=dict(r=5,l=5,t=30,b=10),
 #       # For highlights
-#       shapes= [dict(
-#           yref="paper",
-#           type="line",
-#           x0=pd.to_datetime('2020-01-13'),
-#           y0='0',
-#           x1=pd.to_datetime('2020-01-13'),
-#           y1='1'
-#       )]
+        shapes= [dict(
+            yref="paper",
+            type="rect",
+            x0=pd.to_datetime('2020-01-13'),
+            y0='0',
+            x1=pd.to_datetime('2020-01-14'),
+            y1='1',
+            fillcolor="rgba(255,255,255,0.5)",
+            line_color="rgba(0,0,0,1)",
+            line_width=2
+        )]
     )
     return fig
 
-def layout_match_matrix():
+# TODO should go into dummy_data? or persist_data?
+def match_matrix_figure_store():
     fig = get_fig_matrix()
+    return dcc.Store(
+        id='matrix-figure-store',
+        data=fig.to_dict()
+    )
+
+
+def layout_match_matrix():
     return dbc.Card([
+        match_matrix_figure_store(),
         dbc.CardHeader('Daily Obs/Fcst Match Score'),
-        dbc.CardBody(dcc.Graph(figure=fig))
+        dbc.CardBody(dcc.Graph(id='graph-matrix'))
     ])
 
 
@@ -103,7 +118,6 @@ def layout_toggle(daily=True):
 
 def layout_streamflow_graph(daily=True):
     # hourly for now
-    fig = go.Figure()
 
     return dbc.Card([
         dbc.CardHeader('Streamflow Time-series'),
@@ -114,7 +128,7 @@ def layout_streamflow_graph(daily=True):
                 style={'display': 'none'}
             ),
             layout_toggle(),
-            dbc.Spinner(dcc.Graph(figure=fig, id='streamflow-graph'))
+            dbc.Spinner(dcc.Graph(id='graph-streamflow'))
         ])
     ])
 
