@@ -24,9 +24,22 @@ def toggle_hourly(toggle_value, data):
 
 
 
-# client_side callback
+# client_side callbacks
 app.clientside_callback(
     ClientsideFunction('clientside', 'update_matrix_graph_layout'),
     Output(component_id='graph-matrix', component_property='figure'),
-    [Input('matrix-figure-store', 'data'), Input('graph-matrix', 'clickData')],
+    [
+        Input('matrix-figure-store', 'data'),
+        Input('graph-matrix', 'clickData'),
+        Input('slider-days', 'value')
+    ]
+)
+
+app.clientside_callback(
+    ClientsideFunction('clientside', 'update_station_dropdown'),
+    Output(component_id='station-dropdown', component_property='options'),
+    [
+        Input('site-details-store', 'data'),
+        Input('catchment-dropdown', 'value')
+    ]
 )
