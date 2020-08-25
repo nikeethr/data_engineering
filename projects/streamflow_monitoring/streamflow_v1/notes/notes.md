@@ -36,3 +36,13 @@ adjust legend (colorbar)
 - had to do some thought on data storage (currently intermediate div with json dump)
 - this is so that hourly/daily data is loaded in one go and so switching
   between hourly/daily does not incur extra compute.
+
+## navigation refinement
+
+- Need to refine the navigation here's the idea:
+
+dropdown: Catchment
+dropdown: Station
+date-picker: start date
+range-slider: days to show (15-30)
+generate button (do we need this?)

@@ -1,3 +1,4 @@
+import json
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 import dash_html_components as html
@@ -26,32 +27,65 @@ def layout_main():
         ], no_gutters=False),
     )
 
+def store_site_details():
+    site_details = dd.get_site_details()
+    return dcc.Store(id='site-details-store', data=site_details)
 
 def layout_nav():
-    catchments = dd.get_catchments()
-    catchment_options = [
-        {'label': x, 'value': x}
-        for x in catchments
-    ]
+    def layout_nav_location():
+        site_details = dd.get_site_details()
+        catchments = site_details.keys()
+        catchment_options = [ {'label': x, 'value': x} for x in catchments ]
+
+        return html.Div([
+            store_site_details(),
+            html.Div([
+                dbc.Label('Catchment'),
+                dcc.Dropdown(options=catchment_options, id='catchment-dropdown')
+            ]),
+            html.Div([
+                dbc.Label('Station'),
+                dcc.Dropdown(id='station-dropdown')
+            ])
+        ])
+
+    def layout_nav_date():
+        MIN_DAYS = 15
+        MAX_DAYS = 45
+        MID_DAYS = 30
+
+        return html.Div([
+            html.Div([
+               dbc.Label('Start date'),
+               dcc.DatePickerSingle(id='date-picker')
+            ]),
+            html.Div([
+                dbc.Label('Days to show'),
+                dcc.Slider(
+                    id='slider-days', min=MIN_DAYS, max=MAX_DAYS,
+                    value=MID_DAYS, step=1,
+                    marks={
+                        MIN_DAYS: '15',
+                        MID_DAYS: '30',
+                        MAX_DAYS: '45'
+                    },
+                    tooltip={
+                        'placement': 'bottom',
+                        'always_visible': False
+                    })
+            ]),
+        ])
+
     return dbc.Card([
         dbc.CardHeader("Controls"),
         dbc.CardBody(dbc.Row([
-            dbc.Col(html.Div([
-                dbc.Label('Catchments'),
-                dcc.Dropdown(
-                    options=catchment_options,
-                    multi=True,
-                    id='catchment-dropdown'
-                )
-            ]), width=6, lg=12),
-            dbc.Col(html.Div([
-                dbc.Label('Date range'),
-                dcc.DatePickerRange(id='date-picker')
-            ]), width=6, lg=12)
+            dbc.Col(layout_nav_location(), width=6, lg=12),
+            dbc.Col(layout_nav_date(), width=6, lg=12)
         ]))
     ], id='app-nav')
 
 
+# TODO should go into figures.py
 def get_fig_matrix():
     x, y, z = dd.get_matrix_data()
     fig = go.Figure(data=go.Heatmap(
@@ -71,25 +105,44 @@ def get_fig_matrix():
             size=12,
             color="Black"
         ),
+        plot_bgcolor='rgba(0,0,0,0)',
+        xaxis_showspikes=True,
+        xaxis_spikemode="across",
+        xaxis_fixedrange=True,
+        xaxis_showgrid=False,
+        yaxis_showgrid=False,
+        yaxis_fixedrange=True,
         height=300,
         margin=dict(r=5,l=5,t=30,b=10),
 #       # For highlights
-#       shapes= [dict(
-#           yref="paper",
-#           type="line",
-#           x0=pd.to_datetime('2020-01-13'),
-#           y0='0',
-#           x1=pd.to_datetime('2020-01-13'),
-#           y1='1'
-#       )]
+        shapes= [dict(
+            yref="paper",
+            type="rect",
+            x0=pd.to_datetime('2020-01-13T12:00'),
+            y0='0',
+            x1=pd.to_datetime('2020-01-14T12:00'),
+            y1='1',
+            fillcolor="rgba(255,255,255, 0.3)",
+            line_color="rgba(0,0,0,1)",
+            line_width=2
+        )]
     )
     return fig
 
-def layout_match_matrix():
+# TODO should go into dummy_data? or persist_data?
+def match_matrix_figure_store():
     fig = get_fig_matrix()
+    return dcc.Store(
+        id='matrix-figure-store',
+        data=fig.to_dict()
+    )
+
+
+def layout_match_matrix():
     return dbc.Card([
+        match_matrix_figure_store(),
         dbc.CardHeader('Daily Obs/Fcst Match Score'),
-        dbc.CardBody(dcc.Graph(figure=fig))
+        dbc.CardBody(dcc.Graph(id='graph-matrix'))
     ])
 
 
@@ -103,7 +156,6 @@ def layout_toggle(daily=True):
 
 def layout_streamflow_graph(daily=True):
     # hourly for now
-    fig = go.Figure()
 
     return dbc.Card([
         dbc.CardHeader('Streamflow Time-series'),
@@ -114,7 +166,7 @@ def layout_streamflow_graph(daily=True):
                 style={'display': 'none'}
             ),
             layout_toggle(),
-            dbc.Spinner(dcc.Graph(figure=fig, id='streamflow-graph'))
+            dbc.Spinner(dcc.Graph(id='graph-streamflow'))
         ])
     ])
 

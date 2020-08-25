@@ -3,9 +3,13 @@ import numpy as np
 import pandas as pd
 from dateutil.relativedelta import relativedelta as rd
 
-def get_catchments():
-    CATCHMENTS = [ 'ovens', 'kiewa', 'uppermurray' ]
-    return CATCHMENTS
+def get_site_details():
+    SITE_DETAILS = {
+        'ovens': [ '1111', '1112', '1113' ],
+        'kiewa': [ '2111', '2112', '2113' ],
+        'uppermurray': [ '3111', '3112', '3113' ]
+    }
+    return SITE_DETAILS
 
 def get_matrix_data():
     ROWS = 7
