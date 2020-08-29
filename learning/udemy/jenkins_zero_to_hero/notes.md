@@ -658,7 +658,7 @@ https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html
 
 specify `--dryrun` flag to test
 
-## create auto backup db
+## Create auto backup db
 
 see: `s5-resources/db_backup.sh`
 
@@ -667,3 +667,39 @@ run:
 ```
     ./db_backup.sh db_host patients_db 1234
 ```
+
+## Setup secure keys in Jenkins
+
+Jenkins -> credentials -> System -> Global credentials
+
+Kind = Secret Text
+
+Things to define:
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `MYSQL_PASSWD`
+
+- Need to setup build step on ssh host (under Build)
+- Need to add credentials to variables (under Build environment)
+- Optionally specify parameters e.g. `db_host` and `db_name` (Under Project is parameterized)
+
+Still couldn't run build because parameters were somehow not passed to the
+shell script
+
+Had to specify env when passing the credentials to `remote_host`
+```
+    env \
+    AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+    AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+    DB_PASSWD=$DB_PASSWD \
+    /tmp/scripts/db_backup.sh $DB_HOST $DB_NAME
+```
+
+interestingly in jenkins logs it blocks out these credentials.
+
+
+## Script deleted!
+
+!IMPORTANT: When doing `docker compose down` all scripts/things stored
+temporarily get wiped out. So you will need to create a workdir volume or mount
+to persist these.
