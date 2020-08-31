@@ -1,0 +1,41 @@
+FROM centos:8
+
+ARG MYUSER=cylc-user
+ARG MYGROUP=cylc
+
+# installopenssh-server
+RUN yum -y install openssh-server && \
+    yum -y install openssh-clients && \
+    yum -y install xauth
+
+# install graphicmagick
+RUN dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm -y && \
+    dnf install GraphicsMagick -y
+
+# Setup user + ssh
+RUN groupadd $MYGROUP && \
+    useradd -m -g $MYGROUP $MYUSER && \
+    echo "${MYUSER}:1234" | chpasswd && \
+    mkdir /home/$MYUSER/.ssh && \
+    chmod 0700 /home/$MYUSER/.ssh && \
+    chown $MYUSER:$MYGROUP -R /home/$MYUSER
+
+# copy ssh config
+COPY --chown=$MYUSER:$MYGROUP ssh_config /home/$MYUSER/.ssh/config
+
+# For centos:7 you need to run the following instead:
+# RUN /usr/sbin/sshd-keygen
+# For later centos:
+RUN ssh-keygen -A
+# The above will create a key for each key type
+
+# Expose port 22 used for SSH connections
+EXPOSE 22
+
+# This should be removed after installation, but doing this just incase to
+# allow SSH login
+RUN rm -rf /run/nologin
+
+# start the sshd daemon, -D flag specifies that sshd will not detach - which is
+# needed for container to keep running.
+CMD /usr/sbin/sshd -D

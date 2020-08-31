@@ -1,0 +1,16 @@
+version: '3'
+services:
+    cylc_suite_host:
+        container_name: cylc_suite_host
+        image: cylc/suite_host
+        ports:
+            - "52022:22"
+        # stdin_open: true
+        # tty: true
+        build:
+            context: ./cylc_suite_host
+        networks:
+            - cylc_net
+networks:
+    cylc_net:
+

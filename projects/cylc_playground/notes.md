@@ -13,13 +13,13 @@ the linux VM.
 [ ] cylc-suite-host: Setup Dockerfile with instructions (this will take some
     trial and error)
     [x] Start with compatible OS and executing bash as the entry point
-    [ ] Create cylc user
-    [ ] Create docker-compose file to handle build/spin-up/teardown
+    [x] Create cylc user
+    [x] Create docker-compose file to handle build/spin-up/teardown
+    [x] Configure ssh to access docker directly
+    [x] Makefile to simplify commands
     [ ] Go through instructions to install cylc and update/rebuild Dockerfile
         as you go. Layer caching should prevent you from having to do everything
         several times.
-    [ ] Configure ssh to access docker directly
-    [ ] Makefile to simplify commands
 
 ## READ
 
@@ -97,3 +97,45 @@ services:
 networks:
     cylc_net:
 ```
+
+
+## Configure ssh
+
+There's a few things I needed to do here for docker side to work:
+    - install ssh-clients and ssh-server
+    - install xauth for authorizing XServer connections
+    - setup a cylc-user in the container (0700 for .ssh directory and 600 for files)
+    - Install GraphicMagick because Centos8 doesn't have ImageMagick
+    - Allow for X11 forwarding (needed to copy across a X11 file)
+    - Make sure to setup port mapping for 22 from the container to (some available port) in the VM
+    - Finally copy over the pn image using scp
+    - ssh (-AX) (-p with the opened port) into the cylc-user within the container
+    - display the image using the appropriate command
+
+On the windows side I needed an X-server:
+    - I used `vcxsrv` on recommendation
+
+### known host varying due to container regeneration
+!IMPORTANT: everytime I recreated the image I had to delete the known-hosts in windows
+
+In order to prevent this I added the following in ~/.ssh/config:
+
+```
+Host jenkins.local
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel QUIET
+```
+
+### scp image to container
+
+```
+scp -P 52022 display.png cylc-user@jenkins.local:~
+```
+
+### ssh into container
+
+```
+ssh -AX -p 52022 cylc-user@jenkins.local
+```
+
