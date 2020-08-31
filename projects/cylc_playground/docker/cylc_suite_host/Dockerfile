@@ -6,11 +6,9 @@ ARG MYGROUP=cylc
 # installopenssh-server
 RUN yum -y install openssh-server && \
     yum -y install openssh-clients && \
-    yum -y install xauth
-
-# install graphicmagick
-RUN dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm -y && \
-    dnf install GraphicsMagick -y
+    yum -y install xorg-x11-server-Xorg && \
+    yum -y install xorg-x11-xauth && \
+    yum -y install xorg-x11-apps --enablerepo=PowerTools
 
 # Setup user + ssh
 RUN groupadd $MYGROUP && \
@@ -20,8 +18,8 @@ RUN groupadd $MYGROUP && \
     chmod 0700 /home/$MYUSER/.ssh && \
     chown $MYUSER:$MYGROUP -R /home/$MYUSER
 
-# copy ssh config
-COPY --chown=$MYUSER:$MYGROUP ssh_config /home/$MYUSER/.ssh/config
+# update ssh settings
+RUN echo "X11UseLocalhost no" >> /etc/ssh/sshd_config
 
 # For centos:7 you need to run the following instead:
 # RUN /usr/sbin/sshd-keygen

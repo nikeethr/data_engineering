@@ -98,7 +98,6 @@ networks:
     cylc_net:
 ```
 
-
 ## Configure ssh
 
 There's a few things I needed to do here for docker side to work:
@@ -109,13 +108,15 @@ There's a few things I needed to do here for docker side to work:
     - Allow for X11 forwarding (needed to copy across a X11 file)
     - Make sure to setup port mapping for 22 from the container to (some available port) in the VM
     - Finally copy over the pn image using scp
-    - ssh (-AX) (-p with the opened port) into the cylc-user within the container
+    - ssh (-AY) (-p with the opened port) into the cylc-user within the container
     - display the image using the appropriate command
 
 On the windows side I needed an X-server:
     - I used `vcxsrv` on recommendation
+    - Needed to configure the windows host see below
 
-### known host varying due to container regeneration
+### Windows: known host varying due to container regeneration
+
 !IMPORTANT: everytime I recreated the image I had to delete the known-hosts in windows
 
 In order to prevent this I added the following in ~/.ssh/config:
@@ -124,8 +125,19 @@ In order to prevent this I added the following in ~/.ssh/config:
 Host jenkins.local
   StrictHostKeyChecking no
   UserKnownHostsFile /dev/null
-  LogLevel QUIET
+XAuthLocation "C:\Program Files\VcXsrv\xauth.exe"
 ```
+
+I also had to add the following to the `.bash_profile`
+
+## Docker container:
+
+Needed to add the following line to DockerFile:
+
+```
+RUN echo "X11UseLocalhost no" >> /etc/ssh/sshd_config
+```
+
 
 ### scp image to container
 
@@ -136,6 +148,7 @@ scp -P 52022 display.png cylc-user@jenkins.local:~
 ### ssh into container
 
 ```
-ssh -AX -p 52022 cylc-user@jenkins.local
+ssh -AY -p 52022 cylc-user@jenkins.local
 ```
 
+### Configure without ssh-server running???
