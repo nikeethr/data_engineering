@@ -23,5 +23,9 @@ services:
             - CYLC_HOME_ROOT=/opt
             - CYLC_HOME=/opt/cylc
             - CYLC_VERSION=7.8.6
+            # you *could* set password here but only for testing
+            # after that remember to squash the image when building it to
+            # prevent `docker inspect` from revealing it
+            # - MYPASSWD
 networks:
     cylc_net:
