@@ -83,7 +83,7 @@ WORKDIR /
 RUN groupadd $MYGROUP && \
     useradd --shell /bin/bash -g $MYGROUP -m $MYUSER && \
     usermod -a -G daemon,wheel $MYUSER && \
-    echo "${MYUSER}:1234" | chpasswd && \
+    echo "${MYUSER}:${MYPASSWD}" | chpasswd && \
     echo "${MYUSER} ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$MYUSER && \
     chmod 0440 /etc/sudoers.d/$MYUSER && \
     mkdir /home/$MYUSER/.ssh && \
