@@ -19,5 +19,9 @@ services:
         volumes:
             # needed for running services
             - /sys/fs/cgroup:/sys/fs/cgroup:ro 
+        environment:
+            - CYLC_HOME_ROOT=/opt
+            - CYLC_HOME=/opt/cylc
+            - CYLC_VERSION=7.8.6
 networks:
     cylc_net:

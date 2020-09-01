@@ -112,9 +112,6 @@ RUN systemctl enable sshd
 RUN rm -rf /run/nologin
 # ---
 
-# switch user
-USER $MYUSER
-
 # set env
 # You can explicitly set these but not necessary for this image since it'll
 # only use the defined version in this Dockerfile.
@@ -129,5 +126,4 @@ WORKDIR /home/$MYUSER
 COPY .vimrc .
 COPY docker_entrypoint.sh .
 
-USER root
 CMD ./docker_entrypoint.sh
