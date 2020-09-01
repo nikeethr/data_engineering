@@ -152,3 +152,44 @@ ssh -AY -p 52022 cylc-user@jenkins.local
 ```
 
 ### Configure without ssh-server running???
+
+TODO: 
+https://stackoverflow.com/questions/48235040/run-x-application-in-a-docker-container-reliably-on-a-server-connected-via-ssh-w
+
+
+## Install Cylc
+
+### Requirements
+
+- Python
+```
+dnf install python2
+```
+- OpenSSL
+```
+dnf install openssl
+```
+- pyOpenSSL
+```
+python -m pip install pyopenssl
+```
+- python-requests
+```
+python -m pip install requests
+```
+
+**Checkpoint**
+Now check the following imports:
+- urllib3: `import urllib3`
+- PyGTK: `import gtk`
+
+gtk didn't work so I had to look back at the cylc reference docker
+- I used dnf to install various things (e.g. pygtk2, and python2-devel)
+- gtk also complained about this:
+    ```
+    Gtk-WARNING **: Locale not supported by C library. Using the fallback 'C' locale.
+    ```
+    installing locale libraries (centos specfic):
+    ```
+    yum install -y langpacks-en langpacks-de glibc-all-langpacks
+    ```

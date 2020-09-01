@@ -2,17 +2,45 @@ FROM centos:8
 
 ARG MYUSER=cylc-user
 ARG MYGROUP=cylc
+USER root
 
-# installopenssh-server
-RUN yum -y install openssh-server && \
-    yum -y install openssh-clients && \
-    yum -y install xorg-x11-server-Xorg && \
-    yum -y install xorg-x11-xauth && \
-    yum -y install xorg-x11-apps --enablerepo=PowerTools
+RUN yum -y update && yum -y upgrade
+
+# Set locale
+# Gtk throws a warning...
+RUN yum install -y \
+    langpacks-en \
+    langpacks-de \
+    glibc-all-langpacks
+
+# --- Cylc ---
+RUN dnf install -y \
+        git \
+        python2 \
+        python2-devel \
+        python2-pip \
+        pygtk2 \
+        openssl \
+        at \
+        sudo \
+        systemd \
+        vim
+# ---
+
+# --- SSH ---
+# install openssh-server
+RUN yum -y install --enablerepo=PowerTools \
+        openssh-server \
+        openssh-clients \
+        xorg-x11-server-Xorg \
+        xorg-x11-xauth \
+        xorg-x11-apps
+# ---
 
 # Setup user + ssh
 RUN groupadd $MYGROUP && \
-    useradd -m -g $MYGROUP $MYUSER && \
+    useradd --shell /bin/bash -g $MYGROUP -m $MYUSER && \
+    usermod -a -G daemon,wheel $MYUSER && \
     echo "${MYUSER}:1234" | chpasswd && \
     mkdir /home/$MYUSER/.ssh && \
     chmod 0700 /home/$MYUSER/.ssh && \
@@ -34,6 +62,15 @@ EXPOSE 22
 # allow SSH login
 RUN rm -rf /run/nologin
 
+# install pip packages
+USER $MYUSER
+COPY requirements.txt /tmp/
+RUN pip2 install -r /tmp/requirements.txt --user
+
+# copy other stuff
+COPY .vimrc /home/$MYUSER/.vimrc
+
 # start the sshd daemon, -D flag specifies that sshd will not detach - which is
 # needed for container to keep running.
+USER root
 CMD /usr/sbin/sshd -D
