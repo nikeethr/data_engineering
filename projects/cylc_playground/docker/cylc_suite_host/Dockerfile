@@ -5,6 +5,7 @@ LABEL maintainer="nikeeth.ramanathan@gmail.com"
 ARG MYUSER=cylc-user
 ARG MYGROUP=cylc
 ARG CYLC_VERSION=7.8.6
+ARG MYPASSWD
 
 USER root
 
