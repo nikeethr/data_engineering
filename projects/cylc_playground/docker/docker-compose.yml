@@ -3,14 +3,21 @@ services:
     cylc_suite_host:
         container_name: cylc_suite_host
         image: cylc/suite_host
+        # needed to expose ssh port to remote into
         ports:
             - "52022:22"
+        # -i = true (in docker run)
         # stdin_open: true
+        # run -t = true (in docker run)
         # tty: true
+        # needed for running services
+        privileged: true
         build:
             context: ./cylc_suite_host
         networks:
             - cylc_net
+        volumes:
+            # needed for running services
+            - /sys/fs/cgroup:/sys/fs/cgroup:ro 
 networks:
     cylc_net:
-

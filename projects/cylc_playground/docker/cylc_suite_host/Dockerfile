@@ -1,51 +1,97 @@
-FROM centos:8
+FROM local/c8_base
+
+LABEL maintainer="nikeeth.ramanathan@gmail.com"
 
 ARG MYUSER=cylc-user
 ARG MYGROUP=cylc
+ARG CYLC_VERSION=7.8.6
+
 USER root
 
-RUN yum -y update && yum -y upgrade
+# To be able to run `sudo service xxx start`
+RUN yum -y update && \
+    yum -y upgrade && \
+    yum -y install initscripts && \
+    yum clean all
 
 # Set locale
 # Gtk throws a warning...
 RUN yum install -y \
-    langpacks-en \
-    langpacks-de \
-    glibc-all-langpacks
+        langpacks-en \
+        langpacks-de \
+        glibc-all-langpacks && \
+    yum clean all
 
-# --- Cylc ---
-RUN dnf install -y \
+
+# --- Install Cylc dependencies ---
+# enable PowerTools
+RUN dnf -y install dnf-plugins-core && \
+    dnf config-manager --set-enabled PowerTools && \
+    dnf clean all
+
+# install dependencies
+RUN dnf -y install \
+        gcc gcc-c++ make \
         git \
-        python2 \
-        python2-devel \
-        python2-pip \
+        python2 python2-devel python2-pip \
+        graphviz graphviz-devel \
         pygtk2 \
         openssl \
         at \
         sudo \
-        systemd \
-        vim
+        vim && \
+    dnf clean all
+
+# install pip packages
+COPY requirements.txt /tmp/
+RUN pip2 install -r /tmp/requirements.txt
 # ---
 
-# --- SSH ---
+
+# --- Install SSH ---
 # install openssh-server
 RUN yum -y install --enablerepo=PowerTools \
         openssh-server \
         openssh-clients \
         xorg-x11-server-Xorg \
         xorg-x11-xauth \
-        xorg-x11-apps
+        xorg-x11-apps && \
+    yum clean all
 # ---
 
+
+# --- Install Cylc ---
+# TODO: this is quite messy, since repo migrated from cylc to cylc-flow
+# it might be better to clone from git and add the repo/usr/bin/cylc to path
+WORKDIR /opt
+
+RUN curl -L -o cylc-${CYLC_VERSION}.tar.gz \
+        https://github.com/cylc/cylc-flow/archive/${CYLC_VERSION}.tar.gz && \
+    tar -xvf cylc-${CYLC_VERSION}.tar.gz && \
+    mv cylc-flow-${CYLC_VERSION} cylc-${CYLC_VERSION} && \
+    ln -s /opt/cylc-${CYLC_VERSION} /opt/cylc && \
+    cp /opt/cylc-${CYLC_VERSION}/usr/bin/cylc /usr/local/bin/ && \
+    cd cylc-${CYLC_VERSION} && \
+    make
+
+WORKDIR /
+# ---
+
+
+# --- Setup user ---
 # Setup user + ssh
 RUN groupadd $MYGROUP && \
     useradd --shell /bin/bash -g $MYGROUP -m $MYUSER && \
     usermod -a -G daemon,wheel $MYUSER && \
     echo "${MYUSER}:1234" | chpasswd && \
+    echo "${MYUSER} ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$MYUSER && \
+    chmod 0440 /etc/sudoers.d/$MYUSER && \
     mkdir /home/$MYUSER/.ssh && \
     chmod 0700 /home/$MYUSER/.ssh && \
-    chown $MYUSER:$MYGROUP -R /home/$MYUSER
+    chown -R $MYUSER /opt/cylc-${CYLC_VERSION}
+# ---
 
+# --- Setup SSH ---
 # update ssh settings
 RUN echo "X11UseLocalhost no" >> /etc/ssh/sshd_config
 
@@ -58,19 +104,30 @@ RUN ssh-keygen -A
 # Expose port 22 used for SSH connections
 EXPOSE 22
 
+# enable sshd service
+RUN systemctl enable sshd
+
 # This should be removed after installation, but doing this just incase to
 # allow SSH login
 RUN rm -rf /run/nologin
+# ---
 
-# install pip packages
+# switch user
 USER $MYUSER
-COPY requirements.txt /tmp/
-RUN pip2 install -r /tmp/requirements.txt --user
 
-# copy other stuff
-COPY .vimrc /home/$MYUSER/.vimrc
+# set env
+# You can explicitly set these but not necessary for this image since it'll
+# only use the defined version in this Dockerfile.
+# see: https://github.com/cylc/cylc-flow/blob/7.8.6/usr/bin/cylc
+# ENV CYLC_VERSION
+# ENV CYLC_HOME
+# below will default to /opt anyway, but being explicit
+ENV CYLC_HOME_ROOT=/opt
 
-# start the sshd daemon, -D flag specifies that sshd will not detach - which is
-# needed for container to keep running.
+# copy user specific stuff
+WORKDIR /home/$MYUSER
+COPY .vimrc .
+COPY docker_entrypoint.sh .
+
 USER root
-CMD /usr/sbin/sshd -D
+CMD ./docker_entrypoint.sh

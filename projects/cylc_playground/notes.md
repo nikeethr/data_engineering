@@ -163,7 +163,7 @@ https://stackoverflow.com/questions/48235040/run-x-application-in-a-docker-conta
 
 - Python
 ```
-dnf install python2
+dnf install python2 python2-devel python2-pip
 ```
 - OpenSSL
 ```
@@ -171,11 +171,11 @@ dnf install openssl
 ```
 - pyOpenSSL
 ```
-python -m pip install pyopenssl
+pip install pyopenssl
 ```
 - python-requests
 ```
-python -m pip install requests
+pip install requests
 ```
 
 **Checkpoint**
@@ -193,3 +193,48 @@ gtk didn't work so I had to look back at the cylc reference docker
     ```
     yum install -y langpacks-en langpacks-de glibc-all-langpacks
     ```
+
+- Graphviz
+```
+dnf install graphviz
+```
+
+- Pygraphviz
+```
+dnf install graphviz-dev
+pip install pygraphviz==1.2
+```
+
+- All python requirements:
+```
+mock
+pyopenssl
+requests
+cherrypy==6.0.2
+jinja2 == 2.10
+pygraphviz==1.2
+sphinx>=1.53,<1.7.9
+```
+
+- Also installed
+    - vim
+    - sudo
+    - systemd
+    - gcc
+
+**Checkpoint**
+
+- needed to include PowerTools for dnf in order to install some things
+```
+RUN dnf -y install dnf-plugins-core && \
+    dnf config-manager --set-enabled PowerTools
+```
+
+### Installing from repo
+
+clone repo:
+https://github.com/cylc/cylc-flow.git
+
+checkout tag: 
+
+Followed instructions to install from tarball
