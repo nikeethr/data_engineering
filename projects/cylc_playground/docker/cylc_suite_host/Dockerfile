@@ -22,7 +22,6 @@ RUN yum install -y \
         glibc-all-langpacks && \
     yum clean all
 
-
 # --- Install Cylc dependencies ---
 # enable PowerTools
 RUN dnf -y install dnf-plugins-core && \
@@ -36,7 +35,7 @@ RUN dnf -y install \
         python2 python2-devel python2-pip \
         graphviz graphviz-devel \
         pygtk2 \
-        openssl \
+        rsync \
         at \
         sudo \
         vim && \
@@ -46,7 +45,6 @@ RUN dnf -y install \
 COPY requirements.txt /tmp/
 RUN pip2 install -r /tmp/requirements.txt
 # ---
-
 
 # --- Install SSH ---
 # install openssh-server
@@ -58,7 +56,6 @@ RUN yum -y install --enablerepo=PowerTools \
         xorg-x11-apps && \
     yum clean all
 # ---
-
 
 # --- Install Cylc ---
 # TODO: this is quite messy, since repo migrated from cylc to cylc-flow
@@ -77,7 +74,6 @@ RUN curl -L -o cylc-${CYLC_VERSION}.tar.gz \
 WORKDIR /
 # ---
 
-
 # --- Setup user ---
 # Setup user + ssh
 RUN groupadd $MYGROUP && \
@@ -87,6 +83,7 @@ RUN groupadd $MYGROUP && \
     chmod 0440 /etc/sudoers.d/$MYUSER && \
     mkdir /home/$MYUSER/.ssh && \
     chmod 0700 /home/$MYUSER/.ssh && \
+    chown -R $MYUSER /home/$MYUSER && \
     chown -R $MYUSER /opt/cylc-${CYLC_VERSION}
 # ---
 
@@ -112,8 +109,21 @@ RUN rm -rf /run/nologin
 # ---
 
 # copy user specific stuff
+USER $MYUSER
+
 WORKDIR /home/$MYUSER
-COPY .vimrc .
-COPY docker_entrypoint.sh .
+COPY --chown=$MYUSER:$MYGROUP .vimrc .
+COPY --chown=$MYUSER:$MYGROUP docker_entrypoint.sh .
+
+# --- move this to rightful spots ---
+# setup cylc config/editor/examples
+RUN cylc get-global-config > /opt/cylc/etc/global.rc && \
+    cylc import-examples /tmp && \
+    mv ~/cylc-run/examples/$(cylc --version)/tutorial ~/cylc-run/tut && \
+    mkdir -p ~/.vim/syntax && \
+    cp /opt/cylc/etc/syntax/cylc.vim ~/.vim/syntax/cylc.vim
+# ---
+
+USER root
 
 CMD ./docker_entrypoint.sh

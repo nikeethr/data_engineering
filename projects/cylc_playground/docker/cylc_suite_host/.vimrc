@@ -53,3 +53,8 @@ set shiftwidth=4
 set tabstop=4
 set expandtab
 set smarttab
+
+"cylc specific
+augroup filetype
+  au! BufRead,BufnewFile *suite*.rc   set filetype=cylc
+augroup END

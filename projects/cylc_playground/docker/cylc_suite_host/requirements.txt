@@ -1,8 +1,8 @@
 empy
 mock
-pyopenssl
 requests
 cherrypy==6.0.2
 jinja2 == 2.10
 pygraphviz==1.2
+pyopenssl==18.0.0
 sphinx>=1.5.3,<1.7.9

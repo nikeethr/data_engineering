@@ -246,6 +246,42 @@ RUN dnf -y install dnf-plugins-core && \
 clone repo:
 https://github.com/cylc/cylc-flow.git
 
-checkout tag: 
+checkout tag: 7.8.6
 
 Followed instructions to install from tarball
+
+
+## Configuring cylc
+
+Following through the cylc docs (see: Reading)
+
+
+- global config file as per instructions in `less /opt/cylc/etc/global.rc.eg`
+
+```
+cylc get-global-config > /opt/cylc/etc/global.rc
+```
+
+- setting up environment in job hosts (to be revisited)
+
+- configure Cylc Review
+Apache
+```
+dnf install mod_wsgi httpd
+systemctl enable httpd.service
+```
+
+adhoc
+```
+setsid cylc review start 0</dev/null 1>/dev/null 2>&1 &
+```
+(runs on 8080 - need port mapping in docker-compose)
+
+Added adhoc version to `docker_entrypoint.sh`
+
+
+## Examples
+
+- Note: openssl 1.1.x (used by 19,x,x) not supported by cylc so I installed
+  pyopenssl=18.0.0
+
