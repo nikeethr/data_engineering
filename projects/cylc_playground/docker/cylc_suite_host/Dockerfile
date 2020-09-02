@@ -5,7 +5,6 @@ LABEL maintainer="nikeeth.ramanathan@gmail.com"
 ARG MYUSER=cylc-user
 ARG MYGROUP=cylc
 ARG CYLC_VERSION=7.8.6
-ARG MYPASSWD
 
 USER root
 
@@ -84,7 +83,6 @@ WORKDIR /
 RUN groupadd $MYGROUP && \
     useradd --shell /bin/bash -g $MYGROUP -m $MYUSER && \
     usermod -a -G daemon,wheel $MYUSER && \
-    echo "${MYUSER}:${MYPASSWD}" | chpasswd && \
     echo "${MYUSER} ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$MYUSER && \
     chmod 0440 /etc/sudoers.d/$MYUSER && \
     mkdir /home/$MYUSER/.ssh && \
@@ -112,15 +110,6 @@ RUN systemctl enable sshd
 # allow SSH login
 RUN rm -rf /run/nologin
 # ---
-
-# set env
-# You can explicitly set these but not necessary for this image since it'll
-# only use the defined version in this Dockerfile.
-# see: https://github.com/cylc/cylc-flow/blob/7.8.6/usr/bin/cylc
-# ENV CYLC_VERSION
-# ENV CYLC_HOME
-# below will default to /opt anyway, but being explicit
-ENV CYLC_HOME_ROOT=/opt
 
 # copy user specific stuff
 WORKDIR /home/$MYUSER

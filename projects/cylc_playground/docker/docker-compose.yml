@@ -14,20 +14,12 @@ services:
         privileged: true
         build:
             context: ./cylc_suite_host
-            # For experimentation you could set password here (and then squash
-            # the image or use a multi-stage build) but look into using
-            # --secret instead
-            # Uncomment these two lines to set password
-            # args:
-            #     - MYPASSWD=<insert_password_here>
         networks:
             - cylc_net
         volumes:
             # needed for running services
             - /sys/fs/cgroup:/sys/fs/cgroup:ro 
-        environment:
-            - CYLC_HOME_ROOT=/opt
-            - CYLC_HOME=/opt/cylc
-            - CYLC_VERSION=7.8.6
+        env_file:
+            - ./cylc_suite_host/.env
 networks:
     cylc_net:
