@@ -1,0 +1,27 @@
+version: '3'
+services:
+    cylc_suite_host:
+        container_name: cylc_suite_host
+        image: cylc/suite_host
+        ports:
+            # needed to expose ssh port to remote into
+            - "52022:22"
+            - "8082:8080"       # for running cylc-review
+        expose:
+            - "43001-43100"     # for cylc communication
+        # stdin_open: true      # -i = true (in docker run)
+        # tty: true             # run -t = true (in docker run)
+        privileged: true        # needed for running services
+        hostname: suite_host
+        domainname: cylc
+        build:
+            context: ./cylc_suite_host
+        networks:
+            - cylc_net
+        volumes:
+            # needed for running services
+            - /sys/fs/cgroup:/sys/fs/cgroup:ro 
+        env_file:
+            - ./cylc_suite_host/.env
+networks:
+    cylc_net:

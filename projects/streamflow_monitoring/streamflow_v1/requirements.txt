@@ -1,0 +1,7 @@
+dash==1.14.0
+dash_daq
+dash-bootstrap-components
+pandas
+numpy
+wrapt
+gunicorn
