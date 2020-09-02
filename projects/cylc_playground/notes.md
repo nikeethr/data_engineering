@@ -112,19 +112,19 @@ networks:
 ## Configure ssh
 
 There's a few things I needed to do here for docker side to work:
-    - install ssh-clients and ssh-server
-    - install xauth for authorizing XServer connections
-    - setup a cylc-user in the container (0700 for .ssh directory and 600 for files)
-    - Install GraphicMagick because Centos8 doesn't have ImageMagick
-    - Allow for X11 forwarding (needed to copy across a X11 file)
-    - Make sure to setup port mapping for 22 from the container to (some available port) in the VM
-    - Finally copy over the pn image using scp
-    - ssh (-AY) (-p with the opened port) into the cylc-user within the container
-    - display the image using the appropriate command
+- install ssh-clients and ssh-server
+- install xauth for authorizing XServer connections
+- setup a cylc-user in the container (0700 for .ssh directory and 600 for files)
+- Install GraphicMagick because Centos8 doesn't have ImageMagick
+- Allow for X11 forwarding (needed to copy across a X11 file)
+- Make sure to setup port mapping for 22 from the container to (some available port) in the VM
+- Finally copy over the pn image using scp
+- ssh (-AY) (-p with the opened port) into the cylc-user within the container
+- display the image using the appropriate command
 
 On the windows side I needed an X-server:
-    - I used `vcxsrv` on recommendation
-    - Needed to configure the windows host see below
+- I used `vcxsrv` on recommendation
+- Needed to configure the windows host see below
 
 ### Windows: known host varying due to container regeneration
 
@@ -139,7 +139,11 @@ Host jenkins.local
 XAuthLocation "C:\Program Files\VcXsrv\xauth.exe"
 ```
 
-I also had to add the following to the `.bash_profile`
+I also had to add the following to the `.bash_profile` in git bash on my
+windows machine
+```
+export DISPLAY=127.0.0.1:0.0
+```
 
 ## Docker container:
 
