@@ -6,24 +6,35 @@ docker
 Note: If you can do this with docker straight-away without creating users in
 the linux VM.
 
-## TODO
+## Instructions
 
-[x] Create cylc user on VM
-[x] Make notes document
-[ ] cylc-suite-host: Setup Dockerfile with instructions (this will take some
+TODO
+
+## Examples
+
+TODO
+
+
+# Background notes:
+
+## Tasks
+
+- [x] Create cylc user on VM
+- [x] Make notes document
+- [x] cylc-suite-host: Setup Dockerfile with instructions (this will take some
     trial and error)
-    [x] Start with compatible OS and executing bash as the entry point
-    [x] Create cylc user
-    [x] Create docker-compose file to handle build/spin-up/teardown
-    [x] Configure ssh to access docker directly
-    [x] Makefile to simplify commands
-    [ ] Go through instructions to install cylc and update/rebuild Dockerfile
+    - [x] Start with compatible OS and executing bash as the entry point
+    - [x] Create cylc user
+    - [x] Create docker-compose file to handle build/spin-up/teardown
+    - [x] Configure ssh to access docker directly
+    - [x] Makefile to simplify commands
+    - [x] Go through instructions to install cylc and update/rebuild Dockerfile
         as you go. Layer caching should prevent you from having to do everything
         several times.
 
-## READ
+## Reading
 
-- Example docker file:
+- Example docker file (ubuntu and maybe outdated):
     https://github.com/alanbchristie/cylc-docker/blob/master/docker/Dockerfile
 - Simple development environment with Docker:
     https://www.integralist.co.uk/posts/dev-environments-within-docker-containers/
