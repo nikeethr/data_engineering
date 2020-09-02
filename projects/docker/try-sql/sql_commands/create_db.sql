@@ -1,0 +1,1 @@
+LOAD DATA LOCAL INFILE '/pet.txt' INTO TABLE pet;
