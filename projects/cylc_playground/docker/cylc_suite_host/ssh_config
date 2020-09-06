@@ -1,3 +1,5 @@
-Host *
-    X11Forwarding yes
-    X11UseLocalhost no
+Host cylc_job_host
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+    User cylc-user
+    LogLevel QUIET
