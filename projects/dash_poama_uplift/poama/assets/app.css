@@ -1,0 +1,31 @@
+div.layout-nav-group-list button[id^="button-category"] {
+    font-family: monospace;
+    font-size: 14px;
+    padding: 5px;
+    width: 100%;
+    text-align: left;
+    border-radius: 0px;
+}
+
+div.layout-nav-group-list {
+    margin-bottom: 5px;
+}
+
+/*
+    class starts with collaps to catch "collapsing", "collapse show" and
+    "collapse". might be good to be more explicit maybe.
+*/
+[class^="collaps"] > ul {
+    border-top-left-radius: 0px;
+    border-top-right-radius: 0px;
+}
+
+[class^="collaps"] > ul > li {
+    font-family: monospace;
+    font-size: 14px;
+    padding: 5px;
+}
+
+[class^="collaps"] > ul > li:hover {
+    background-color: #DDDDDD;
+}

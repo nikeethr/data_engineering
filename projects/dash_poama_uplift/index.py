@@ -1,6 +1,7 @@
 from poama.app import app
 from poama.layouts import layout_main
-# import poama.callbacks
+import poama.callbacks
+
 
 __DEV = True
 __VM_HOST = "192.168.56.101"
