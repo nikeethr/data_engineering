@@ -1,31 +1,61 @@
-div.layout-nav-group-list button[id^="button-category"] {
+#layout-nav .card-product-group-header {
+    color: white;
+}
+
+#layout-nav .card-product-group-body {
+    padding: 2px 2px 0px 2px;
+}
+
+#layout-nav .card-product-group {
+    margin-bottom: 5px;
+}
+
+#layout-nav div.layout-nav-group-list button[id^="button-category"] {
     font-family: monospace;
     font-size: 14px;
-    padding: 5px;
+    padding: 2px;
     width: 100%;
     text-align: left;
     border-radius: 0px;
 }
 
-div.layout-nav-group-list {
-    margin-bottom: 5px;
+#layout-nav div.layout-nav-group-list {
+    margin-bottom: 3px;
 }
 
 /*
     class starts with collaps to catch "collapsing", "collapse show" and
     "collapse". might be good to be more explicit maybe.
 */
-[class^="collaps"] > ul {
+#layout-nav [class^="collaps"] > ul {
     border-top-left-radius: 0px;
     border-top-right-radius: 0px;
 }
 
-[class^="collaps"] > ul > li {
+#layout-nav [class^="collaps"] > ul > li {
     font-family: monospace;
-    font-size: 14px;
+    font-size: 13px;
     padding: 5px;
 }
 
-[class^="collaps"] > ul > li:hover {
+#layout-nav [class^="collaps"] > ul > li:hover {
     background-color: #DDDDDD;
+}
+
+#layout-nav button.button-category-item {
+    background-color: transparent;
+    font-color: inherit;
+    width: 100%;
+    padding: 0px;
+    padding-left: 5px;
+    text-align: left;
+}
+
+#layout-nav button.button-category-item-selected {
+    background-color: darknavy;
+    font-color: white;
+    width: 100%;
+    padding: 0px;
+    padding-left: 5px;
+    text-align: left;
 }
