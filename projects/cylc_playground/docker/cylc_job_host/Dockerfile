@@ -33,12 +33,9 @@ RUN dnf -y install \
         gcc gcc-c++ make \
         git \
         python2 python2-devel python2-pip \
-        graphviz graphviz-devel \
-        pygtk2 \
         rsync \
         at \
-        sudo \
-        vim && \
+        sudo && \
     dnf clean all
 
 # install pip packages
@@ -48,12 +45,9 @@ RUN pip2 install -r /tmp/requirements.txt
 
 # --- Install SSH ---
 # install openssh-server
-RUN yum -y install --enablerepo=PowerTools \
+RUN yum -y install \
         openssh-server \
-        openssh-clients \
-        xorg-x11-server-Xorg \
-        xorg-x11-xauth \
-        xorg-x11-apps && \
+        openssh-clients && \
     yum clean all
 # ---
 
@@ -91,7 +85,6 @@ RUN groupadd $MYGROUP && \
 # update ssh settings
 RUN echo "X11UseLocalhost no" >> /etc/ssh/sshd_config
 
-
 # Expose port 22 used for SSH connections
 EXPOSE 22
 
@@ -102,7 +95,7 @@ RUN systemctl enable sshd
 # RUN /usr/sbin/sshd-keygen
 # For later centos:
 RUN ssh-keygen -A
-# The above will create a key for each key type
+# The above will create a host key for each key type
 
 # This should be removed after installation, but doing this just incase to
 # allow SSH login
@@ -113,17 +106,11 @@ RUN rm -rf /run/nologin
 USER $MYUSER
 
 WORKDIR /home/$MYUSER
-COPY --chown=$MYUSER:$MYGROUP .vimrc .
 COPY --chown=$MYUSER:$MYGROUP docker_entrypoint.sh .
-COPY --chown=$MYUSER:$MYGROUP ssh_config .ssh/config
 
 # --- move this to rightful spots ---
-# setup cylc config/editor/examples
-RUN cylc get-global-config > /opt/cylc/etc/global.rc && \
-    cylc import-examples /tmp && \
-    mv ~/cylc-run/examples/$(cylc --version)/tutorial ~/cylc-run/tut && \
-    mkdir -p ~/.vim/syntax && \
-    cp /opt/cylc/etc/syntax/cylc.vim ~/.vim/syntax/cylc.vim
+# setup cylc config
+RUN cylc get-global-config > /opt/cylc/etc/global.rc
 # ---
 
 USER root

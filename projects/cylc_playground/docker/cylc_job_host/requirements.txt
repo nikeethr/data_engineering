@@ -1,0 +1,5 @@
+empy
+mock
+requests
+pyopenssl==18.0.0
+sphinx>=1.5.3,<1.7.9

@@ -1,5 +1,6 @@
 version: '3'
 services:
+    # service to host and run suites
     cylc_suite_host:
         container_name: cylc_suite_host
         image: cylc/suite_host
@@ -12,16 +13,38 @@ services:
         # stdin_open: true      # -i = true (in docker run)
         # tty: true             # run -t = true (in docker run)
         privileged: true        # needed for running services
-        hostname: suite_host
-        domainname: cylc
         build:
             context: ./cylc_suite_host
         networks:
-            - cylc_net
+            cylc_net:
+                aliases:
+                    - suite_host
+        hostname: suite_host
+        domainname: cylc
         volumes:
             # needed for running services
-            - /sys/fs/cgroup:/sys/fs/cgroup:ro 
+            - /sys/fs/cgroup:/sys/fs/cgroup:ro
         env_file:
             - ./cylc_suite_host/.env
+    # service to run remote jobs
+    cylc_job_host:
+        container_name: cylc_job_host
+        image: cylc/job_host
+        expose:
+            - "22"
+            - "43001-43100"
+        privileged: true
+        build:
+            context: ./cylc_job_host
+        networks:
+            cylc_net:
+                aliases:
+                    - job_host
+        hostname: job_host
+        domainname: cylc
+        volumes:
+            - /sys/fs/cgroup:/sys/fs/cgroup:ro 
+        env_file:
+            - ./cylc_job_host/.env
 networks:
     cylc_net:
