@@ -33,8 +33,6 @@
 }
 
 #layout-nav [class^="collaps"] > ul > li {
-    font-family: monospace;
-    font-size: 13px;
     padding: 5px;
 }
 
@@ -42,7 +40,10 @@
     background-color: #DDDDDD;
 }
 
-#layout-nav button.button-category-item {
+#layout-nav button.button-category-item, 
+#layout-nav button.button-category-item-selected {
+    font-family: monospace;
+    font-size: 12px;
     background-color: transparent;
     font-color: inherit;
     width: 100%;
@@ -53,9 +54,4 @@
 
 #layout-nav button.button-category-item-selected {
     background-color: darknavy;
-    font-color: white;
-    width: 100%;
-    padding: 0px;
-    padding-left: 5px;
-    text-align: left;
 }

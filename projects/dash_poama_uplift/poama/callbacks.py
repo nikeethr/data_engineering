@@ -32,8 +32,10 @@ def cb_nav_item(cat_config):
     inputs = []
     states = []
 
-    def on_select_nav_item(n_clicks, classes):
+    def on_select_nav_item(n_clicks):
         # see: https://dash.plotly.com/advanced-callbacks
+        # The clientside version of callback_context also works:
+        #   - dash_clientside.callback_context.triggered
         ctx = dash.callback_context
 
         if not ctx.triggered:
@@ -41,8 +43,6 @@ def cb_nav_item(cat_config):
 
         button_prop_id = ctx.triggered[0]['prop_id'].split('.')
         props = json.loads(button_prop_id[0])
-        ctx.inputs[0][]
-        import pdb; pdb.set_trace()
         return [props["key"]], classes
 
     app.callback(
