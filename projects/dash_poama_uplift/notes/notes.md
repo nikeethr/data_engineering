@@ -33,3 +33,8 @@ conda create -n dash-poama python=3
 conda activate dash-poama
 pip install requirements.txt
 ```
+
+
+### Deploy to EB using docker
+
+https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/single-container-docker.html

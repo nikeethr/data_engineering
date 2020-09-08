@@ -1,3 +1,17 @@
+.card {
+    margin-bottom: 0.5rem;
+}
+
+.card-body {
+    padding: 0.75rem;
+}
+
+.card-header {
+    padding: 0.75rem;
+    padding-bottom: 0.5rem;
+    padding-top: 0.5rem;
+}
+
 #layout-nav .card-product-group-header {
     color: white;
 }
@@ -7,7 +21,7 @@
 }
 
 #layout-nav .card-product-group {
-    margin-bottom: 5px;
+    margin-bottom: 0.5rem;
 }
 
 #layout-nav div.layout-nav-group-list button[id^="button-category"] {

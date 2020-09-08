@@ -4,15 +4,20 @@ import dash_html_components as html
 import dash_daq as daq
 
 from . import nav_config
+from . import states
 
 
+# TODO: initialise layout with default product
 def layout_main():
-    return dbc.Container(
-        dbc.Row([
-            dbc.Col(layout_nav(), width=3),
-            dbc.Col(layout_content(), width=9)
-        ], no_gutters=False), fluid=False
-    )
+    return html.Div([
+        states.store_current_product(),
+        dbc.Container(
+            dbc.Row([
+                dbc.Col(layout_nav(), width=3),
+                dbc.Col(layout_content(), width=9)
+            ], no_gutters=False)
+        ),
+    ])
 
 
 def layout_nav():
@@ -66,5 +71,31 @@ def layout_nav_group_list(product_group, category):
     ], className="layout-nav-group-list")
 
 
+def layout_controls():
+    # in order
+    # | variable | domain | forecast_period | value |
+    return dbc.Card([
+        dbc.CardHeader("Controls"),
+        dbc.CardBody(dbc.Row([
+            dbc.Col([
+                dbc.Label('variable'),
+                dbc.Select(id='select-variable')
+            ]),
+            dbc.Col([
+                dbc.Label('domain'),
+                dbc.Select(id='select-domain')
+            ]),
+            dbc.Col([
+                dbc.Label('forecast_period'),
+                dbc.Select(id='select-forecast_period')
+            ]),
+            dbc.Col([
+                dbc.Label('value'),
+                dbc.Select(id='select-value')
+            ]),
+        ]))
+    ], color='primary', outline=True)
+
+
 def layout_content():
-    return html.Div()
+    return html.Div(layout_controls())
