@@ -1,5 +1,8 @@
+import os
+import base64
 import json
 import dash
+import requests
 from dash.dependencies import (
     Input, Output, State, ALL, MATCH
 )
@@ -94,6 +97,44 @@ def cb_update_controls():
     )(on_change_current_product)
 
 
+def cb_update_product_image():
+    def on_control_change(variable, domain, forecast_period, value, ts, data):
+        if not ts or not data:
+            raise PreventUpdate
+
+        image_path = nav_config.get_image_path(
+        data, variable, domain, forecast_period, value)
+        # TODO: move somewhere else
+        AUTH = (os.environ['POAMA_USER'], os.environ['POAMA_PASSWD'])
+
+        r = requests.get(
+            image_path, auth=AUTH, allow_redirects=True, stream=True
+        )
+
+        if r.status_code != 200:
+            raise PreventUpdate
+
+        r.decode_content = True
+        img = r.raw.read()
+
+        return 'data:image/png;base64,{}'.format(
+            base64.b64encode(img).decode('utf-8'))
+
+    inputs_value = [
+        Input("select-{}".format(control), "value")
+        for control in nav_config.CONTROL_KEYS
+    ]
+
+    app.callback(
+        Output('img-product', 'src'),
+        [
+            *inputs_value,
+            Input("store-current-product", "modified_timestamp")
+        ],
+        [ State("store-current-product", "data") ]
+    )(on_control_change)
+
+
 # register callback functions to expand/collapse nav
 # TODO: convert all of these to client-side
 def register_server_side_callbacks():
@@ -108,6 +149,7 @@ def register_server_side_callbacks():
 
     cb_select_product(cat_config, prod_config)
     cb_update_controls()
+    cb_update_product_image()
 
 # TODO: possibly move to index.py??
 register_server_side_callbacks()

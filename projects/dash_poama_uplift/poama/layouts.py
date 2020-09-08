@@ -15,8 +15,8 @@ def layout_main():
             dbc.Row([
                 dbc.Col(layout_nav(), width=3),
                 dbc.Col(layout_content(), width=9)
-            ], no_gutters=False)
-        ),
+            ], no_gutters=False), fluid=True
+        )
     ])
 
 
@@ -44,7 +44,6 @@ def layout_nav_info():
             dbc.Badge("ACCESS-S1 FVT", color="info", pill=True, className="mr-1"),
             dbc.Badge("dev", color="success", pill=True, className="mr-1"),
             dbc.Badge("dash v1.x", color="danger",  pill=True,className="mr-1"),
-            html.Div("Selected product", id="selected-product-name")
         ], id="nav-info-body")
     ], color="primary", outline=True)
 
@@ -97,5 +96,15 @@ def layout_controls():
     ], color='primary', outline=True)
 
 
+def layout_product_img():
+    return dbc.Card([
+        dbc.CardHeader(id="selected-product-name"),
+        dbc.CardBody(dbc.Spinner(html.Img(id='img-product')))
+    ], color='primary', outline=True)
+
+
 def layout_content():
-    return html.Div(layout_controls())
+    return html.Div([
+        layout_controls(),
+        layout_product_img()
+    ])
