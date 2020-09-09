@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  poama_dash:
+    container_name: poama_dash
+    build: ./poama_app
+    ports:
+      - "5000:5000"
+    env_file:
+        ./poama_app/.env-docker-file
+    networks:
+      - poama_net
+  nginx:
+    container_name: poama_nginx
+    build: ./nginx
+    ports:
+      - "5001:80"
+    depends_on:
+      - poama_dash
+    networks:
+      - poama_net
+networks:
+  poama_net:

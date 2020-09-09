@@ -2,4 +2,9 @@ venv
 *.pyc
 .DS_Store
 .env
+.env-file-docker
+.cache
+.git
+Makefile
 __pycache__/
+

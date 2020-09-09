@@ -114,7 +114,6 @@ def cb_update_product_image():
         if r.status_code != 200:
             raise PreventUpdate
 
-        r.decode_content = True
         img = r.raw.read()
 
         return 'data:image/png;base64,{}'.format(
