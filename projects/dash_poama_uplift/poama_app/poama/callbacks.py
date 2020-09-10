@@ -150,7 +150,11 @@ def cb_update_controls():
             value.append(product_info[control][0])
             disabled.append(product_info[control][0] == "null")
 
-        tooltip_path = nav_config.get_tooltip_image_path(product_info)
+        tooltip_path = nav_config.get_tooltip_image_path(product_name, product_info)
+        r = requests.head(tooltip_path)
+
+        if r.status_code != 200:
+            tooltip_path = app.get_asset_url(nav_config.TOOLTIP_NOT_AVAILABLE)
 
         return product_name, tooltip_path, *options, *value, *disabled
 

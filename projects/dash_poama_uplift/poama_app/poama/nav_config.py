@@ -25,6 +25,7 @@ START_DATE = pytz.utc.localize(dateutil.parser.parse('20180601'))
 
 # this is a local asset
 PRODUCT_NOT_AVAILABLE = r'prod_not_avail.png'
+TOOLTIP_NOT_AVAILABLE = r'no_product_info.png'
 
 
 def get_products_config():
@@ -78,9 +79,12 @@ def get_image_path(product_data, variable, domain, forecast_period, value, date_
     )
 
 
-def get_tooltip_image_path(product_info):
-    tooltip_path = product_info.get(
-        'tooltip', '../common/img/no_product_info.png')
+def get_tooltip_image_path(product_name, product_info):
+    tooltip_path = "../common/img/example_" + product_name + ".png";
+
+    if 'tooltip' in product_info:
+        tooltip_path = product_info['tooltip']
+
     return r'{}/{}'.format(_URL, tooltip_path)
 
 
