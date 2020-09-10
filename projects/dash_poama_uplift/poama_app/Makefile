@@ -1,5 +1,6 @@
 CONTAINER_NAME=poama_dash
 IMAGE_NAME=poama_dash:latest
+EB_ENV=poama-dash-uplift-poc
 
 build:
 	docker build -t ${IMAGE_NAME} .
@@ -21,3 +22,21 @@ rm: stop
 
 clean:
 	docker system prune
+
+eb-init:
+	eb init -i
+
+eb-create:
+	eb create ${EB_ENV} --instance-types t2.micro --single
+
+eb-deploy:
+	eb deploy ${EB_ENV}
+
+eb-terminate:
+	eb terminate ${EB_ENV}
+
+eb-restore:
+	eb restore
+
+eb-ssh:
+	eb ssh ${EB_ENV}

@@ -1,0 +1,84 @@
+@media (min-width: 1366px) {
+    .container-fluid {
+        padding-left: 10%;
+        padding-right: 10%;
+    }
+}
+
+.card {
+    margin-bottom: 0.5rem;
+}
+
+.card-body {
+    padding: 0.75rem;
+}
+
+.card-header {
+    padding: 0.75rem;
+    padding-bottom: 0.5rem;
+    padding-top: 0.5rem;
+}
+
+#layout-nav .card-product-group-header {
+    color: white;
+}
+
+#layout-nav .card-product-group-body {
+    padding: 2px 2px 0px 2px;
+}
+
+#layout-nav .card-product-group {
+    margin-bottom: 0.5rem;
+}
+
+#layout-nav div.layout-nav-group-list button[id^="button-category"] {
+    font-family: monospace;
+    font-size: 14px;
+    padding: 2px;
+    width: 100%;
+    text-align: left;
+    border-radius: 0px;
+}
+
+#layout-nav div.layout-nav-group-list {
+    margin-bottom: 3px;
+}
+
+/*
+    class starts with collaps to catch "collapsing", "collapse show" and
+    "collapse". might be good to be more explicit maybe.
+*/
+#layout-nav [class^="collaps"] > ul {
+    border-top-left-radius: 0px;
+    border-top-right-radius: 0px;
+}
+
+#layout-nav [class^="collaps"] > ul > li {
+    padding: 5px;
+}
+
+#layout-nav [class^="collaps"] > ul > li:hover {
+    background-color: #DDDDDD;
+}
+
+#layout-nav button.button-category-item, 
+#layout-nav button.button-category-item-selected {
+    font-family: monospace;
+    font-size: 12px;
+    background-color: transparent;
+    font-color: inherit;
+    width: 100%;
+    padding: 0px;
+    padding-left: 5px;
+    text-align: left;
+}
+
+#layout-nav button.button-category-item-selected {
+    background-color: darknavy;
+}
+
+#img-product {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+}

@@ -8,3 +8,7 @@ venv
 Makefile
 __pycache__/
 
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+.git
+.gitignore

@@ -86,3 +86,15 @@ Simply run the commands
 https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/single-container-docker.html
 
 
+#### Create CLI user for EB
+https://aws.amazon.com/getting-started/hands-on/set-up-command-line-elastic-beanstalk/
+
+#### Environment variables
+Create a file in  .ebextensions/environment.config
+```
+option_settings:
+    aws:elasticbeanstalk:application:environment:
+        POAMA_USER:xxx
+        POAMA_PASSWD:xxx
+        DASH_SECRET_KEY:xxx
+```
