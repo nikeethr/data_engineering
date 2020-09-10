@@ -5,7 +5,7 @@ EB_ENV=poama-dash-uplift-poc
 build:
 	docker build -t ${IMAGE_NAME} .
 
-run:
+run: build
 	docker run \
 		-d -p 5000:5000 --name=${CONTAINER_NAME} \
 		--env-file .env-docker-file \
@@ -29,8 +29,8 @@ eb-init:
 eb-create:
 	eb create ${EB_ENV} --instance-types t2.micro --single
 
-eb-deploy:
-	eb deploy ${EB_ENV}
+eb-deploy-staged:
+	eb deploy ${EB_ENV} --staged
 
 eb-terminate:
 	eb terminate ${EB_ENV}
