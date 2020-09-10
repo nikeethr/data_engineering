@@ -2,6 +2,7 @@ import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_daq as daq
+import datetime
 
 from . import nav_config
 from . import states
@@ -37,13 +38,52 @@ def layout_nav():
     ])
 
 
+
+def layout_date():
+    dt_max = nav_config.get_max_date()
+
+    return html.Div([
+        dbc.Label('Forecast start date', id='forecast-start-date-label'),
+        html.Div([
+            dbc.Button('<', color='primary', id='button-prev-fc-date'),
+            dcc.DatePickerSingle(
+                min_date_allowed=nav_config.START_DATE,
+                max_date_allowed=dt_max.date(),
+                display_format='YYYY-MM-DD',
+                date=str(dt_max.date()),
+                id='forecast-start-date'
+            ),
+            dbc.Button('>', color='primary',
+                id='button-next-fc-date', disabled=True)
+        ])
+    ])
+
+
+
+def layout_tooltip():
+    return html.Div([
+        dbc.Button( "?", id="button-tooltip", color="primary"),
+        dbc.Toast(
+            html.Img(id='tooltip-image'),
+            id="tooltip-toast",
+            header="Product info",
+            is_open=False,
+            dismissable=True,
+            icon="primary"
+        ),
+    ], id='container-toast')
+
+
 def layout_nav_info():
     return dbc.Card([
         dbc.CardHeader("Info"),
         dbc.CardBody([
-            dbc.Badge("ACCESS-S1 FVT", color="info", pill=True, className="mr-1"),
-            dbc.Badge("dev", color="success", pill=True, className="mr-1"),
-            dbc.Badge("dash v1.x", color="danger",  pill=True,className="mr-1"),
+            html.Div([
+                dbc.Badge("ACCESS-S1 FVT", color="info", pill=True, className="mr-1"),
+                dbc.Badge("dev", color="success", pill=True, className="mr-1"),
+                dbc.Badge("dash v1.x", color="danger",  pill=True,className="mr-1"),
+            ]),
+            layout_date()
         ], id="nav-info-body")
     ], color="primary", outline=True)
 
@@ -98,7 +138,10 @@ def layout_controls():
 
 def layout_product_img():
     return dbc.Card([
-        dbc.CardHeader(id="selected-product-name"),
+        dbc.CardHeader([
+            html.Div(id="selected-product-name"),
+            layout_tooltip()
+        ]),
         dbc.CardBody(dbc.Spinner(html.Img(id='img-product')))
     ], color='primary', outline=True)
 

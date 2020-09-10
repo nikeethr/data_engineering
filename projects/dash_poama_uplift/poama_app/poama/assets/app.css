@@ -82,3 +82,66 @@
     margin: 0 auto;
     max-width: 100%;
 }
+
+#forecast-start-date {
+    display: inline-block;
+    width: 70%;
+    padding: 3px;
+}
+
+#forecast-start-date .DateInput {
+    max-width: 100%;
+    width: auto;
+    border-radius: 5px;
+    border: #DDDDDD 1px solid;
+}
+
+#forecast-start-date .SingleDatePickerInput {
+    border: none !important;
+}
+
+#forecast-start-date input#date {
+    border-radius: 5px;
+    padding: 5px;
+    padding-left: 10px;
+}
+
+#forecast-start-date-label {
+    padding-top: 5px;
+    margin-top: 10px;
+    border-top: #DDDDDD 1px solid;
+    width: 100%;
+}
+
+#selected-product-name {
+    display: inline-block;
+}
+
+#container-toast {
+    display: inline-block;
+    margin-left: 10px;
+}
+
+#tooltip-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    max-width: 60%;
+}
+
+#button-tooltip {
+    border-radius: 50%;
+    height: 24px;
+    width: 24px;
+    padding: 0;
+}
+
+#tooltip-image {
+    width: 100%;
+}
+
+#button-prev-fc-date, #button-next-fc-date {
+    display: inline-block;
+    width: 14%;
+    padding: 5px;
+}

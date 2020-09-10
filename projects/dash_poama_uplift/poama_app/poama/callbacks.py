@@ -1,15 +1,89 @@
 import os
 import base64
 import json
+import pytz
+import dateutil.parser
 import dash
 import requests
 from dash.dependencies import (
     Input, Output, State, ALL, MATCH
 )
 from dash.exceptions import PreventUpdate
+from dateutil.relativedelta import relativedelta
 
 from .app import app
 from . import nav_config
+
+
+
+@app.callback(
+    Output("forecast-start-date", "date"),
+    [
+        Input("button-prev-fc-date", "n_clicks"),
+        Input("button-next-fc-date", "n_clicks")
+    ],
+    State("forecast-start-date", "date")
+)
+def adjust_forecast_date(n_prev, n_next, date_):
+    # see: https://dash.plotly.com/advanced-callbacks
+    # The clientside version of callback_context also works:
+    #   - dash_clientside.callback_context.triggered
+    ctx = dash.callback_context
+
+    if not ctx.triggered:
+        raise PreventUpdate
+
+    try:
+        dt = dateutil.parser.parse(date_)
+        dt = pytz.utc.localize(dt)
+    # TODO: specific exception
+    except Exception as e:
+        raise PreventUpdate
+
+    button_prop_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+    if 'next' in button_prop_id:
+        dt_new = dt + relativedelta(days=1)
+        return str(dt_new.date())
+    elif 'prev' in button_prop_id:
+        dt_new = dt - relativedelta(days=1)
+        return str(dt_new.date())
+    else:
+        raise PreventUpdate
+
+
+@app.callback(
+    [
+        Output("button-prev-fc-date", "disabled"),
+        Output("button-next-fc-date", "disabled")
+    ],
+    [ Input("forecast-start-date", "date") ]
+)
+def disable_forecast_adjustment(date_):
+    try:
+        dt = dateutil.parser.parse(date_)
+        dt = pytz.utc.localize(dt)
+    # TODO: specific exception
+    except Exception:
+        raise PreventUpdate
+
+    dt_max = nav_config.get_max_date()
+    dt_min = nav_config.START_DATE
+
+    if dt.date() <= dt_min.date():
+        return [True, False]
+    elif dt.date() >= dt_max.date():
+        return [False, True]
+
+    return [False, False]
+
+
+@app.callback(
+    Output("tooltip-toast", "is_open"),
+    [Input("button-tooltip", "n_clicks")],
+)
+def open_toast(n):
+    return True if n else False
 
 
 def cb_collapse(elem_ids):
@@ -31,6 +105,7 @@ def cb_collapse(elem_ids):
             State(elem_ids["button"], "children")
         ],
     )(toggle_collapse)
+
 
 
 def cb_select_product(cat_config, prod_config):
@@ -74,7 +149,10 @@ def cb_update_controls():
             ])
             value.append(product_info[control][0])
             disabled.append(product_info[control][0] == "null")
-        return product_name, *options, *value, *disabled
+
+        tooltip_path = nav_config.get_tooltip_image_path(product_info)
+
+        return product_name, tooltip_path, *options, *value, *disabled
 
     outputs_options = []
     outputs_value = []
@@ -88,6 +166,7 @@ def cb_update_controls():
     app.callback(
         [
             Output("selected-product-name", "children"),
+            Output("tooltip-image", "src"),
             *outputs_options,
             *outputs_value,
             *outputs_disabled
@@ -98,12 +177,19 @@ def cb_update_controls():
 
 
 def cb_update_product_image():
-    def on_control_change(variable, domain, forecast_period, value, ts, data):
+    def on_control_change(variable, domain, forecast_period, value, date_, ts, data):
         if not ts or not data:
             raise PreventUpdate
 
+        try:
+            dt = dateutil.parser.parse(date_)
+            dt = pytz.utc.localize(dt)
+        # TODO: specific exception
+        except Exception:
+            raise PreventUpdate
+
         image_path = nav_config.get_image_path(
-        data, variable, domain, forecast_period, value)
+        data, variable, domain, forecast_period, value, dt)
         # TODO: move somewhere else
         AUTH = (os.environ['POAMA_USER'], os.environ['POAMA_PASSWD'])
 
@@ -112,7 +198,7 @@ def cb_update_product_image():
         )
 
         if r.status_code != 200:
-            raise PreventUpdate
+            return app.get_asset_url(nav_config.PRODUCT_NOT_AVAILABLE)
 
         img = r.raw.read()
 
@@ -128,6 +214,7 @@ def cb_update_product_image():
         Output('img-product', 'src'),
         [
             *inputs_value,
+            Input("forecast-start-date", "date"),
             Input("store-current-product", "modified_timestamp")
         ],
         [ State("store-current-product", "data") ]

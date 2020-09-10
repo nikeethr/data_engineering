@@ -1,5 +1,9 @@
 import os
 import json
+import pytz
+import datetime
+import dateutil.parser
+from dateutil.relativedelta import relativedelta
 
 
 # internal constants
@@ -17,6 +21,10 @@ _URL = r'http://poama.bom.gov.au/access-s1/bom'
 
 # external constants
 CONTROL_KEYS = ['variable', 'domain', 'forecast_period', 'value']
+START_DATE = pytz.utc.localize(dateutil.parser.parse('20180601'))
+
+# this is a local asset
+PRODUCT_NOT_AVAILABLE = r'prod_not_avail.png'
 
 
 def get_products_config():
@@ -48,13 +56,11 @@ def get_nav_item_id(product_group, category, item):
     return 'group-item-{}-{}-{}'.format(product_group, category, item)
 
 
-def get_image_path(product_data, variable, domain, forecast_period, value):
+def get_image_path(product_data, variable, domain, forecast_period, value, date_):
     product_id = list(product_data.keys())[0]
     product_info = product_data[product_id]
     base_product = product_info['code'] if 'code' in product_info else product_id
 
-    # TODO need to implement date
-    DATE = '20200901'
     img_dir = r'/'.join([
         x for x in [base_product, variable, domain] if x != 'null'
     ])
@@ -67,6 +73,20 @@ def get_image_path(product_data, variable, domain, forecast_period, value):
         base_url=_URL,
         img_dir=img_dir,
         prefix=product_prefix,
-        date=DATE,
+        date=date_.strftime('%Y%m%d'),
         cast=_CAST
     )
+
+
+def get_tooltip_image_path(product_info):
+    tooltip_path = product_info.get(
+        'tooltip', '../common/img/no_product_info.png')
+    return r'{}/{}'.format(_URL, tooltip_path)
+
+
+# TODO: this should probably go into a separate helper I'm lazy.
+def get_max_date():
+    MAX_DAYS_BEFORE_NOW = 3
+    dt_now = datetime.datetime.now(datetime.timezone.utc)
+    dt_max = dt_now - relativedelta(days=3)
+    return dt_max
