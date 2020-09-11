@@ -153,7 +153,7 @@ def cb_update_controls():
         tooltip_path = nav_config.get_tooltip_image_path(product_name, product_info)
         r = requests.head(tooltip_path)
 
-        if r.status_code != 200:
+        if not r.ok:
             tooltip_path = app.get_asset_url(nav_config.TOOLTIP_NOT_AVAILABLE)
 
         return product_name, tooltip_path, *options, *value, *disabled
@@ -201,7 +201,7 @@ def cb_update_product_image():
             image_path, auth=AUTH, allow_redirects=True, stream=True
         )
 
-        if r.status_code != 200:
+        if not r.ok:
             return app.get_asset_url(nav_config.PRODUCT_NOT_AVAILABLE)
 
         img = r.raw.read()
