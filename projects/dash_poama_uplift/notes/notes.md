@@ -5,9 +5,36 @@
 
 ### TODO
 
-- [ ] Setup repo conda environment etc.
-- [ ] Get sample config
-- [ ] Create base layout of app
+- [ ] Separate image fetching/data fetching stuff into a separate container
+  with flask service
+    - This is so that the data api container can be updated to source
+      images/json and access user database etc. without needing to change the
+      view (dash) app.
+    - Make sure not to expose the data api - it should only be able to talk to
+      the dash container directly
+    - Proper authentication needs to be put in place for the dash app (see
+      below). Which should translate to fetching stuff using the data container
+      which has access to private resources.
+- [ ] Change callbacks to be client side js (as much as possible - reduces server load)
+- [ ] Change image fetching logic to send a blob instead of entire base64 Data URI
+- [ ] Upgrade login in dash app e.g. using flask-login
+- [ ] handle data comms between dash-flask container and data-flask container
+      (i.e. restrict calling data api)
+- [ ] Upgrade elastic beanstalk deployment to multi-container app
+- [ ] Add plotly zoom feature on images
+- [ ] Make sample plotly graph from dummy data
+- [ ] Make sample plotly graph with real data from a product (data needs to be
+  hosted somewhere...)
+- [ ] Update notes/docs/instructions and comment code a bit better
+
+Done:
+- [x] Setup repo conda environment etc.
+- [x] Get sample config
+- [x] Create base layout of app
+- [x] Register callbacks
+- [x] Dockerize it
+- [x] Deploy to elastic beanstalk
+
 
 ### Setup repo
 
