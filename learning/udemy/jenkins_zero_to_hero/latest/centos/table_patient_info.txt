@@ -1,0 +1,5 @@
+name	gender	birth
+Sam	m	1992-05-20
+Jenny	f	1957-09-03
+Lawrence	m	1923-10-01
+Isaac	m	1997-03-30
