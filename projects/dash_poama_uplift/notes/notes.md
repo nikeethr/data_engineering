@@ -1,9 +1,6 @@
-# Poama dash app
+# poama FVT uplift
 
-
-## Rough notes
-
-### TODO
+## TODO
 
 - [ ] Separate image fetching/data fetching stuff into a separate container
   with flask service
@@ -36,6 +33,10 @@ Done:
 - [x] Deploy to elastic beanstalk
 
 
+# Rough Notes
+
+## Dash app
+
 ### Setup repo
 
 - `requirements.txt`: contains the requirements of all the packages needed to
@@ -58,7 +59,7 @@ Assume conda is install then:
 ```
 conda create -n dash-poama python=3
 conda activate dash-poama
-pip install requirements.txt
+pip install -r requirements.txt
 ```
 
 ### Environment setup
@@ -110,8 +111,9 @@ Simply run the commands
 
 ### Deploy to EB using docker
 
-https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/single-container-docker.html
+**Advisable to create separate conda environment for EB CLI**:
 
+https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/single-container-docker.html
 
 #### Create CLI user for EB
 https://aws.amazon.com/getting-started/hands-on/set-up-command-line-elastic-beanstalk/
@@ -125,3 +127,56 @@ option_settings:
         POAMA_PASSWD:xxx
         DASH_SECRET_KEY:xxx
 ```
+
+## API
+
+### Create separate environment for API dev
+
+```
+conda create -n 'poama-api' python=3
+conda activate poama-api
+pip install -r requirements.txt
+```
+
+### Create flask api to serve image
+
+Initially we will expose the port for dev but will be restricted to only the
+dash app
+
+Setup:
+- Create flask app with route to GET image using a parameter e.g. `product_id`
+- Create secret key + gunicorn instructions to run app in docker (similar to
+  dash app)
+- Dockerfile
+
+
+### Run all services together
+
+#### update docker-compose
+
+#### hook up api with dash app
+
+#### update nginx conf
+
+To test out directly accessing API.
+
+
+### Authentication
+
+There will be two parts:
+- The dashboard will require a login which then allows the client to reach the
+  API
+    - We can use flask-login for this
+- The API will require auth (e.g. if we want to access it directly in the
+  future). There will be two parts for this:
+    - Simple login to generate token (e.g. can use flask login)
+    - Token generation: e.g. using JWT - the dash app should store this in the
+      browser session
+    - API will have to require a valid token
+
+**TODO: at the moment there is no user database and credentials are stored
+somewhere secret that the server can access**
+
+#### Add flask-login for dash app
+
+#### Add token authentication for api
