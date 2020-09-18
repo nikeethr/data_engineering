@@ -6,3 +6,6 @@ down:
 
 build:
 	docker-compose build
+
+sh-rabbitmq:
+	docker exec -it rabbitmq bash
