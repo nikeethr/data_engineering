@@ -1,0 +1,12 @@
+version: '3'
+services:
+    rabbitmq:
+        container_name: rabbitmq
+        hostname: my-rabbit
+        image: rabbitmq:3-management-alpine
+        ports:
+            - 5672:5672         # MQ listens here 
+            - 15672:15672       # For management console
+        volumes:
+            - ./rabbitmq/etc/rabbitmq.config:/etc/rabbitmq/rabbitmq.config:ro
+            - ./rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json:ro

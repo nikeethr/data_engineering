@@ -14,4 +14,4 @@ COPY . .
 
 EXPOSE 5000
 
-CMD [ "gunicorn", "-b", "0.0.0.0:5000", "-w", "2", "poama_app:server" ]
+CMD [ "gunicorn", "-b", "0.0.0.0:5000", "-w", "4", "poama_api:server" ]

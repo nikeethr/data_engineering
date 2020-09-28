@@ -1,0 +1,13 @@
+venv
+*.pyc
+.DS_Store
+.env
+.env-docker-file
+.elasticbeanstalk
+.ebextensions
+__pycache__/
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
