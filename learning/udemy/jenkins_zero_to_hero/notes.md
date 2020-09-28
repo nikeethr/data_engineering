@@ -703,3 +703,115 @@ interestingly in jenkins logs it blocks out these credentials.
 !IMPORTANT: When doing `docker compose down` all scripts/things stored
 temporarily get wiped out. So you will need to create a workdir volume or mount
 to persist these.
+
+
+Jenkins & Ansible
+---
+
+## Install Ansible in Docker
+
+- Need to create a jenkins container with ansible installed.
+
+- Needed to change USER to root so that ansible can be installed and then back to
+USER jenkins again
+
+- Used pip to install ansible so that it is independent of the linux distro.
+
+## Make SSH permenant within jenkins container
+
+- Using volumes to do this... since they are persistent
+
+- create ansible folder within `jenkins_home` directory
+
+- move remote key within centos container to the `jenkins_home/ansible` folder
+
+- note that you cannot spin up a container when you are within the
+  `jenkins_home` directory in the VM due to permission issues.
+
+- The safe way to do this is probably to tear down the container and then copy
+  over stuff.
+
+## Ansible inventory
+
+- create ansible hosts configuration to connect into `remote_host` via ansible
+
+According to ansible:
+
+> **Inventory**
+> A list of managed nodes. An inventory file is also sometimes called a
+> “hostfile”. 
+
+Which alludes to why the config is called an inventory.
+
+Strucutre:
+
+```yml
+---
+namespace:
+    hosts:
+        host1:
+            ...
+        host2:
+            ...
+        ...
+    vars:
+        ...
+```
+
+Some useful things:
+
+```yml
+- ansible_host        # name of host/ip
+- ansible_user        # user to connect with
+- ansible_connection  # e.g. ssh
+- ansible_private_key_file  # e.g. private ssh key file to allow automation
+
+```
+
+Ping:
+
+```bash
+    ansible -m ping -i hosts.yml test1
+```
+
+## First playbook
+
+Playbook simply has the a yml definition with which infrastructure (hosts) to
+use for particular tasks. And the definition of the tasks themselves which are
+predefined commands (and yml like structure) that ansible can parse and
+construct a command.
+
+Note: for a particualr playbook you need to run playbook with
+`ansible-playbook` not just `ansible`.
+
+Structure:
+
+```yml
+---
+# task group
+- name: taskgroup1
+  hosts:
+    ...
+  tasks:
+    - name: task1
+      command:
+        ...
+    - name: task2
+      ...
+    ...
+- name: taskgroup2
+  ...
+...
+
+```
+
+Run:
+
+```bash
+    ansible-playbook -i hosts.yml play.yml
+```
+
+So far:
+
+- inventory - definition of infrastructure (inventory items) to use
+- playbooks - definition of tasks to associated to above inventory items
