@@ -9,3 +9,6 @@ build:
 
 sh-rabbitmq:
 	docker exec -it rabbitmq bash
+
+sh-mysql:
+	docker exec -it mysqldb bash

@@ -10,3 +10,13 @@ services:
         volumes:
             - ./rabbitmq/etc/rabbitmq.config:/etc/rabbitmq/rabbitmq.config:ro
             - ./rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json:ro
+    mysqldb:
+        container_name: mysqldb
+        hostname: mysql-db
+        image: mysql:8.0.19
+        environment:
+            MYSQL_ROOT_PASSWORD: 1234
+        ports:
+            - 3306:3306
+        volumes:
+            - ./mysql_data:/var/lib/mysql
