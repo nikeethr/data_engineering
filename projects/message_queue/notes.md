@@ -30,3 +30,27 @@ rabbitmqctl export_definitions definitions.json
     dotnet add package RabbitMQ.Client --version 5
 ```
 - Used 5.X because that's compatible with .NET Core 2.1
+
+
+
+
+# Dotnet core app
+
+
+## Database
+
+### Scaffolding
+
+This process is used to template a data model based on existing database. e.g.
+
+```sh
+dotnet ef dbcontext scaffold "server=localhost;port=3306;user=root;password=mypass;database=sakila" MySql.Data.EntityFrameworkCore -o sakila -t actor -t film -t film_actor -t language -f
+```
+
+See: https://dev.mysql.com/doc/connector-net/en/connector-net-entityframework-core-scaffold-example.html
+
+TODO: is it possible to have a common model referred to by multiple projects...
+
+### Migration
+
+This process is to update/migrate the database assuming the data model is maintained by the app.
