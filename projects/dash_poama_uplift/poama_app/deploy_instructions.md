@@ -75,7 +75,7 @@ python -c 'import os; print(os.urandom(16))'
 
 Spins up the infrastructure on AWS to run the application.
 
-Note: for eb create/deploy/terminate teh following arbitrary envrionment name
+Note: for eb create/deploy/terminate the following arbitrary envrionment name
 is used:
 
 ```sh
@@ -108,6 +108,9 @@ Deploys updates to the application. Normally the application is part of a git
 repo in which you can automate deployment based on a particular branch.  But
 for our purpose we are just keeping it simple by doing a adhoc deployment.
 
+Note: you don't have to run deploy after the first `eb create`. It's only
+needed for subsequent updates (e.g. code changes).
+
 Run:
 
 ```sh
@@ -132,7 +135,7 @@ eb terminate ${EB_ENV}
 or alternatively:
 
 ```sh
-eb-terminate
+make eb-terminate
 ```
 
 It is possible to restore the application without needing to re-create it by
