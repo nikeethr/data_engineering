@@ -59,9 +59,9 @@ Populate the file with the following (replacing the `xxx`):
 ```
 option_settings:
     aws:elasticbeanstalk:application:environment:
-        POAMA_USER:xxx
-        POAMA_PASSWD:xxx
-        DASH_SECRET_KEY:xxx
+        POAMA_USER: xxx
+        POAMA_PASSWD: xxx
+        DASH_SECRET_KEY: xxx
 ```
 
 Where, `POAMA_USER`/`POAMA_PASSWD` is the username/password pair
