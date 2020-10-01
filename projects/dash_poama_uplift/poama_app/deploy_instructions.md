@@ -52,9 +52,9 @@ See: https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/AWSHowTo.iam.managed
 ## 3. Configure environment variables
 
 - Create `.ebextensions` directory in the base directory of the code checkout 
-- Create a file in `.ebextensions/environment.config`
+- Create a environment config file: `.ebextensions/environment.config`
 
-Populate the following (replacing the `xxx`):
+Populate the file with the following (replacing the `xxx`):
 
 ```
 option_settings:
