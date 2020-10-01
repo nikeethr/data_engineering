@@ -815,3 +815,57 @@ So far:
 
 - inventory - definition of infrastructure (inventory items) to use
 - playbooks - definition of tasks to associated to above inventory items
+
+## Integrate ansible with jenkins
+
+- Install ansible-jenkins plugin
+- Create job with ansible playbook build stage - configuration is quite
+  intuitive.
+
+### With variables
+
+To add variables you can use `"{{ VAR }}"`. for instance you can add a debug
+message by doing:
+
+```yml
+tasks:
+    - debug:
+        msg: "{{ MSG }}"
+```
+
+You can then make a parameterized job in jenkins and pass the key-value pair to
+the build stage (under advanced).
+
+### Colorize jobs
+
+To colorize ansible jobs you need an additional jenkins plugin - AnsiColor
+
+You also need to reconfigure the job to colorize (two places to do this).
+
+
+## Jenkins + Ansible + MySQL + nginx + PHP
+
+The point of this is to create a parameterized job in jenkins that can display
+a table of registered users on the browser based on the input age.
+
+- jenkins + ansible is used to build and run the job
+- mysql is used to store the data
+- nginx is the webserver
+- php grabs information from the db to display
+
+
+### Creating the database
+
+As done previously create a table in the sql container (via the remote host VM
+or otherwise).
+
+```sql
+CREATE DATABASE people_db;
+USE people_db;
+CREATE TABLE register (
+    Id INT(3) PRIMARY_KEY AUTOINCREMENT NOT NULL,
+    FirstName VARCHAR(50) NOT NULL,
+    LastName VARCHAR(50) NOT NULL,
+    Age INT(4)
+);
+```
