@@ -879,3 +879,11 @@ CREATE TABLE register (
   based tool that can do this)
 - A simple script can be used to process the script and populate entries using
   `awk` command. See `./latest/jenkins_ansible/insert_users.sh`
+- Run script on db (i.e. copy files to db container first and run)
+
+Note: If you make a mistake with the script or want to regenerate the table you
+can clear the table by doing:
+
+```sql
+DELETE FROM ${TABLE_NAME}
+```

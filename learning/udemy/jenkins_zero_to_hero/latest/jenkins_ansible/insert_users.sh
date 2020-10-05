@@ -9,7 +9,7 @@ DB_NAME=users_db
 DB_TABLE=register
 
 query=$(awk 'BEGIN {
-    print "INSERT INTO '$DB_TABLE' (Id, FirstName, LastName, Age) VALUES"
+    printf("INSERT INTO '$DB_TABLE' (Id, FirstName, LastName, Age) VALUES")
     maxlines = 50
 }
 {
@@ -18,13 +18,13 @@ query=$(awk 'BEGIN {
     close(cmd)
 
     if (NR <= maxlines) {
-        printf("\\n\\t(%s, %s, %s, %s)", NR, $1, $2, age)
+        printf("\n\t(%s, `%s`, `%s`, %s)", NR, $1, $2, age)
     }
-    if (NR < maxlines) { print(",") }
-    if (NR == maxlines) { print(";") }
+    if (NR < maxlines) { printf(",") }
+    if (NR == maxlines) { printf(";") }
 }
 END {}' $1)
 
-echo $query
+echo "${query}"
 
-mysql --user=$DB_USER --password=$DB_PASSWD $DB_NAME $query
+mysql --host=db --user=$DB_USER --password=$DB_PASSWD -D $DB_NAME -e "${query}"
