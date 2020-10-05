@@ -1,0 +1,6 @@
+---
+- name: hello world
+  hosts: test
+  tasks:
+    - name: say hello world
+      shell: echo Hello World > /tmp/ansible-hello

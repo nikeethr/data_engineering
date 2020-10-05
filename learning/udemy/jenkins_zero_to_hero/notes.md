@@ -724,6 +724,7 @@ USER jenkins again
 - create ansible folder within `jenkins_home` directory
 
 - move remote key within centos container to the `jenkins_home/ansible` folder
+  (this will be used by ansible to connect into the remote host)
 
 - note that you cannot spin up a container when you are within the
   `jenkins_home` directory in the VM due to permission issues.
@@ -856,6 +857,8 @@ a table of registered users on the browser based on the input age.
 
 ### Creating the database
 
+**Create table**
+
 As done previously create a table in the sql container (via the remote host VM
 or otherwise).
 
@@ -869,3 +872,10 @@ CREATE TABLE register (
     Age INT(4)
 );
 ```
+
+**Populate users**
+
+- Download list of random name generator (can search google for a simple web
+  based tool that can do this)
+- A simple script can be used to process the script and populate entries using
+  `awk` command. See `./latest/jenkins_ansible/insert_users.sh`
