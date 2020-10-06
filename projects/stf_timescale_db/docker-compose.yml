@@ -1,0 +1,18 @@
+version: '3'
+services:
+    stf_db:
+        container_name: stf_db
+        hostname: stf_db
+        image: timescale/timescaledb-postgis:latest-pg12
+        volumes:
+            - ./stf_db/stf_db_data:/var/lib/postgresql/data
+        ports:
+            - "5432:5432"
+        env_file:
+            - ./stf_db/.env
+        networks:
+            - stf_net
+    # TODO:
+    # stf_geoserver:
+networks:
+    stf_net:

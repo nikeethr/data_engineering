@@ -10,6 +10,7 @@ services:
         volumes:
             - ./rabbitmq/etc/rabbitmq.config:/etc/rabbitmq/rabbitmq.config:ro
             - ./rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json:ro
+            - rabbitmq-data:var/lib/rabbitmq
     mysqldb:
         container_name: mysqldb
         hostname: mysql-db
@@ -20,3 +21,5 @@ services:
             - 3306:3306
         volumes:
             - ./mysql_data:/var/lib/mysql
+volumes:
+    rabbitmq-data:
