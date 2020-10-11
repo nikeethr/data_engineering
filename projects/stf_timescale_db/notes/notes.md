@@ -42,6 +42,12 @@
 
 **location**: `./scripts/nyc_data*`
 
+##### PostGIS
+
+```
+CREATE EXTENSION postgis;
+```
+
 ##### Tests/benchmarking
 
 **Tutorial Queries**
