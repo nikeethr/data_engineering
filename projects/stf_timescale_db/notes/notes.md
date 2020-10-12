@@ -185,6 +185,10 @@ SELECT COUNT(*) FROM <tb>;
 
 -- truncate date
 date_trunc('day', pickup_datetime) as day
+
+-- :: is casting index e.g.:
+SELECT 0.9::text;
+SELECT 'POINT(0 0)'::geometry;
 ```
 
 **sample queries**
