@@ -68,7 +68,7 @@ Where, `POAMA_USER`/`POAMA_PASSWD` is the username/password pair
 for logging into the app. `DASH_SECRET_KEY` can be generated using:
 
 ```bash
-python -c 'import os; print(os.urandom(16))'
+python3 -c 'import os; print(os.urandom(16))'
 ```
 
 ## 4. EB Create

@@ -89,6 +89,33 @@ sudo amazon-linux-extras install python3
 git clone https://github.com/nikeethr/data_engineering.git
 cd data_engineering/projects/dash_poama_uplift/
 ```
+- Create `./poama_app/.env-docker-file` with the following:
+
+```bash
+POAMA_USER=xxx
+POAMA_PASSWD=xxx
+DASH_SECRET_KEY=xxx
+```
+
+Where, `POAMA_USER`/`POAMA_PASSWD` is the username/password pair
+for logging into the app. `DASH_SECRET_KEY` can be generated using:
+
+```bash
+python3 -c 'import os; print(os.urandom(16))'
+```
+
+- Build and launch the app
+```bash
+docker-compose up -d
+```
+
+or alternatively:
+```bash
+make up
+```
+
+- Launch instance on browser
+    - grab ec2 IP off the console and give it a go!
 
 ## 5. Terminate instance
 
