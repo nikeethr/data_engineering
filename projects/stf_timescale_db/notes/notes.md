@@ -5,7 +5,10 @@
 ### General TODO
 
 - [x] setup timescaledb + docker
-- [ ] Go through starter tutorial
+- [x] Go through starter tutorial
+- [ ] Investigate python implementation to copy over data
+- [ ] Investigate SQLAlchemy for db model
+- [ ] Benchmark copying of data into database (+ duplicate avoiding)
 - [ ] Process and insert sample stf time-series file
 - [ ] Process and insert shape files/geojson files in POSTGIS
 - [ ] Go through visualisation tutorial (Grafana)
@@ -152,10 +155,6 @@ SELECT rates.description, COUNT(vendor_id) AS num_trips,
 - A: QUERY without SORT
 - B: QUERY with SORT (in a direction that does something)
 
-**TODO**
-
-- [ ] repeat this on STF NETCDF files (e.g. within python)
-
 
 #### Useful commands
 
@@ -199,6 +198,26 @@ SELECT 'POINT(0 0)'::geometry;
 SELECT date_trunc('day', pickup_datetime) as day, COUNT(*)
 FROM rides GROUP BY day ORDER by day;
 ```
+
+### python + tsdb
+
+- [quick start](https://docs.timescale.com/latest/tutorials/quickstart-python)
+- sqlalchemy for data model `--> TODO: link`
+
+#### script location
+
+```
+stf_tsdb/scripts/python-quickstart
+```
+
+need to configure `quickstart.cfg` to set the database connections params.
+
+
+### grafana + tsdb
+
+### continuous aggregates (for e.g. daily data)
+
+- can use integer division for this
 
 ## Background reading
 
