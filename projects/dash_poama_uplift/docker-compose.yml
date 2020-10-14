@@ -14,7 +14,7 @@ services:
     container_name: poama_nginx
     build: ./nginx
     ports:
-      - "5001:80"
+      - "80:80"
     depends_on:
       - poama_dash
     networks:
