@@ -4,3 +4,4 @@ rabbitmq/etc/*
 !rabbitmq/etc/definitions.json
 !rabbitmq/etc/rabbitmq.conf
 mysql_data
+*.pyc

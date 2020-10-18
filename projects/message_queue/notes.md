@@ -54,3 +54,28 @@ TODO: is it possible to have a common model referred to by multiple projects...
 ### Migration
 
 This process is to update/migrate the database assuming the data model is maintained by the app.
+
+
+# Celery
+
+## Installation
+
+https://docs.celeryproject.org/en/stable/getting-started/first-steps-with-celery.html
+
+## Conda
+
+Created conda env named `celery` and installed the following:
+```
+celery
+sqlalchemy
+mysql-connector-python
+gevent
+```
+
+mysql-connector-python latest version needed as using MySQL 8.0 we need support
+for `caching_sha2_password`.
+
+Also installed `mysql-client` on debian using the following:
+https://www.digitalocean.com/community/tutorials/how-to-install-the-latest-mysql-on-debian-10
+
+## Results database
