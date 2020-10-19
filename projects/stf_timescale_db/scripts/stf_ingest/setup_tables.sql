@@ -6,7 +6,7 @@
 CREATE TABLE IF NOT EXISTS "stf_fc_flow" (
     fc_datetime TIMESTAMPTZ NOT NULL,
     lead_time_hours INTEGER NOT NULL,
-    station_id VARCHAR(10) NOT NULL,
+    awrc_id VARCHAR(10) NOT NULL,
     pctl_5  DOUBLE PRECISION,
     pctl_25 DOUBLE PRECISION,
     pctl_50 DOUBLE PRECISION,
@@ -23,4 +23,4 @@ SELECT create_hypertable(
 
 --- ASC is actually not needed here explicitly - it's the default
 CREATE INDEX fc_datetime_idx ON stf_fc_flow (fc_datetime ASC);
-CREATE INDEX station_id_fc_datetime_idx ON stf_fc_flow (station_id, fc_datetime ASC);
+CREATE INDEX station_id_fc_datetime_idx ON stf_fc_flow (awrc_id, fc_datetime ASC);
