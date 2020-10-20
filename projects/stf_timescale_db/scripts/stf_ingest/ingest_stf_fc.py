@@ -22,7 +22,7 @@ SAMPLE_FC_NC = os.path.join(
 METADATA_CSV = os.path.join(DATA_DIR, 'ovens_example', 'station_metadata.csv')
 
 # tsdb config
-CONFIG_PATH = os.path.join(DIR, "quickstart.cfg")
+CONFIG_PATH = os.path.join(DIR, "stf_tsdb.cfg")
 CONFIG = configparser.ConfigParser()
 CONFIG.read(CONFIG_PATH)
 CONNECTION = "postgres://{user}:{passwd}@{hostname}:{port}/{dbname}".format(

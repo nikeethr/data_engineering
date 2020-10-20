@@ -4,7 +4,7 @@ TS_DB_PORT:=5432
 # container postgres shell
 # (connect via separate docker command from within container)
 cnt-psql:
-	docker exec -it ${TS_DB_NAME} psql -U admin
+	docker exec -it ${TS_DB_NAME} psql -U postgres
 
 # host postgres shell (connect from host)
 host-psql:

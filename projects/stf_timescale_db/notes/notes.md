@@ -213,6 +213,35 @@ stf_tsdb/scripts/python-quickstart
 need to configure `quickstart.cfg` to set the database connections params.
 
 
+### stf ingest
+
+#### script location
+
+```
+stf_tsdb/scripts/stf_ingest
+```
+
+#### conda env
+
+Installed the following:
+
+```
+psycopg2
+gdal
+pgcopy
+```
+
+**WARNING:** The above packages may have installed posgres=11 on the env. This
+will cause issues when trying to access the database via `psql`. As the tsdb is
+currently using posgres=12. May consider downgrading for deployment.
+
+#### Shape files
+
+You can use `shp2pgsql` to copy shape files to postgis.
+    - Wrote a script to do this. For now a script is fine since the shape files
+      are most likely one-off things rather than constant updates. Can port to
+      python workflow later if needed.
+
 ### grafana + tsdb
 
 ### continuous aggregates (for e.g. daily data)
