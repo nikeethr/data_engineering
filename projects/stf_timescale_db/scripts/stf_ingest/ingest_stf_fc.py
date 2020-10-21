@@ -4,10 +4,12 @@ import functools
 import pytz
 import dateutil.parser
 import psycopg2
-import configparser
 import numpy as np
 import pandas as pd
 import xarray as xr
+
+# config
+import stf_conf
 
 
 # --- const ---
@@ -19,19 +21,6 @@ SAMPLE_FC_NC = os.path.join(
     DATA_DIR, 'ovens_example',
     'SWIFT-Ensemble-Forecast-Flow_ovens_20200929_2300.nc'
 )
-METADATA_CSV = os.path.join(DATA_DIR, 'ovens_example', 'station_metadata.csv')
-
-# tsdb config
-CONFIG_PATH = os.path.join(DIR, "stf_tsdb.cfg")
-CONFIG = configparser.ConfigParser()
-CONFIG.read(CONFIG_PATH)
-CONNECTION = "postgres://{user}:{passwd}@{hostname}:{port}/{dbname}".format(
-    user=CONFIG["tsdb"]["user"],
-    passwd=CONFIG["tsdb"]["passwd"],
-    hostname=CONFIG["tsdb"]["hostname"],
-    port=CONFIG["tsdb"]["port"],
-    dbname=CONFIG["tsdb"]["dbname"]
-)
 TABLE_NAME = 'stf_fc_flow'
 
 # internal global vars
@@ -39,11 +28,6 @@ _DF_METADATA = None
 
 # --- func ---
 
-def get_df_metadata():
-    global _DF_METADATA
-    if _DF_METADATA is None:
-        _DF_METADATA = pd.read_csv(METADATA_CSV)
-    return _DF_METADATA
 
 # TODO:
 # - populate table
@@ -75,10 +59,15 @@ def ingest():
 
             # get awrc_id
             node_id = da_nodes.sel(station=s).item()
-            df_ingest['awrc_id'] = get_awrc_id(node_id, catchment)
 
             # populate forecast hour
             df_ingest['fc_datetime'] = fc_dt
+
+            # meta identifier proxy for awrc_id
+            meta_id = get_station_pk(node_id, catchment)
+            if meta_id is None:
+                continue
+            df_ingest['meta_id'] = meta_id
 
             # drop/rename/order columns to match database
             df_ingest.drop(columns='time', inplace=True)
@@ -86,6 +75,31 @@ def ingest():
                 columns={'lead_time': 'lead_time_hours'}, inplace=True)
 
             ingest_df_to_db(df_ingest)
+
+
+# TODO: Maybe combine this with COPY e.g. do INSERT instead so it's all in one
+# connection/transaction
+def get_station_pk(node_id, catchment):
+    with psycopg2.connect(stf_conf.CONNECTION) as con:
+        with con.cursor() as cur:
+            query = """
+                SELECT pk_meta FROM stf_metadata
+                WHERE outlet_node = {} AND catchment = '{}'
+            """.format(node_id, catchment)
+            cur.execute(query)
+            station_pk = cur.fetchall()
+    if len(station_pk) == 1:
+        station_pk = station_pk[0][0]
+    elif len(station_pk) == 0:
+        print("metadata not found for catchment:node={}:{}".format(
+            catchment, node_id))
+        return None
+    else:
+        print("multiple ids found for catchment:node={}:{}. ids={}".format(
+            catchment, node_id, station_pk))
+        return None
+    return station_pk
+
 
 
 def quantiles(da):
@@ -134,17 +148,6 @@ def quantiles(da):
     return df
 
 
-def get_awrc_id(node_id, catchment):
-    df_meta = get_df_metadata()
-
-    awrc_id = df_meta.loc[
-        (df_meta["catchment"] == "ovens") & 
-        (df_meta["outlet_node"] == node_id)
-    ]["awrc_id"]
-
-    return awrc_id.item()
-
-
 def get_filename_info(fn):
     # TODO: redo this using regex to make it clearer
     fn_info = os.path.basename(fn).split('_')
@@ -160,7 +163,7 @@ def ingest_df_to_db(df):
     """
         fc_datetime     | timestamp with time zone |           | not null |
         lead_time_hours | integer                  |           | not null |
-        awrc_id         | character varying(10)    |           | not null |
+        meta_id         | integer                  |           | not null |
         pctl_5          | double precision         |           |          |
         pctl_25         | double precision         |           |          |
         pctl_50         | double precision         |           |          |
@@ -172,15 +175,16 @@ def ingest_df_to_db(df):
 
     # order matters
     df[[
-        'fc_datetime', 'lead_time_hours', 'awrc_id', 'pctl_5', 'pctl_25',
+        'fc_datetime', 'lead_time_hours', 'meta_id', 'pctl_5', 'pctl_25',
         'pctl_50', 'pctl_75', 'pctl_95'
     ]].to_csv(s_buf, index=False, na_rep='NULL')
     s_buf.seek(0)
 
     # transaction to copy data
-    with psycopg2.connect(CONNECTION) as con:
+    with psycopg2.connect(stf_conf.CONNECTION) as con:
         with con.cursor() as cur:
             # TODO: error handling?
+            # TODO: duplicate handling?
             cur.copy_expert(
                 """
                     COPY {} FROM STDIN
@@ -189,6 +193,31 @@ def ingest_df_to_db(df):
             )
             con.commit()
 
+# ---
+
+# --- depreciated ---
+# TODO:
+# These are depreciated since getting meta info from postgres DB instead
+
+def get_df_metadata():
+    global _DF_METADATA
+    if _DF_METADATA is None:
+        _DF_METADATA = pd.read_csv(METADATA_CSV)
+    return _DF_METADATA
+
+def get_awrc_id(node_id, catchment, from_db=True):
+
+    METADATA_CSV = os.path.join(DATA_DIR, 'ovens_example', 'station_metadata.csv')
+    df_meta = get_df_metadata()
+
+    awrc_id = df_meta.loc[
+        (df_meta["catchment"] == "ovens") & 
+        (df_meta["outlet_node"] == node_id)
+    ]["awrc_id"]
+
+    return awrc_id.item()
+
+# ---
 
 if __name__ == '__main__':
     ingest()

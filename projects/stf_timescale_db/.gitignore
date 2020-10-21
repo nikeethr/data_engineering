@@ -1,3 +1,6 @@
+*.pyc
+*.log
+__pycache__
 stf_db/stf_db_data
 scripts/tutorial/data
 scripts/stf_ingest/sample_data

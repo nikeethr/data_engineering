@@ -2,7 +2,7 @@
 
 SCRIPT_NAME="$0"
 usage() {
-    echo "usage: ./"${SCRIPT_NAME}" [database_name] [sql_query_path]"
+    echo "usage: "${SCRIPT_NAME}" [database_name] [sql_query_path]"
 }
 
 if [ "$#" -lt 2 ]

@@ -244,6 +244,32 @@ You can use `shp2pgsql` to copy shape files to postgis.
 
 ### grafana + tsdb
 
+
+#### Setup 
+
+Docker: https://grafana.com/docs/grafana/latest/installation/docker/  
+Setup instructions: https://docs.timescale.com/latest/getting-started/installation-grafana
+
+Set it up via UI since this is mainly for testing so no need to programatically
+configure things.  
+
+default credentials=admin:admin
+
+#### User
+
+create read-only user to access the info.
+
+```sql
+CREATE USER grafana WITH PASSWORD '1234';
+
+GRANT CONNECT ON DATABASE stf_db TO grafana;
+
+GRANT USAGE ON SCHEMA public TO grafana;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+   GRANT SELECT ON TABLES TO grafana;
+```
+
 ### continuous aggregates (for e.g. daily data)
 
 - can use integer division for this
