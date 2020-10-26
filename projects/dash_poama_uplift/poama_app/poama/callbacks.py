@@ -43,10 +43,10 @@ def adjust_forecast_date(n_prev, n_next, date_):
     button_prop_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
     if 'next' in button_prop_id:
-        dt_new = dt + relativedelta(days=1)
+        dt_new = dt + relativedelta(months=1)
         return str(dt_new.date())
     elif 'prev' in button_prop_id:
-        dt_new = dt - relativedelta(days=1)
+        dt_new = dt - relativedelta(months=1)
         return str(dt_new.date())
     else:
         raise PreventUpdate
