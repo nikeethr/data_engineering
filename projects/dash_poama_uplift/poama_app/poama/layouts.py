@@ -142,7 +142,10 @@ def layout_product_img():
             html.Div(id="selected-product-name"),
             layout_tooltip()
         ]),
-        dbc.CardBody(dbc.Spinner(html.Img(id='img-product')))
+        dbc.CardBody([
+            html.Div(id='product-path'),
+            dbc.Spinner(html.Img(id='img-product'))
+        ])
     ], color='primary', outline=True)
 
 

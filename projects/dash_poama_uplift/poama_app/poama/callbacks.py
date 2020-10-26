@@ -202,12 +202,18 @@ def cb_update_product_image():
         )
 
         if not r.ok:
-            return app.get_asset_url(nav_config.PRODUCT_NOT_AVAILABLE)
+            return [
+                app.get_asset_url(nav_config.PRODUCT_NOT_AVAILABLE),
+                image_path
+            ]
 
         img = r.raw.read()
 
-        return 'data:image/png;base64,{}'.format(
-            base64.b64encode(img).decode('utf-8'))
+        return [
+            'data:image/png;base64,{}'.format(
+                base64.b64encode(img).decode('utf-8')),
+            image_path
+        ]
 
     inputs_value = [
         Input("select-{}".format(control), "value")
@@ -215,7 +221,10 @@ def cb_update_product_image():
     ]
 
     app.callback(
-        Output('img-product', 'src'),
+        [  
+            Output('img-product', 'src'),
+            Output('product-path', 'children')
+        ],
         [
             *inputs_value,
             Input("forecast-start-date", "date"),
