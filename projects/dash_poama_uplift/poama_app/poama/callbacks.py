@@ -193,9 +193,9 @@ def cb_update_product_image():
             raise PreventUpdate
 
         image_path = nav_config.get_image_path(
-        data, variable, domain, forecast_period, value, dt)
+            data, variable, domain, forecast_period, value, dt)
         # TODO: move somewhere else
-        AUTH = (os.environ['POAMA_USER'], os.environ['POAMA_PASSWD'])
+        AUTH = (os.environ['ACCESS_DEV_USER'], os.environ['ACCESS_DEV_PASSWD'])
 
         r = requests.get(
             image_path, auth=AUTH, allow_redirects=True, stream=True

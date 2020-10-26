@@ -1,6 +1,8 @@
-{ "reanalysis_products": {
-    "geospatial": [
-        {"anom": ["re"]},
-        {"full": ["re"]}
-    ]
+{
+    "reanalysis_products": {
+        "geospatial": [
+            {"anom": ["re"]},
+            {"full": ["re"]}
+        ]
+    }
 }

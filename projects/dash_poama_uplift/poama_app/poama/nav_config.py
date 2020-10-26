@@ -16,7 +16,7 @@ _PRODUCTS_CFG = None
 
 # product specific assumptions
 _IMG_TYPE = 'png'
-_CAST = 'rt'
+_CAST = 're'
 _URL = r'http://poama.bom.gov.au/access-s1/bom'
 _URL_ACCESS_DEV = r'https://accessdev.nci.org.au/~gay548/reanal/'
 
@@ -75,7 +75,7 @@ def get_image_path(product_data, variable, domain, forecast_period, value, date_
         base_url=_URL_ACCESS_DEV,
         img_dir=img_dir,
         prefix=product_prefix,
-        date=date_.strftime('%Y%m%d'),
+        date=date_.strftime('%Y%m'),
         cast=_CAST
     )
 

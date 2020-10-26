@@ -4,7 +4,7 @@ import dash_html_components as html
 from . import nav_config
 
 # TODO get from nav_config
-DEFAULT_PRODUCT = 'atmos_q5'
+DEFAULT_PRODUCT = 'anom'
 
 def app_states():
     return [ store_current_product() ]
