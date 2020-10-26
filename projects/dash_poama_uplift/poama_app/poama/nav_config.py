@@ -22,7 +22,8 @@ _URL_ACCESS_DEV = r'https://accessdev.nci.org.au/~gay548/reanal/'
 
 # external constants
 CONTROL_KEYS = ['variable', 'domain', 'forecast_period', 'value']
-START_DATE = pytz.utc.localize(dateutil.parser.parse('20180601'))
+START_DATE = pytz.utc.localize(dateutil.parser.parse('19810101'))
+END_DATE = pytz.utc.localize(dateutil.parser.parse('20121231'))
 
 # this is a local asset
 PRODUCT_NOT_AVAILABLE = r'prod_not_avail.png'

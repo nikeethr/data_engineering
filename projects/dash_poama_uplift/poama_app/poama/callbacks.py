@@ -67,7 +67,7 @@ def disable_forecast_adjustment(date_):
     except Exception:
         raise PreventUpdate
 
-    dt_max = nav_config.get_max_date()
+    dt_max = nav_config.END_DATE
     dt_min = nav_config.START_DATE
 
     if dt.date() <= dt_min.date():

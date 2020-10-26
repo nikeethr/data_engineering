@@ -40,7 +40,7 @@ def layout_nav():
 
 
 def layout_date():
-    dt_max = nav_config.get_max_date()
+    dt_max = nav_config.END_DATE
 
     return html.Div([
         dbc.Label('Forecast start date', id='forecast-start-date-label'),
@@ -48,8 +48,8 @@ def layout_date():
             dbc.Button('<', color='primary', id='button-prev-fc-date'),
             dcc.DatePickerSingle(
                 min_date_allowed=nav_config.START_DATE,
-                max_date_allowed=dt_max.date(),
-                display_format='YYYY-MM-DD',
+                max_date_allowed=nav_config.END_DATE,
+                display_format='YYYY-MM',
                 date=str(dt_max.date()),
                 id='forecast-start-date'
             ),
