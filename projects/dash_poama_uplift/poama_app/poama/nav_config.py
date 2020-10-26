@@ -18,6 +18,7 @@ _PRODUCTS_CFG = None
 _IMG_TYPE = 'png'
 _CAST = 'rt'
 _URL = r'http://poama.bom.gov.au/access-s1/bom'
+_URL_ACCESS_DEV = r'https://accessdev.nci.org.au/~gay548/reanal/'
 
 # external constants
 CONTROL_KEYS = ['variable', 'domain', 'forecast_period', 'value']
@@ -70,8 +71,8 @@ def get_image_path(product_data, variable, domain, forecast_period, value, date_
         if x != 'null'
     )
 
-    return r"{base_url}/plots/{img_dir}/{prefix}_{date}_{cast}.png".format(
-        base_url=_URL,
+    return r"{base_url}/{img_dir}/{prefix}_{date}_{cast}.png".format(
+        base_url=_URL_ACCESS_DEV,
         img_dir=img_dir,
         prefix=product_prefix,
         date=date_.strftime('%Y%m%d'),
