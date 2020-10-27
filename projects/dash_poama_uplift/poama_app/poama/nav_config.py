@@ -18,7 +18,7 @@ _PRODUCTS_CFG = None
 _IMG_TYPE = 'png'
 _CAST = 're'
 _URL = r'http://poama.bom.gov.au/access-s1/bom'
-_URL_ACCESS_DEV = r'https://accessdev.nci.org.au/~gay548/reanal/'
+_URL_ACCESS_DEV = r'http://poama.bom.gov.au/plots/reanal'
 
 # external constants
 CONTROL_KEYS = ['variable', 'domain', 'forecast_period', 'value']
