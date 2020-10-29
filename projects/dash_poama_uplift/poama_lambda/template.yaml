@@ -55,11 +55,11 @@ Resources:
       ContentUri: layer_read_nc/
       CompatibleRuntimes: 
         - python3.8
+      RetentionPolicy: Delete
     Metadata:
       # BuildMethod: python3.8
       # for custom building/flags:
       BuildMethod: makefile
-    RetentionPolicy: Delete
 
   # contains matplotlib for rendering the plot
   PlotLayer:
@@ -69,11 +69,11 @@ Resources:
       ContentUri: layer_plot/
       CompatibleRuntimes: 
         - python3.8
+      RetentionPolicy: Delete
     Metadata:
       # BuildMethod: python3.8
       # for custom building/flags:
       BuildMethod: makefile
-    RetentionPolicy: Delete
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
