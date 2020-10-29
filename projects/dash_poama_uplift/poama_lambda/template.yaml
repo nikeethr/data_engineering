@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  sam-app
+
+  Sample SAM Template for sam-app
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 20
+
+Parameters:
+  TestDataBucketName:
+    Type: String
+    Default: sam-poama-netcdf-test-data
+
+Resources:
+
+  # custom api gateway definition to allow BinaryMediaTypes
+  NetcdfPlotApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: alpha
+      BinaryMediaTypes:
+        - image~1png
+  
+  # the main lambda function to plot the netcdf file from an s3 bucket
+  NetcdfPlotFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: lambda_plot_nc/
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      MemorySize: 512
+      Layers:
+        - !Ref ReadNetcdfLayer
+        - !Ref PlotLayer
+      Events:
+        NetcdfPlot:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /plot_nc
+            Method: get
+            RestApiId: !Ref NetcdfPlotApi
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref TestDataBucketName
+
+  # contains packages to help read netcdf files easily
+  ReadNetcdfLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: read-netcdf-layer
+      ContentUri: layer_read_nc/
+      CompatibleRuntimes: 
+        - python3.8
+    Metadata:
+      # BuildMethod: python3.8
+      # for custom building/flags:
+      BuildMethod: makefile
+    RetentionPolicy: Delete
+
+  # contains matplotlib for rendering the plot
+  PlotLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: plot-layer
+      ContentUri: layer_plot/
+      CompatibleRuntimes: 
+        - python3.8
+    Metadata:
+      # BuildMethod: python3.8
+      # for custom building/flags:
+      BuildMethod: makefile
+    RetentionPolicy: Delete
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  NetcdfPlotApi:
+    Description: "API Gateway endpoint URL for alpha stage for NetcdfPlot function"
+    Value: !Sub "https://${NetcdfPlotApi}.execute-api.${AWS::Region}.amazonaws.com/alpha/plot_nc/"
+  NetcdfPlotFunction:
+    Description: "NetcdfPlot Lambda Function ARN"
+    Value: !GetAtt NetcdfPlotFunction.Arn
+  NetcdfPlotFunctionIamRole:
+    Description: "Implicit IAM Role created for NetcdfPlot function"
+    Value: !GetAtt NetcdfPlotFunctionRole.Arn
+
