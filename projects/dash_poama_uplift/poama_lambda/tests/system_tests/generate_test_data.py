@@ -25,8 +25,11 @@ def generate_test_data():
         }
     )
 
-    ds.to_netcdf("./test_data/poama_lambda_test_data.nc")
-    # ds.to_netcdf("/tmp/test_data/poama_lambda_test_data.nc")
+    # -- to output on host machine
+    # ds.to_netcdf("./test_data/poama_lambda_test_data.nc")
+
+    # -- to output via shared docker volume
+    ds.to_netcdf("/tmp/test_data/poama_lambda_test_data.nc")
     return ds
 
 
@@ -67,8 +70,12 @@ def sample_plot(ds, xs, ys, var, time):
     plt.title("{} - {}".format(var, time))
 
     # save figure
-    plt.savefig("./test_data/test_plot.png")
-    # plt.save_fig("/tmp/test_data/test_plot.png")
+
+    # -- to output on host machine
+    # plt.savefig("./test_data/test_plot.png")
+
+    # -- to output via shared docker volume
+    plt.save_fig("/tmp/test_data/test_plot.png")
 
 
 if __name__ == '__main__':
