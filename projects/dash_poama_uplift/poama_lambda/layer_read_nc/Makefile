@@ -3,7 +3,7 @@ build-ReadNetcdfLayer:
 	python -m pip install \
 		--no-cache-dir \
 		--no-compile \
-        --no-deps \
+		--no-deps \
 		-r requirements.txt \
 		-t "$(ARTIFACTS_DIR)/python"
 
