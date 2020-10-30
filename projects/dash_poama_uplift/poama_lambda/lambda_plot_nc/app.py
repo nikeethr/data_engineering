@@ -1,6 +1,7 @@
 import io
 import base64
 import json
+import time
 import dateutil.parser
 import numpy as np
 import pandas as pd
@@ -67,6 +68,10 @@ def lambda_handler(event, context):
     #     print(e)
     #     raise e
 
+    LOGGER.info("executing lambda function, local_mode = {}".format(LOCAL_MODE))
+
+    # --- process incoming request ---
+
     operation = event["httpMethod"]
 
     if operation != "GET":
@@ -82,22 +87,26 @@ def lambda_handler(event, context):
 
     LOGGER.debug(json.dumps(plot_params, indent=4, default=str))
 
-    LOGGER.info("Grabbing dataset from s3...")
 
+    # --- grab/generate dataset ---
     if LOCAL_MODE:
+        LOGGER.info("Generating dataset...")
         ds = local_generate_ds()
     else:
+        LOGGER.info("Grabbing dataset from s3...")
         ds = get_ds_s3()
 
     LOGGER.info("Plotting image...")
 
+
+    # --- generate image ---
     try:
         img = sample_plot(
             ds,
             xs=[plot_params['x0'], plot_params['x1']],
             ys=[plot_params['y0'], plot_params['y1']],
             var=plot_params["var"],
-            time=plot_params["time"]
+            time_=plot_params["time"]
         )
     except KeyError as e:
         LOGGER.exception(e)
@@ -106,19 +115,23 @@ def lambda_handler(event, context):
     LOGGER.info("Preparing response...")
 
     # ---
-    # uncomment line below returning image directly. wasn't able to get this to
-    # work with browsers but will work with:
-    # `curl`
+    # FOR REQUESTS with explicity Accept-Header = "image/png"
+    # uncomment line below returning image directly. Wasn't able to get this to
+    # work with browsers but will work with: `curl -H "Accept: image/png"`
     # ---
     # return respond(None, res=img, content_type="image/png", base_64=True)
 
+    # ---
+    # FOR RESPONDING TO BROWSERS:
     # below works better for browsers but you can't download image directly:
+    # ---
     img_html = local_img_html(img)
     return respond(None, res=img_html, content_type="text/html")
 
 
 def get_ds_s3():
     # TODO: use `s3fs` instead of this as it may handle things better
+    start_t = time.time()
 
     BUCKET_NAME = "sam-poama-netcdf-test-data"
     OBJ_TEST_DATA = "test_data/poama_lambda_test_data.nc"
@@ -131,8 +144,12 @@ def get_ds_s3():
     nc_buffer.seek(0)
 
     ds = xr.load_dataset(nc_buffer)
-    LOGGER.info("Successfully retrieved dataset from S3.")
+
+    delta_t = time.time() - start_t
     LOGGER.debug(ds)
+    LOGGER.info("Successfully retrieved dataset from S3.")
+    LOGGER.info("--- [get_ds_s3] time taken: {:.2f}s ---".format(delta_t))
+
     return ds
 
 
@@ -140,7 +157,7 @@ def get_plot_params(query_string_params):
     if not query_string_params:
         raise KeyError("Required query parameters: {}".format(["time", "var"]))
 
-    time = dateutil.parser.parse(query_string_params["time"])
+    time_ = dateutil.parser.parse(query_string_params["time"])
     var = query_string_params["var"]
     x0 = int(query_string_params.get("x0", 0))
     x1 = int(query_string_params.get("x1", 100))
@@ -157,7 +174,7 @@ def get_plot_params(query_string_params):
     if var not in valid_vars:
         raise KeyError("Invalid var: {}, only accept {}".format(var, valid_vars))
 
-    return { "x0": x0, "x1": x1, "y0": y0, "y1": y1, "time": time, "var": var }
+    return { "x0": x0, "x1": x1, "y0": y0, "y1": y1, "time": time_, "var": var }
 
 
 def respond(err, res=None, content_type=None, base_64=False):
@@ -181,14 +198,15 @@ def respond(err, res=None, content_type=None, base_64=False):
     }
 
 
-def sample_plot(ds, xs, ys, var, time):
+def sample_plot(ds, xs, ys, var, time_):
     """
         ds   - xarray.Dataset  - dataset containing data to plot
         xs   - (int, int)      - lower and upper bound of x to plot
         ys   - (int, int)      - lower and upper bound of y to plot
         var  - str             - temperature or precipitation
-        time - str             - time slice to choose YYYY-mm-dd
+        time_ - str             - time slice to choose YYYY-mm-dd
     """
+    start_t = time.time()
     # select data - this will come from http response
     da = ds[var]
 
@@ -201,7 +219,7 @@ def sample_plot(ds, xs, ys, var, time):
     da = da.sel(
         x=slice(xs[0],xs[1]),
         y=slice(ys[0],ys[1]),
-        time=time.strftime("%Y-%m-%d")
+        time=time_.strftime("%Y-%m-%d")
     )
 
     # plot heatmap
@@ -219,17 +237,24 @@ def sample_plot(ds, xs, ys, var, time):
     # labels
     plt.ylabel("Y")
     plt.xlabel("X")
-    plt.title("{} - {}".format(var, time))
+    plt.title("{} - {}".format(var, time_))
 
     # save figure into response
     img_buffer = io.BytesIO()
     plt.savefig(img_buffer, format="png")
+    plt.close("all")
 
-    # --- binary to bas64 ---
+    # --- binary to base64 ---
     # NOTE: for lambda to work with binary base64 encoded data -
     # you will have to manually enable this:
     # https://docs.aws.amazon.com/apigateway/latest/developerguide/lambda-proxy-binary-media.html
-    return base64.b64encode(img_buffer.getvalue())
+    img64 = base64.b64encode(img_buffer.getvalue())
+
+    delta_t = time.time() - start_t
+    LOGGER.info("Successfully plotted image.")
+    LOGGER.info("--- [sample_plot] time taken: {:.2f}s ---".format(delta_t))
+
+    return img64
 
 
 # For testing purposes only - this will not be needed when deployed to API
@@ -248,7 +273,7 @@ def local_img_html(img):
 
 
 def local_generate_ds():
-    # TODO: get from s3
+    start_t = time.time()
 
     N_T=30
     N_X=100
@@ -268,6 +293,10 @@ def local_generate_ds():
             "time": pd.date_range("2020-01-01", periods=30)
         }
     )
+
+    delta_t = time.time() - start_t
+    LOGGER.info("Successfully generated dataset.")
+    LOGGER.info("--- [local_generate_ds] time taken: {:.2f}s ---".format(delta_t))
 
     return ds
 

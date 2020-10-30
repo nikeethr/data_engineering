@@ -63,5 +63,6 @@ def apigw_event():
     }
 
 
-def test_lambda_handler(apigw_event, mocker, caplog):
+def test_lambda_handler(apigw_event, mocker, monkeypatch):
+    monkeypatch.setattr(app, "LOCAL_MODE", True)
     ret = app.lambda_handler(apigw_event, "")
