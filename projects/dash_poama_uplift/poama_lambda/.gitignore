@@ -245,3 +245,5 @@ $RECYCLE.BIN/
 # End of https://www.gitignore.io/api/osx,linux,python,windows,pycharm,visualstudiocode
 
 tests/system_tests/test_data
+*.out
+*.nc
