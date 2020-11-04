@@ -20,5 +20,6 @@ SQL_QUERY_PATH=$2
 
 psql \
     -h ${HOST} -U ${USER} -d ${DB} \
-    --echo-all --password \
+    --password \
     -f ${SQL_QUERY_PATH}
+    # --echo-all

@@ -12,21 +12,21 @@ services:
             - ./stf_db/.env
         networks:
             - stf_net
-    grafana:
-        container_name: grafana
-        hostname: grafana
-        image: grafana/grafana
-        ports:
-            - "3000:3000"
-        networks:
-            - stf_net
-        volumes:
-            - grafana_data:/var/lib/grafana
-        env_file:
-            - ./grafana/.env
-    # TODO:
-    # stf_geoserver:
+    #grafana:
+    #    container_name: grafana
+    #    hostname: grafana
+    #    image: grafana/grafana
+    #    ports:
+    #        - "3000:3000"
+    #    networks:
+    #        - stf_net
+    #    volumes:
+    #        - grafana_data:/var/lib/grafana
+    #    env_file:
+    #        - ./grafana/.env
+    ## TODO:
+    #stf_geoserver:
 networks:
     stf_net:
-volumes:
-    grafana_data:
+#volumes:
+#    grafana_data:
