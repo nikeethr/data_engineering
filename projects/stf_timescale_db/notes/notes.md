@@ -226,9 +226,12 @@ stf_tsdb/scripts/stf_ingest
 Installed the following:
 
 ```
-psycopg2
-gdal
-pgcopy
+psycopg2     - for ingesting data
+gdal         - to investigate SRID
+pgcopy       - benchmarking vs psycopg2
+sqlacodegen  - help generate data model for flask app
+flask-sqlalchemy  - for flask + sqlalchemy
+geoalchemy2
 ```
 
 **WARNING:** The above packages may have installed posgres=11 on the env. This
@@ -265,6 +268,8 @@ CREATE USER grafana WITH PASSWORD '1234';
 GRANT CONNECT ON DATABASE stf_db TO grafana;
 
 GRANT USAGE ON SCHEMA public TO grafana;
+
+GRANT SELECT ON ALL TABLES IN SCHEMA schema_name TO username;
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
    GRANT SELECT ON TABLES TO grafana;

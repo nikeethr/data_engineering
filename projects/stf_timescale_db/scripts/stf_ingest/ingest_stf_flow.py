@@ -261,7 +261,7 @@ def ingest_obs_to_db(df):
     s_buf.seek(0)
 
     # copy buffer
-    copy_to_db(s_buf, OBS_TABLE_NAME)
+    copy_to_db(s_buf, stf_type='obs_flow')
 
 
 def ingest_fc_to_db(df):
@@ -285,22 +285,60 @@ def ingest_fc_to_db(df):
     s_buf.seek(0)
 
     # copy buffer
-    copy_to_db(s_buf, FC_TABLE_NAME)
+    copy_to_db(s_buf, stf_type='fc_flow')
 
 
-def copy_to_db(values_buffer, table_name):
+def copy_to_db(values_buffer, stf_type, ignore_duplicates=False):
+    stf_table_map = {
+        'fc_flow': {
+            'table': FC_TABLE_NAME,
+            'temp_table': FC_TABLE_NAME + '_temp',
+            'conflict_col': ['meta_id', 'lead_time_hours', 'fc_datetime']
+        },
+        'obs_flow': {
+            'table': OBS_TABLE_NAME,
+            'temp_table': OBS_TABLE_NAME + '_temp',
+            'conflict_col': ['meta_id', 'obs_datetime']
+        }
+    }
+    assert stf_type in stf_table_map.keys()
+    d = stf_table_map[stf_type]
+
     # transaction to copy data
+    # TODO: error handling?
     with psycopg2.connect(stf_conf.CONNECTION) as con:
         with con.cursor() as cur:
-            # TODO: error handling?
-            # TODO: duplicate handling?
-            cur.copy_expert(
-                """
-                    COPY {} FROM STDIN
-                    WITH CSV HEADER DELIMITER ',' NULL 'NULL'
-                """.format(table_name), values_buffer
-            )
-            con.commit()
+            if ignore_duplicates:
+                cur.copy_expert(
+                    """
+                        COPY {} FROM STDIN
+                        WITH CSV HEADER DELIMITER ',' NULL 'NULL'
+                    """.format(d['table']), values_buffer
+                )
+                con.commit()
+            else:
+                # create temporary table (and delete on commit)
+                cur.execute(
+                    """
+                        CREATE TEMP TABLE {} (LIKE {}) ON COMMIT DROP;
+                    """.format(d['temp_table'], d['table'])
+                )
+                # copy dataframe into temporary table
+                cur.copy_expert(
+                    """
+                        COPY {} FROM STDIN
+                        WITH CSV HEADER DELIMITER ',' NULL 'NULL'
+                    """.format(d['temp_table']), values_buffer)
+                # insert into main table with unique time/meta_id
+                conflict_col_str = ', '.join(d['conflict_col'])
+                cur.execute(
+                    """
+                        INSERT INTO {}
+                        SELECT * FROM {}
+                        ON CONFLICT ({}) DO NOTHING;
+                    """.format(d['table'], d['temp_table'], conflict_col_str)
+                )
+                con.commit()
 
 
 # for testing purposes only once duplicate handling is implemented this should
