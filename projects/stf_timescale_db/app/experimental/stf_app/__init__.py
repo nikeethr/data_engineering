@@ -4,14 +4,15 @@ from flask import Flask
 
 def create_app():
     # from. import models, routes, services
-    from . import models
+    from . import models, routes
 
     app = Flask(__name__)
     # TODO: move config to file
     app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://app_user:1234@localhost:5432/stf_db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
     models.init_app(app)
-    # routes.init_app(app)
+    routes.init_app(app)
     # services.init_app(app)
 
     return app
