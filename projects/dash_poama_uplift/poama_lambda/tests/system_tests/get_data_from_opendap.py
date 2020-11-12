@@ -14,6 +14,7 @@ import numpy as np
 import cartopy.crs as ccrs
 import xarray as xr
 from memory_profiler import profile
+from scipy.spatial import KDTree
 
 
 NC_FILENAME = "s_moa_sst_20201107_e01.nc"
@@ -193,6 +194,59 @@ def dummy_load_local():
 
 
 @profile
+def dummy_load_opendap():
+    with xr.open_dataset(OPENDAP_URI) as ds:
+        pass
+
+
+@_benchmark
+def construct_kdtree(ds):
+    lat_1d = np.ravel(ds.nav_lat)
+    lon_1d = np.ravel(ds.nav_lon)
+    data = np.column_stack((lat_1d, lon_1d))
+    # TODO: tweak leaf-size for best construction time/query trade-off
+    # No. points is about 1.4e6
+    # Note: a lot of points are probably very close to each other so bruteforce
+    # for 1000 samples seems okay
+    t = KDTree(data, leafsize=1000)
+    return t
+
+
+@_benchmark
+def get_x_2_y_2_from_lat_lon(t, points, ds):
+    # query maps (lat, lon) -> 1-D index
+    # col_size required to convert 1-D indexing to 2-D
+    # y_2 = rows, x_2 = col, col_size = len(x_2)
+    col_size = ds.nav_lon.shape[1]
+    dist, bbox_pt_1d = t.query(points)
+    bbox_pt_2d = [
+        (int(p / col_size), int(p % col_size))
+        for p in bbox_pt_1d
+    ]
+    return bbox_pt_2d
+
+
+@_benchmark
+@profile
+def profile_kdtree_local():
+    with xr.open_dataset(LOCAL_NC) as ds:
+        t = construct_kdtree(ds)
+        lat_lon_bbox = [
+            [-50, 20],
+            [-60, 30]
+        ]
+        idx = get_x_2_y_2_from_lat_lon(t, lat_lon_bbox, ds)
+        ys = sorted([idx[0][0], idx[1][0]])
+        xs = sorted([idx[0][1], idx[1][1]])
+
+        # --- Sanity check ---
+        lat_slice = ds.nav_lat[slice(*ys), slice(*xs)]
+        lon_slice = ds.nav_lon[slice(*ys), slice(*xs)]
+        print((lat_slice.min(), lat_slice.max()))
+        print((lon_slice.min(), lon_slice.max()))
+
+
+@profile
 def main():
     if os.path.exists(LOCAL_NC):
         f = LOCAL_NC
@@ -219,28 +273,6 @@ def main():
 #-------------------------------------------------------------------------------
 
 if __name__ == '__main__':
-    # === local tests ===
-
-    # run initial to prevent lazy loading
-    # dummy_load(_local)
-
-    # --- run these one at a time because xarray likes to keep data in memory
-    # --- where possible
-    # profile_only_swap_local()
-
-    # profile_only_where_small_local()
-    # profile_only_where_large_local()
-
-    # profile_get_slice_small_local()
-    # profile_get_slice_large_local()
-
-    # === opendap tests ===
-    # profile_only_where_small_opendap()
-    for slices in [
-            (slice(10,100), slice(10, 100)),
-            (slice(100,400), slice(100, 400)),
-            (slice(400,None), slice(400, None)) ]:
-        profile_get_slice_small_opendap(slices[0], slices[1])
 
 """
 Notes:
@@ -256,8 +288,55 @@ Notes:
         - 100 x 100 slice 1-1.5s
         - 300 x 300 slice 3-5s
         - 600 x 1000 slice ~16s
-    - using `where` with opendap is always a bad idea
-    - I think KDTree to map lat/lon to x_2/y_2 is the best way forward since we
-      are using slicing
+    - using `where` with opendap is always a bad idea, but it's the only way to
+      query using lat/lon directly
+    - KDTree is relatively quick after it is setup. Setup requires 3s to build
+      the tree. The tree itself takes up some memory space (~80MB) while it
+      exists. Query time is around 0.05s. Tested with leaf_size = 10 -> 5000.
+      leaf_size=1000 has the best initialisation/query time trade-off.
+    - The lambda function while warm has to cache the KDTree probably so may
+      not be able to use low-cost/free-tier lambdas. Not a huge deal if running
+      on EC2 t2.micro is 1GB RAM.
+    - I think KDTree to map lat/lon to x_2/y_2 is the best way forward if we
+      want to query lat/lon
+    - Plotting is another bottleneck - it takes quite a bit of time to plot
+      things using matplotlib. Things to try:
+        - do the plot using xarray itself
+        - hvplot (integrated with xarray + interactive)
+        - holoviews (for more custom plotting) 
 """
+
+    # === local tests ===
+
+    # run initial to prevent lazy loading
+    dummy_load_local()
+
+    # !!! run these one at a time because xarray likes to keep data in memory
+
+    # profile_only_swap_local()
+    # profile_only_where_small_local()
+    # profile_only_where_large_local()
+    # profile_get_slice_small_local()
+    # profile_get_slice_large_local()
+    profile_kdtree_local()
+
+    # === opendap tests ===
+
+
+    # run initial to prevent lazy loading
+    # dummy_load_opendap()
+
+    # !!! run these one at a time because xarray likes to keep data in memory
+
+    # profile_only_where_small_opendap()
+    # for slices in [
+    #         (slice(10,100), slice(10, 100)),
+    #         (slice(100,400), slice(100, 400)),
+    #         (slice(400,None), slice(400, None)) ]:
+    #     profile_get_slice_small_opendap(slices[0], slices[1])
+    # profile_kdtree_opendap()
+
+    # === main ===
+    # main()
+
 #-------------------------------------------------------------------------------
