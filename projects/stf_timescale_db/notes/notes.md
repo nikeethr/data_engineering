@@ -6,13 +6,15 @@
 
 - [x] setup timescaledb + docker
 - [x] Go through starter tutorial
-- [ ] Investigate python implementation to copy over data
-- [ ] Investigate SQLAlchemy for db model
+- [x] Investigate python implementation to copy over data
+- [x] Investigate SQLAlchemy for db model
 - [ ] Benchmark copying of data into database (+ duplicate avoiding)
-- [ ] Process and insert sample stf time-series file
-- [ ] Process and insert shape files/geojson files in POSTGIS
-- [ ] Go through visualisation tutorial (Grafana)
+- [x] Process and insert sample stf time-series file
+- [x] Process and insert shape files/geojson files in POSTGIS
+- [x] Go through visualisation tutorial (Grafana)
+- [ ] Flask api to serve data - interim solution before geoserver
 - [ ] Make app with some controls to display the data
+- [ ] Geoserver to serve data
 - [ ] Optimization - compression policy, partitioning, table spaces etc.
 
 **Nice to do**
@@ -295,3 +297,11 @@ https://naysan.ca/2020/06/21/pandas-to-postgresql-using-psycopg2-copy_from/
 
 copy manager:
 https://docs.timescale.com/latest/tutorials/quickstart-python#new_database
+
+
+### flask-sqlalchemy
+
+- used `sqlacodegen` to get sample model from database
+- created sample project structure separating model and routes
+- did some tests/benchmarking to grab data from the database: generally slower
+  than `psql` - need to investigate at some point later.

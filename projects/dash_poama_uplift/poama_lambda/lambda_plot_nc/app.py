@@ -1,33 +1,20 @@
-import io
-import base64
-import json
-import time
-import dateutil.parser
-import numpy as np
-import pandas as pd
-import xarray as xr
-import matplotlib
-import matplotlib.pyplot as plt
-import logging
-import boto3
+# === imports ===
 
-# import requests
+# ===
 
-# TODO: use context to determine if local??
-LOCAL_MODE = False
 
-# setup logging
-LOGGER = logging.getLogger(__name__)
-log_level = logging.INFO
-if LOCAL_MODE:
-    log_level = logging.DEBUG
-LOGGER.setLevel(log_level)
-stream_handler = logging.StreamHandler()
-LOGGER.addHandler(stream_handler)
+# === setup logging ===
 
+# ===
+
+
+# === lambda function ===
 
 def lambda_handler(event, context):
-    """Sample pure Lambda function
+    """
+    This function retrieves data from a opendap server and plots the data on a
+    map for a give variable at a particular time instance for the given lat/lon
+    range.
 
     Parameters
     ----------
@@ -42,7 +29,7 @@ def lambda_handler(event, context):
         Context doc: https://docs.aws.amazon.com/lambda/latest/dg/python-context-object.html
 
     Returns
-    ------
+    -------
     API Gateway Lambda Proxy Output Format: dict
 
         Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
@@ -50,253 +37,109 @@ def lambda_handler(event, context):
     Usage
     -----
     Query Parameters:
-        time [required]: format='YYYY-mm-dd' only valid for days in 2020-01
-        var [required]: 'precipitation' or 'temperature'
-        x0 [optional]: lower limit of x axis
-        x1 [optional]: upper limit of x axis
-        y0 [optional]: lower limit of y axis
-        y1 [optional]: upper limit of y axis
+        time [required]: time instance
+        lat_range [required]: lat slice. comma separated.
+        lon_range [required]: lon slice. comma seperated.
+        var [required]: variable to plot
 
     Example:
-        http://<path/to/lambda>/alpha/plot_nc??time=2020-01-05&var=precipitation&x0=10
+        http://<path/to/lambda>/alpha/plot_nc??time=2020-01-05&var=temp&lat_range=50,75&lon_range=-50,50
     """
+    # [ ] parse query strings
+    # [ ] retrieve data from opendap
+    # [ ] plot the data
+    # [ ] log the various stages
+    # [ ] if there is an error, raise the error and fail/respond fast
 
-    # try:
-    #     ip = requests.get("http://checkip.amazonaws.com/")
-    # except requests.RequestException as e:
-    #     # Send some context about this error to Lambda Logs
-    #     print(e)
-    #     raise e
+    return response
 
-    LOGGER.info("executing lambda function, local_mode = {}".format(LOCAL_MODE))
-
-    # --- process incoming request ---
-
-    operation = event["httpMethod"]
-
-    if operation != "GET":
-        return respond(ValueError("Unsupported method '{}'".format(operation)))
-
-    LOGGER.debug(json.dumps(event, indent=4))
-
-    try:
-        plot_params = get_plot_params(event["queryStringParameters"])
-    except (ValueError, KeyError) as e:
-        LOGGER.exception(e)
-        return respond(e)
-
-    LOGGER.debug(json.dumps(plot_params, indent=4, default=str))
+# ===
 
 
-    # --- grab/generate dataset ---
-    if LOCAL_MODE:
-        LOGGER.info("Generating dataset...")
-        ds = local_generate_ds()
-    else:
-        LOGGER.info("Grabbing dataset from s3...")
-        ds = get_ds_s3()
+# === data procesing functions ===
+# TOOD: test if this can go into a separate file
 
-    LOGGER.info("Plotting image...")
-
-
-    # --- generate image ---
-    try:
-        img = sample_plot(
-            ds,
-            xs=[plot_params['x0'], plot_params['x1']],
-            ys=[plot_params['y0'], plot_params['y1']],
-            var=plot_params["var"],
-            time_=plot_params["time"]
-        )
-    except KeyError as e:
-        LOGGER.exception(e)
-        return respond(e)
-
-    LOGGER.info("Preparing response...")
-
-    # ---
-    # FOR REQUESTS with explicity Accept-Header = "image/png"
-    # uncomment line below returning image directly. Wasn't able to get this to
-    # work with browsers but will work with: `curl -H "Accept: image/png"`
-    # ---
-    # return respond(None, res=img, content_type="image/png", base_64=True)
-
-    # ---
-    # FOR RESPONDING TO BROWSERS:
-    # below works better for browsers but you can't download image directly:
-    # ---
-    img_html = local_img_html(img)
-    return respond(None, res=img_html, content_type="text/html")
-
-
-def get_ds_s3():
-    # TODO: use `s3fs` instead of this as it may handle things better
-    start_t = time.time()
-
-    BUCKET_NAME = "sam-poama-netcdf-test-data"
-    OBJ_TEST_DATA = "test_data/poama_lambda_test_data.nc"
-
-    session = boto3.Session()
-    s3 = session.client('s3')
-
-    nc_buffer = io.BytesIO()
-    s3.download_fileobj(BUCKET_NAME, OBJ_TEST_DATA, nc_buffer)
-    nc_buffer.seek(0)
-
-    ds = xr.load_dataset(nc_buffer)
-
-    delta_t = time.time() - start_t
-    LOGGER.debug(ds)
-    LOGGER.info("Successfully retrieved dataset from S3.")
-    LOGGER.info("--- [get_ds_s3] time taken: {:.2f}s ---".format(delta_t))
-
-    return ds
-
-
-def get_plot_params(query_string_params):
-    if not query_string_params:
-        raise KeyError("Required query parameters: {}".format(["time", "var"]))
-
-    time_ = dateutil.parser.parse(query_string_params["time"])
-    var = query_string_params["var"]
-    x0 = int(query_string_params.get("x0", 0))
-    x1 = int(query_string_params.get("x1", 100))
-    y0 = int(query_string_params.get("y0", 0))
-    y1 = int(query_string_params.get("y1", 100))
-
-    if x0 > x1:
-        x0, x1 = x1, x0
-    if y0 > y1:
-        y0, y1 = y1, y0
-
-    valid_vars = ["temperature", "precipitation"]
-
-    if var not in valid_vars:
-        raise KeyError("Invalid var: {}, only accept {}".format(var, valid_vars))
-
-    return { "x0": x0, "x1": x1, "y0": y0, "y1": y1, "time": time_, "var": var }
-
-
-def respond(err, res=None, content_type=None, base_64=False):
-    if content_type is None:
-        content_type = "application/json"
-
-    if err is not None:
-        res = str(err)
-        status_code = 400
-    else:
-        status_code = 200
-        
-    # TODO: caching if image e.g. - Cache-Control: private, max-age=604800
-    return {
-        "statusCode": status_code,
-        "body": res,
-        "headers": {
-            "Content-Type": content_type,
-        },
-        "isBase64Encoded": base_64
-    }
-
-
-def sample_plot(ds, xs, ys, var, time_):
+def extract_params(query_strings):
     """
-        ds   - xarray.Dataset  - dataset containing data to plot
-        xs   - (int, int)      - lower and upper bound of x to plot
-        ys   - (int, int)      - lower and upper bound of y to plot
-        var  - str             - temperature or precipitation
-        time_ - str             - time slice to choose YYYY-mm-dd
+        Checks the query string and extracts the relevant parameters raises
+        error if something cannot be parsed properly.
+
+        Returns parsed params
     """
-    start_t = time.time()
-    # select data - this will come from http response
-    da = ds[var]
+    # [ ] attempt to parse various fields raise error if cannot be parsed /
+    # doesn't conform
 
-    # bound shape to data size
-    xs[0] = int(np.max([xs[0], 0]))
-    xs[1] = int(np.min([xs[1], da.shape[0]-1]))
-    ys[0] = int(np.max([ys[0], 0]))
-    ys[1] = int(np.min([ys[1], da.shape[1]-1]))
-
-    da = da.sel(
-        x=slice(xs[0],xs[1]),
-        y=slice(ys[0],ys[1]),
-        time=time_.strftime("%Y-%m-%d")
-    )
-
-    # plot heatmap
-    # plt.imshow(da.T)
-    heatmap = plt.pcolor(da.T)
-
-    # legend
-    plt.colorbar(heatmap)
-
-    # layout
-    plt.xticks(range(0, da.shape[0], 5), da["x"].values[range(0, da.shape[0], 5)])
-    plt.yticks(range(0, da.shape[1], 5), da["y"].values[range(0, da.shape[1], 5)])
-    plt.subplots_adjust(left=0.15, right=0.99, bottom=0.15, top=0.90)
-
-    # labels
-    plt.ylabel("Y")
-    plt.xlabel("X")
-    plt.title("{} - {}".format(var, time_))
-
-    # save figure into response
-    img_buffer = io.BytesIO()
-    plt.savefig(img_buffer, format="png")
-    plt.close("all")
-
-    # --- binary to base64 ---
-    # NOTE: for lambda to work with binary base64 encoded data -
-    # you will have to manually enable this:
-    # https://docs.aws.amazon.com/apigateway/latest/developerguide/lambda-proxy-binary-media.html
-    img64 = base64.b64encode(img_buffer.getvalue())
-
-    delta_t = time.time() - start_t
-    LOGGER.info("Successfully plotted image.")
-    LOGGER.info("--- [sample_plot] time taken: {:.2f}s ---".format(delta_t))
-
-    return img64
+    return parsed_params
 
 
-# For testing purposes only - this will not be needed when deployed to API
-# gateway. Note: alternative way is to setup public s3 storage to show the
-# image
-def local_img_html(img):
-    prefix = "data:image/png;base64,"
-    img_str = img.decode("utf-8").replace("\n", "")
-    html = """
-<html>
-    <head><title>Some lambda test</title></head>
-    <body><img src=\"{}\"></img></body>
-</html>
-""".format(prefix + img_str)
+def load_opendap_dataset(params):
+    """
+        Returns the sliced data set according to params
+    """
+    # [ ] slice params
+    # [ ] raise error if dataset doesn't conform
+
+    return da
+
+def preprocess_plot_data(da):
+    """
+        Transforms the data to plot ready data. The main thing is that the
+        lat/lon grids are not monotonically increasing/decreasing which is
+        required for meshgrid plots.
+    """
+    # [ ] rearrange data so it's monotonically increasing
+    # [ ] return data to be plotted
+    return plot_data
+
+
+def plot(plot_data):
+    """
+        Do the actual plot.
+    """
+    # [ ] meshgrid plot
+    # [ ] layouts etc.
+    # [ ] save plot in byte array
+    # [ ] encode to base64
+    return byte_array
+
+
+def convert_plot_to_response(img_64, content_type):
+    """
+        Converts plot data to appropriate format based on header
+    """
+    # [ ] convert data to html or base64 depending on request header
+    # [ ] build response
+    return response
+
+
+def embed_plot_in_html(img_64):
+    """
+        embeds plot in html document for display on browsers
+    """
+    # [ ] convert base64 byte array to html doc format (utf-8)
     return html
 
 
-def local_generate_ds():
-    start_t = time.time()
+def error_response(err):
+    """
+        Error response to send if something fails. Takes in a Error type.
+    """
+    # [ ] return json format with error message
+    return response
 
-    N_T=30
-    N_X=100
-    N_Y=100
+# ===
 
-    temp = 15 + 8 * np.random.rand(N_X, N_Y, N_T)
-    precip = 10 * np.random.rand(N_X, N_Y, N_T)
 
-    ds = xr.Dataset(
-        {
-            "temperature": (["x", "y", "time"], temp),
-            "precipitation": (["x", "y", "time"], precip)
-        },
-        coords={
-            "x": np.arange(0, N_X),
-            "y": np.arange(0, N_Y),
-            "time": pd.date_range("2020-01-01", periods=30)
-        }
-    )
+# === helpers ===
 
-    delta_t = time.time() - start_t
-    LOGGER.info("Successfully generated dataset.")
-    LOGGER.info("--- [local_generate_ds] time taken: {:.2f}s ---".format(delta_t))
+def _benchmark(f)
+    """
+        Decorator to benchmark the various data processing functions
+    """
+    # [ ] add time profile/logging
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        f(args), kwargs)
+    return wrapper
 
-    return ds
-
+# ===
