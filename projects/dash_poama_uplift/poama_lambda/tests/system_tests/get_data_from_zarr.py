@@ -65,6 +65,12 @@ def dump_xarray_as_zarr_local_fs():
         # overwrite if exists
         ds_chunked.to_zarr(fs_store, mode="w")
 
+@_benchmark
+def slice_data(da, xs, ys, is_zarr=False):
+    if is_zarr:
+        return da[0, 0, ys, xs]
+    else:
+        return da[0, 0, ys, xs].values
 
 @_benchmark
 @profile
@@ -72,10 +78,10 @@ def read_zarr_directly_local_fs(xs=None, ys=None):
     # note: no need to explictly call close
     z = zarr.open(ZARR_PATH, mode='r')
 
-    ys = slice(0, 100)
-    xs = slice(0, 100)
+    ys = slice(0, 500)
+    xs = slice(0, 500)
     
-    data = z.temp[0, 0, ys, xs]
+    data = slice_data(z.temp, xs, ys, is_zarr=True)
 
     plt.imshow(data)
     plt.savefig('test_zarr.png')
@@ -88,10 +94,10 @@ def read_xarray_from_zarr_local_fs(xs=None, ys=None):
     fs_store = DirectoryStore(ZARR_PATH)
     with xr.open_zarr(fs_store) as ds:
 
-        ys = slice(0, 100)
-        xs = slice(0, 100)
+        ys = slice(0, 500)
+        xs = slice(0, 500)
 
-        da = ds.temp[0, 0, ys, xs].values
+        data = slice_data(z.temp, xs, ys, is_zarr=False)
 
         plt.imshow(da)
         plt.savefig('test_zarr_xarray.png')
@@ -102,8 +108,8 @@ def read_xarray_from_zarr_local_fs(xs=None, ys=None):
 def main():
     # !!! run one at a time to get more accurate memory profiles
     # dump_xarray_as_zarr_local_fs()
-    # read_zarr_directly_local_fs()
-    read_xarray_from_zarr_local_fs()
+    read_zarr_directly_local_fs()
+    # read_xarray_from_zarr_local_fs()
 
 
 
