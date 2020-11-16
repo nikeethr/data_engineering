@@ -33,3 +33,6 @@ clean-all:
 
 run-api-debug:
 	cd stf_api/experimental; python run_stf_api.py
+
+run-dash-debug:
+	cd stf_dash; python index.py

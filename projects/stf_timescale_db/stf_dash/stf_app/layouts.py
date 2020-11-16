@@ -1,0 +1,77 @@
+import datetime
+import dash_bootstrap_components as dbc
+import dash_core_components as dcc
+import dash_html_components as html
+
+from stf_app import data_fetch
+
+
+def layout_main():
+    return html.Div([
+        data_fetch.store_current_product(),
+        dbc.Container(layout_content())
+    ])
+
+def layout_content():
+    return dbc.Row([
+        dbc.Col(
+            layout_controls(),
+            width=12
+        ),
+        dbc.Col(
+            layout_streamflow_graph(),
+            width=12
+        )
+    ])
+
+
+def layout_streamflow_graph():
+    # hourly for now
+    return dbc.Card([
+        dbc.CardHeader('Streamflow Time-series'),
+        dbc.CardBody([
+            dbc.Spinner(dcc.Graph(id='graph-streamflow'))
+        ])
+    ])
+
+
+def layout_controls():
+    return dbc.Card([
+        dbc.CardHeader('Controls'),
+        dbc.CardBody(dbc.Row([
+            dbc.Col(select_awrc_id(), width=12, md=6),
+            dbc.Col(select_fc_date(), width=12, md=6)
+        ]))
+    ])
+
+
+def select_awrc_id():
+    awrc_ids = data_fetch.get_awrc_ids()
+    options = [{ "label": x, "value": x } for x in awrc_ids ]
+
+    return html.Div([
+        dbc.Label('awrc_id'),
+        dbc.Select(
+            id="select-awrc-id",
+            options=options,
+            value=options[0]["value"]
+        )
+    ])
+
+
+def select_fc_date():
+    fc_date_range = data_fetch.get_fc_date_range()
+
+    return html.Div([
+        dbc.Label('fc_date'),
+        html.Div(dcc.DatePickerSingle(
+            className="stf-date-picker",
+            id="fc-date-picker",
+            date=fc_date_range[1],
+            display_format='YYYY-MM-DD',
+            min_date_allowed=fc_date_range[0],
+            max_date_allowed=fc_date_range[1],
+            show_outside_days=False
+        ))
+    ])
+

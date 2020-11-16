@@ -118,7 +118,6 @@ def stf_awrc_ids():
             )
         SELECT awrc_id FROM stf_metadata
         INNER JOIN unique meta_id ON stf_metadata.pk_meta = unique_meta_id.meta_id
-        ORDER BY
         ```
     """
     t_unique_meta_id = StfFcFlow.query.with_entities(
@@ -133,6 +132,30 @@ def stf_awrc_ids():
 
 
 # get forecast dates by awrc_id
+
+@stf_bp.route('/fc_dates/<awrc_id>')
+def stf_fc_dates(awrc_id):
+    """
+        ```sql
+        WITH t_meta_id AS (
+                SELECT pk_meta AS meta_id FROM stf_metadata
+                WHERE awrc_id = <awrc_id>
+            )
+        SELECT MIN(fc_datetime), MAX(fc_datetime) FROM stf_metadata
+        WHERE meta_id IN (SELECT pk_meta FROM t_meta_id)
+        ```
+    """
+    t_meta_id = StfMetadatum.query.with_entities(
+        StfMetadatum.pk_meta.label('meta_id')
+    ).filter(StfMetadatum.awrc_id == awrc_id
+    ).cte('t_meta_id')
+
+    q_fc_dates = StfFcFlow.query.with_entities(
+        func.min(StfFcFlow.fc_datetime).label('min_fc_date'),
+        func.max(StfFcFlow.fc_datetime).label('max_fc_date')
+    ).filter(StfFcFlow.meta_id.in_(t_meta_id))
+
+    return jsonify(q_fc_dates.all())
 
 
 # --- helper funcs ---
