@@ -9,11 +9,10 @@ import contextlib
 from sqlalchemy import func, and_
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql.functions import concat
-
 from pytz import timezone
 
-import stf_app
-from stf_app.models.test_models import (
+import stf_api
+from stf_api.models.test_models import (
     StfObsFlow, StfFcFlow, StfMetadatum, StfGeomSubarea, StfGeomSubcatch
 )
 
@@ -35,7 +34,7 @@ def profiled():
     # ps.print_callers()
     print(s.getvalue())
 
-app = stf_app.create_app()
+app = stf_api.create_app()
 
 
 # TODO: benchmark these tests
@@ -172,6 +171,14 @@ def _benchmark(f):
         return res
     return _wrapper
 
+def parse_dt_to_utc(dt_str):
+    dt = dateutil.parser.parse(dt_str)
+    if dt.tzinfo is None:
+        dt_utc = dt.replace(tzinfo=timezone('utc'))
+    else:
+        dt_utc = dt.astimezone(timezone('utc'))
+    return dt_utc
+
 @_benchmark
 def test_fc_api(awrc_id, fc_dt):
     """
@@ -198,11 +205,7 @@ def test_fc_api(awrc_id, fc_dt):
         ```
     """
     FORCE_FC_HOUR = 23
-    dt = dateutil.parser.parse(fc_dt)
-    if dt.tzinfo is None:
-        dt_utc = dt.replace(tzinfo=timezone('utc'))
-    else:
-        dt_utc = dt.astimezone(timezone('utc'))
+    dt_utc = parse_dt_to_utc(fc_dt)
     # forece the forecast hour to 23:00
     dt_utc = dt_utc.replace(hour=FORCE_FC_HOUR)
 
@@ -225,14 +228,32 @@ def test_fc_api(awrc_id, fc_dt):
 
     return q.all()
 
+@_benchmark
+def test_obs_api(awrc_id, start_dt, end_dt):
+    start_dt_utc = parse_dt_to_utc(start_dt)
+    end_dt_utc = parse_dt_to_utc(end_dt)
+
+    q = StfObsFlow.query.join(
+            StfMetadatum, StfMetadatum.pk_meta == StfObsFlow.meta_id
+        ).filter(and_(
+            StfMetadatum.awrc_id == awrc_id,
+            StfObsFlow.obs_datetime >= start_dt_utc,
+            StfObsFlow.obs_datetime < end_dt_utc
+        ))
+
+    return q.all()
+
 
 def test_apis():
     AWRC_ID = '403227'
     META_ID = 193
     FC_DATETIME = '2020-10-01 23:00'
+    OBS_END_DT = '2020-10-01 23:00'
+    OBS_START_DT = '2020-09-28 23:00'
 
     with app.app_context():
         test_fc_api(AWRC_ID, FC_DATETIME)
+        test_obs_api(AWRC_ID, OBS_START_DT, OBS_END_DT)
 
 
 if __name__ == '__main__':

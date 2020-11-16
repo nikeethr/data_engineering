@@ -30,3 +30,6 @@ down:
 # Warning: THIS WILL REMOVE ALL UNUSED RESOURCES BUT WILL FREE SPACE
 clean-all:
 	docker system prune --all
+
+run-api-debug:
+	cd stf_api/experimental; python run_stf_api.py
