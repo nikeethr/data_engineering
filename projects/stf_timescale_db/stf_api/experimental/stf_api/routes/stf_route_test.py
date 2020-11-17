@@ -9,6 +9,7 @@ from sqlalchemy.sql.functions import concat
 from stf_api.models.test_models import (
     StfObsFlow, StfFcFlow, StfMetadatum, StfGeomSubarea, StfGeomSubcatch
 )
+from stf_api.models.base import db
 
 
 stf_bp = Blueprint('stf_api', __name__, url_prefix='/stf_api')
@@ -106,6 +107,42 @@ def stf_obs_flow(awrc_id, start_dt, end_dt):
         )).order_by('timestamp')
 
     return ts_response(q)
+
+@stf_bp.route('/geo/catchment_boundaries')
+def stf_catchment_boundaries():
+    """
+        API:
+        stf_api/geo/catchment_boundaries
+
+        OUT (geojson):
+            - feature collection of catchment boundaries
+
+        The following is saved as a `view`: view_catchment_boundaries
+        ```sql
+        SELECT jsonb_build_object(
+            'type',     'FeatureCollection',
+            'features', jsonb_agg(features.feature)
+        )
+        FROM (
+          SELECT jsonb_build_object(
+            'type',       'Feature',
+            'id',         gid,
+            'geometry',   ST_AsGeoJSON(geom)::jsonb,
+            'properties', to_jsonb(inputs) - 'gid' - 'geom'
+          ) AS feature
+          FROM (SELECT ST_Union(geom), catchment FROM stf_geom_subcatch) inputs
+        ) features;
+        ```
+    """
+    # TODO: convert view into a model in stf_api.models
+    q = db.session.execute("""
+        SELECT * FROM view_catchment_boundaries
+    """)
+    r = q.fetchall()
+
+    # unpack entries and jsonify
+    return jsonify(r[0][0])
+
 
 # --- helper APIs ---
 

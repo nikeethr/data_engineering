@@ -1,6 +1,9 @@
+import time
 import pandas as pd
 import plotly.graph_objects as go
 import time
+
+from stf_app import data_fetch
 
 
 SF_HEIGHT_PX = 400
@@ -60,6 +63,7 @@ def streamflow_daily(df_obs, df_fc):
 
 
 def streamflow_hourly(df_obs, df_fc):
+    # NOTE: this function takes about 100ms - 150ms
     fig = go.Figure()
 
     # plot observations
@@ -137,3 +141,34 @@ def streamflow_hourly(df_obs, df_fc):
 
     return fig
 
+
+def stf_map():
+    geojson = data_fetch.get_catchment_boundaries()
+    """
+fig = px.choropleth(geo_df,
+                   geojson=geo_df.geometry,
+                   locations=geo_df.index,
+                   color='Shape_Leng',
+                   hover_name="BoroName")
+fig.update_geos(fitbounds="locations", visible=False)
+fig.show()
+
+"""
+    ids = [x['id'] for x in geojson['features']]
+    colors = list(range(0, len(ids)))
+
+    data=go.Choropleth(
+        geojson=geojson,
+        colorscale='geyser',
+        marker_line_color='white', # line markers between states
+        locations=ids,
+        z=colors,
+        showscale=False
+    )
+    fig = go.Figure(data=data)
+    fig.update_layout(
+        margin={"r":0,"t":0,"l":0,"b":0},
+        height=200
+    )
+    fig.update_geos(fitbounds="locations", visible=False)
+    return fig

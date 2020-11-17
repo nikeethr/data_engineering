@@ -15,6 +15,7 @@ import stf_api
 from stf_api.models.test_models import (
     StfObsFlow, StfFcFlow, StfMetadatum, StfGeomSubarea, StfGeomSubcatch
 )
+from stf_api.models.base import db
 
 @contextlib.contextmanager
 def profiled():
@@ -244,6 +245,14 @@ def test_obs_api(awrc_id, start_dt, end_dt):
     return q.all()
 
 
+@_benchmark
+def test_catchment_boundaries_api():
+    q = db.session.execute("""
+        SELECT * FROM view_catchment_boundaries
+    """)
+    return q.fetchall()
+
+
 def test_apis():
     AWRC_ID = '403227'
     META_ID = 193
@@ -254,6 +263,7 @@ def test_apis():
     with app.app_context():
         test_fc_api(AWRC_ID, FC_DATETIME)
         test_obs_api(AWRC_ID, OBS_START_DT, OBS_END_DT)
+        test_catchment_boundaries_api()
 
 
 if __name__ == '__main__':
