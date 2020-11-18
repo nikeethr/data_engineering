@@ -69,6 +69,15 @@ def get_catchment_boundaries():
         return r.json()
 
 
+def get_station_info_for_catchment(catchment):
+    uri = os.path.join(DEBUG_STF_API_URI, 'meta', 'station_info', catchment)
+    r = requests.get(uri)
+    if r.ok:
+        d = r.json()
+        df = pd.DataFrame(data=d['entries'], columns=d['keys'])
+        return df
+
+
 def store_current_product():
     return dcc.Store(id='store-controls', data={})
 

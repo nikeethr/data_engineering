@@ -10,6 +10,7 @@ from sqlalchemy import func, and_
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql.functions import concat
 from pytz import timezone
+from flask import jsonify
 
 import stf_api
 from stf_api.models.test_models import (
@@ -253,7 +254,27 @@ def test_catchment_boundaries_api():
     return q.fetchall()
 
 
+@_benchmark
+def test_station_info_for_catchment_api(catchment):
+    """
+        SELECT
+            *, ST_X(location) AS lon, ST_Y(location) AS lat
+        FROM stf_metadata
+        WHERE catchment = <catchment>
+    """
+
+    q = StfMetadatum.query.add_columns(
+        func.ST_X(StfMetadatum.location).label('lon'),
+        func.ST_Y(StfMetadatum.location).label('lat')
+    ).filter(
+        StfMetadatum.catchment == catchment
+    )
+    
+    return q.all()
+
+
 def test_apis():
+    CATCHMENT = 'ovens'
     AWRC_ID = '403227'
     META_ID = 193
     FC_DATETIME = '2020-10-01 23:00'
@@ -264,6 +285,7 @@ def test_apis():
         test_fc_api(AWRC_ID, FC_DATETIME)
         test_obs_api(AWRC_ID, OBS_START_DT, OBS_END_DT)
         test_catchment_boundaries_api()
+        test_station_info_for_catchment_api(CATCHMENT)
 
 
 if __name__ == '__main__':

@@ -40,11 +40,7 @@ def stf_fc_flow(awrc_id, fc_dt):
         ```
     """
     FORCE_FC_HOUR = 23
-    dt = dateutil.parser.parse(fc_dt)
-    if dt.tzinfo is None:
-        dt_utc = dt.replace(tzinfo=timezone('utc'))
-    else:
-        dt_utc = dt.astimezone(timezone('utc'))
+    dt_utc = parse_dt_to_utc(fc_dt)
     # force the forecast hour to 23:00
     dt_utc = dt_utc.replace(hour=FORCE_FC_HOUR)
 
@@ -142,6 +138,38 @@ def stf_catchment_boundaries():
 
     # unpack entries and jsonify
     return jsonify(r[0][0])
+
+
+@stf_bp.route('/meta/station_info/<catchment>')
+def stf_station_info_for_catchment(catchment):
+    """
+        API:
+            stf_api/meta/station_info/<catchment>
+
+        IN:
+            - catchment: Name of the catchment to grab metedata
+
+        OUT (json):
+            - station information for all stations in the catchment including
+              e.g. station location, awrc id
+
+        SELECT
+            *, ST_X(location) AS lon, ST_Y(location) AS lat
+        FROM stf_metadata
+        WHERE catchment = <catchment>
+    """
+
+    q = StfMetadatum.query.with_entities(
+        # gets all columns except location
+        *[c for c in StfMetadatum.__table__.c if c.name != 'location']
+    ).add_columns(
+        func.ST_X(StfMetadatum.location).label('lon'),
+        func.ST_Y(StfMetadatum.location).label('lat')
+    ).filter(
+        StfMetadatum.catchment == catchment
+    )
+
+    return ts_response(q)
 
 
 # --- helper APIs ---

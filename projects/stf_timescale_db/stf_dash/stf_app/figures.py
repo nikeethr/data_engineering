@@ -144,31 +144,82 @@ def streamflow_hourly(df_obs, df_fc):
 
 def stf_map():
     geojson = data_fetch.get_catchment_boundaries()
-    """
-fig = px.choropleth(geo_df,
-                   geojson=geo_df.geometry,
-                   locations=geo_df.index,
-                   color='Shape_Leng',
-                   hover_name="BoroName")
-fig.update_geos(fitbounds="locations", visible=False)
-fig.show()
-
-"""
     ids = [x['id'] for x in geojson['features']]
     colors = list(range(0, len(ids)))
 
-    data=go.Choropleth(
+    data = go.Choroplethmapbox(
         geojson=geojson,
         colorscale='geyser',
         marker_line_color='white', # line markers between states
         locations=ids,
         z=colors,
-        showscale=False
+        showscale=False,
+        marker_opacity=0.5
     )
+
     fig = go.Figure(data=data)
+
+    AUSTRALIA_CENTER_LON = 133.7751
+    AUSTRALIA_CENTER_LAT = -25.2744
+    AUSTRALIA_LON_RANGE = [113.338953078, 153.569469029]
+    AUSTRALIA_LAT_RANGE = [-10.6681857235, -43.6345972634]
+
     fig.update_layout(
-        margin={"r":0,"t":0,"l":0,"b":0},
-        height=200
+        autosize=True,
+        margin=dict(t=0, b=0, l=0, r=0),
+        height=300,
+        mapbox_style="carto-positron",  # "carto-positron",  # open-street-map"
+        mapbox=dict(
+            center=dict(
+                lat=AUSTRALIA_CENTER_LAT,
+                lon=AUSTRALIA_CENTER_LON
+            ),
+            zoom=2
+        ),
     )
-    fig.update_geos(fitbounds="locations", visible=False)
+
+
     return fig
+
+
+def update_stf_map(figure_data, catchment):
+    fig = go.Figure(**figure_data)
+
+    geojson = figure_data['data'][0]['geojson']
+    
+    # find center for coordinate
+    # TODO: show station points for selected catchment
+    for feature in geojson['features']:
+        if feature['id'] == catchment:
+            center = feature['properties']['center']['coordinates']
+            fig.update_layout(
+                mapbox=dict(
+                    center=dict(
+                        lat=center[1],
+                        lon=center[0]
+                    ),
+                    zoom=5
+                )
+            )
+
+    df = data_fetch.get_station_info_for_catchment(catchment)
+
+    tr_stations = go.Scattermapbox(
+        lon=df['lon'],
+        lat=df['lat'],
+        mode='markers',
+        marker_color='darkblue',
+        name='stations',
+        customdata=df['awrc_id']
+    )
+
+    # TODO: there should be a better way of updating this.
+    if len(figure_data['data']) == 1:
+        fig.add_trace(tr_stations)
+    else:
+        fig.update_traces(tr_stations, selector=dict(name='stations'))
+
+    return fig
+
+    # TODO: get station points for catchment
+
