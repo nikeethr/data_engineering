@@ -61,6 +61,7 @@ def stf_fc_flow(awrc_id, fc_dt):
         StfMetadatum.awrc_id == awrc_id
     ).order_by('timestamp')
 
+    # TODO: send 404 if entry is empty...?
     return ts_response(q)
 
 
@@ -140,8 +141,19 @@ def stf_catchment_boundaries():
     return jsonify(r[0][0])
 
 
-@stf_bp.route('/meta/station_info/<catchment>')
-def stf_station_info_for_catchment(catchment):
+def query_station_info(filt):
+    q = StfMetadatum.query.with_entities(
+        # gets all columns except location
+        *[c for c in StfMetadatum.__table__.c if c.name != 'location']
+    ).add_columns(
+        func.ST_X(StfMetadatum.location).label('lon'),
+        func.ST_Y(StfMetadatum.location).label('lat')
+    ).filter(*filt)
+    return q
+
+
+@stf_bp.route('/meta/list_stations/<catchment>')
+def stf_station_info_for_catchment(catchment, awrc_id=None):
     """
         API:
             stf_api/meta/station_info/<catchment>
@@ -159,16 +171,20 @@ def stf_station_info_for_catchment(catchment):
         WHERE catchment = <catchment>
     """
 
-    q = StfMetadatum.query.with_entities(
-        # gets all columns except location
-        *[c for c in StfMetadatum.__table__.c if c.name != 'location']
-    ).add_columns(
-        func.ST_X(StfMetadatum.location).label('lon'),
-        func.ST_Y(StfMetadatum.location).label('lat')
-    ).filter(
-        StfMetadatum.catchment == catchment
-    )
+    filt = [StfMetadatum.catchment == catchment]
+    q = query_station_info(filt)
+    return ts_response(q)
 
+
+@stf_bp.route('/meta/list_station/<awrc_id>')
+def stf_station_info_for_awrc_id(awrc_id):
+    """
+        same as `func:stf_station_info_for_catchment` but filter using AWRC_ID
+        i.e. `WHERE awrc_id = <awrc_id>
+    """
+
+    filt = [StfMetadatum.awrc_id == awrc_id]
+    q = query_station_info(filt)
     return ts_response(q)
 
 

@@ -154,7 +154,8 @@ def stf_map():
         locations=ids,
         z=colors,
         showscale=False,
-        marker_opacity=0.5
+        marker_opacity=0.5,
+        name='catchments'
     )
 
     fig = go.Figure(data=data)
@@ -176,19 +177,53 @@ def stf_map():
             ),
             zoom=2
         ),
+        showlegend=False
     )
 
+    return fig
+
+
+def update_stf_map_current_station(figure_data, awrc_id=None):
+    # doing this is slow but allows for easier updating
+    # TODO: adjust this to update directly instead
+    fig = go.Figure(figure_data)
+
+    df = data_fetch.get_station_info_for_awrc_id(awrc_id)
+
+    curr_station_tr = go.Scattermapbox(
+        lon=df['lon'],
+        lat=df['lat'],
+        mode='markers',
+        marker_color='red',
+        marker_size=12,
+        name='curr_station',
+         # TODO: nicer way of doing this...
+        customdata=df[['awrc_id', 'station_name', 'catchment']].to_dict('records')
+   )
+
+    curr_station_tr_exist = False
+
+    for x in figure_data['data']:
+        if x['name'] == 'curr_station':
+            curr_station_tr_exist = True
+
+    if not curr_station_tr_exist:
+        fig.add_trace(curr_station_tr)
+    else:
+        fig.update_traces(curr_station_tr, selector=dict(name='curr_station'))
 
     return fig
 
 
 def update_stf_map(figure_data, catchment):
-    fig = go.Figure(**figure_data)
-
-    geojson = figure_data['data'][0]['geojson']
+    # doing this is slow but allows for easier updating
+    # TODO: adjust this to update directly instead
+    fig = go.Figure(figure_data)
     
     # find center for coordinate
     # TODO: show station points for selected catchment
+    geojson = figure_data['data'][0]['geojson']
+
     for feature in geojson['features']:
         if feature['id'] == catchment:
             center = feature['properties']['center']['coordinates']
@@ -198,7 +233,7 @@ def update_stf_map(figure_data, catchment):
                         lat=center[1],
                         lon=center[0]
                     ),
-                    zoom=5
+                    zoom=6
                 )
             )
 
@@ -209,12 +244,20 @@ def update_stf_map(figure_data, catchment):
         lat=df['lat'],
         mode='markers',
         marker_color='darkblue',
+        marker_size=10,
+        marker_opacity=0.6,
         name='stations',
-        customdata=df['awrc_id']
+        # TODO: nicer way of doing this...
+        customdata=df[['awrc_id', 'station_name', 'catchment']].to_dict('records')
     )
 
     # TODO: there should be a better way of updating this.
-    if len(figure_data['data']) == 1:
+    station_tr_exist = False
+    for x in figure_data['data']:
+        if x['name'] == 'stations':
+            station_tr_exist = True
+
+    if not station_tr_exist:
         fig.add_trace(tr_stations)
     else:
         fig.update_traces(tr_stations, selector=dict(name='stations'))
