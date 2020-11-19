@@ -182,7 +182,6 @@ def stf_station_info_for_awrc_id(awrc_id):
         same as `func:stf_station_info_for_catchment` but filter using AWRC_ID
         i.e. `WHERE awrc_id = <awrc_id>
     """
-
     filt = [StfMetadatum.awrc_id == awrc_id]
     q = query_station_info(filt)
     return ts_response(q)

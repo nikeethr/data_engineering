@@ -1,4 +1,4 @@
-version: '3'
+version: '2'
 services:
     stf_db:
         container_name: stf_db
@@ -12,6 +12,18 @@ services:
             - ./stf_db/.env
         networks:
             - stf_net
+    stf_api:
+        container_name: stf_api
+        build: ./stf_api
+        hostname: stf_api
+        ports:
+            - "8052:8052"
+        environment:
+            - PORT_API=8052
+        networks:
+            - stf_net
+        depends_on:
+            - stf_db
     #grafana:
     #    container_name: grafana
     #    hostname: grafana
