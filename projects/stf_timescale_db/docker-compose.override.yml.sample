@@ -1,0 +1,5 @@
+version: "2"
+
+services:
+   stf_api:
+       entrypoint: ["echo", "Service stf-api disabled"]

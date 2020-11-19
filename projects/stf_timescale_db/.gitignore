@@ -6,3 +6,4 @@ scripts/tutorial/data
 scripts/stf_ingest/sample_data
 scripts/stf_ingest/tmp*.sql
 scripts/stf_ingest/.tmp*.sql
+docker-compose.override.yml
