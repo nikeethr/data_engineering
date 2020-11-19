@@ -16,14 +16,40 @@ services:
         container_name: stf_api
         build: ./stf_api
         hostname: stf_api
-        ports:
-            - "8052:8052"
+        expose:
+            - "8052"
         environment:
             - PORT_API=8052
         networks:
             - stf_net
         depends_on:
             - stf_db
+    stf_dash:
+        container_name: stf_dash
+        build: ./stf_dash
+        hostname: stf_dash
+        expose:
+            - "8051"
+        environment:
+            - PORT_APP=8051
+        networks:
+            - stf_net
+        depends_on:
+            - stf_api
+            - stf_db
+    nginx:
+        container_name: stf_nginx
+        image: nginx:latest
+        ports:
+            - "8050:8050"
+        volumes:
+            - ./nginx/project.conf:/etc/nginx/conf.d/project.conf
+            - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+        networks:
+            - stf_net
+        depends_on:
+            - stf_api
+            - stf_dash
     #grafana:
     #    container_name: grafana
     #    hostname: grafana

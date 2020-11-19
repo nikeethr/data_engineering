@@ -1,0 +1,9 @@
+dash
+dash_daq
+dash-bootstrap-components
+pandas
+numpy
+wrapt
+gunicorn
+gevent
+requests

@@ -3,3 +3,5 @@ version: "2"
 services:
    stf_api:
        entrypoint: ["echo", "Service stf-api disabled"]
+   stf_dash:
+       entrypoint: ["echo", "Service stf-dash disabled"]
