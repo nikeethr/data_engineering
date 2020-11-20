@@ -8,6 +8,7 @@ import pstats
 import contextlib
 from sqlalchemy import func, and_
 from sqlalchemy.dialects.postgresql import INTERVAL
+from sqlalchemy import DateTime
 from sqlalchemy.sql.functions import concat
 from pytz import timezone
 from flask import jsonify
@@ -273,22 +274,92 @@ def test_station_info_for_catchment_api(catchment):
     return q.all()
 
 
+@_benchmark
+def test_fc_daily_api(awrc_id, fc_dt, agg_type='sum'):
+    FORCE_FC_HOUR = 23
+    dt_utc = parse_dt_to_utc(fc_dt)
+    # forece the forecast hour to 23:00
+    dt_utc = dt_utc.replace(hour=FORCE_FC_HOUR)
+
+    agg_map = {
+        'sum': func.sum,
+        'avg': func.avg
+    }
+    assert agg_type in agg_map
+    agg_func = agg_map[agg_type]
+
+    q = StfFcFlow.query.with_entities(
+        (
+            StfFcFlow.fc_datetime
+            + (StfFcFlow.lead_time_hours / 24) * func.cast(concat(1, ' DAY'), INTERVAL)
+        ).label('date'),
+        agg_func(StfFcFlow.pctl_5),
+        agg_func(StfFcFlow.pctl_25),
+        agg_func(StfFcFlow.pctl_50),
+        agg_func(StfFcFlow.pctl_75),
+        agg_func(StfFcFlow.pctl_95)
+    ).join(
+        StfMetadatum, StfMetadatum.pk_meta == StfFcFlow.meta_id
+    ).filter(
+        func.date_trunc('hour', StfFcFlow.fc_datetime) == func.date_trunc('hour', dt_utc),
+        StfMetadatum.awrc_id == awrc_id
+    ).group_by('date').order_by('date')
+
+    return q.all()
+
+
+@_benchmark
+def test_obs_daily_api(awrc_id, start_dt, end_dt, agg_type='sum'):
+    start_dt_utc = parse_dt_to_utc(start_dt)
+    end_dt_utc = parse_dt_to_utc(end_dt)
+
+    agg_map = {
+        'sum': func.sum,
+        'avg': func.avg
+    }
+    assert agg_type in agg_map
+    agg_func = agg_map[agg_type]
+
+    q = StfObsFlow.query.with_entities(
+            (
+                # so that the date interval starts at the start_dt
+                func.cast(start_dt_utc, DateTime(True)) + func.date_part(
+                    'day',
+                    StfObsFlow.obs_datetime - start_dt_utc
+                ) * func.cast(concat(1, ' DAY'), INTERVAL)
+            ).label('date'),
+            agg_func(StfObsFlow.value)
+        ).join(
+            StfMetadatum, StfMetadatum.pk_meta == StfObsFlow.meta_id
+        ).filter(and_(
+            StfMetadatum.awrc_id == awrc_id,
+            StfObsFlow.obs_datetime >= start_dt_utc,
+            StfObsFlow.obs_datetime < end_dt_utc
+        )).group_by('date').order_by('date')
+
+    return q.all()
+
+
 def test_apis():
     CATCHMENT = 'ovens'
     AWRC_ID = '403227'
     META_ID = 193
-    FC_DATETIME = '2020-10-01 23:00'
-    OBS_END_DT = '2020-10-01 23:00'
-    OBS_START_DT = '2020-09-28 23:00'
+    FC_DATETIME = '2020-10-06 23:00'
+    OBS_END_DT = '2020-10-06 23:00'
+    OBS_START_DT = '2020-09-30 23:00'
 
     with app.app_context():
         test_fc_api(AWRC_ID, FC_DATETIME)
         test_obs_api(AWRC_ID, OBS_START_DT, OBS_END_DT)
         test_catchment_boundaries_api()
         test_station_info_for_catchment_api(CATCHMENT)
+        test_fc_daily_api(AWRC_ID, FC_DATETIME, agg_type='avg')
+        test_obs_daily_api(AWRC_ID, OBS_START_DT, OBS_END_DT, agg_type='avg')
 
 
 if __name__ == '__main__':
+    # running from host
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://app_user:1234@localhost:5432/stf_db'
     test_apis()
     # test_db_operations()
     # app.run(host='localhost', port=5000, debug=True)
