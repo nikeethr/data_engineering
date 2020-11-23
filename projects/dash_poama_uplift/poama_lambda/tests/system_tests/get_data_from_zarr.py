@@ -22,6 +22,25 @@ from memory_profiler import profile
           required the entire dataset to force it to load the specified slice.
           This is a good thing.
         - For xarray you can force load to memory using `.values`
+        - xarray has a larger memory profile, potentially due to converting the
+          values from zarr format - this takes an additional 0.5s compared to
+          reading directly using zarr
+        - Uploading zarr to S3 takes a while, and depending on chunking strategy,
+          creates quite a few files, which may cost a (very small) amount.
+        - Slicing using zarr:
+            - 100 x 100 slice: slightly less than 1s
+            - 300 x 300 slice: 0.3s
+            - 600 x 1000 slice: 0.5s
+            - 1000 x 1000 slice: 0.8s
+        - Overall time - plotting & slicing using zarr + imshow ranges from
+          3-6s (using x_2/y_2 grids)
+        - Note: for actual plotting we will need to convert to lat/lon grids +
+          mapping
+        - Overall slicing using zarr is better than opendap, but for small
+          slices < 100x100 opendap can be faster since for zarr will download
+          the entire chunk anyway.
+        - Using xarray directly is actually much slower than opendap but with
+          consolidated metadata it's not too bad.
 """
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
@@ -29,8 +48,9 @@ TEST_DIR = os.path.join(_DIR, 'test_data')
 NC_PATH = os.path.join(TEST_DIR, 's_moa_sst_20201107_e01.nc')
 ZARR_PATH = os.path.splitext(NC_PATH)[0] + '.zarr'
 # s3 store = s3://fvt-test-zarr-nr/test_zarr_store.zarr
-S3_STORE = 'fvt-test-zarr/test_zarr_store.zarr'
+S3_STORE = 'fvt-test-zarr-nr/test_zarr_store.zarr'
 AWS_REGION = 'ap-southeast-2'
+AWS_PROFILE = 'sam_deploy'
 
 
 def _benchmark(f):
@@ -60,7 +80,6 @@ def chunk_dataset(ds):
     })
 
 
-
 @_benchmark
 def slice_data(da, xs, ys, is_zarr=False):
     if is_zarr:
@@ -79,7 +98,10 @@ def get_local_fs_store():
 def get_s3_store():
     s3 = s3fs.S3FileSystem(
         anon=False,
-        client_kwargs=dict(region_name=AWS_REGION)
+        profile=AWS_PROFILE,
+        client_kwargs=dict(
+            region_name=AWS_REGION,
+        )
     )
     store = s3fs.S3Map(root=S3_STORE, s3=s3, check=False)
     return store
@@ -104,11 +126,19 @@ def dump_zarr_to_s3():
         ds_chunked = chunk_dataset(ds)
         # overwrite if exists
         ds_chunked.to_zarr(s3_store, mode="w")
+        consolidate_zarr_metadata()
+
+@_benchmark
+@profile
+def consolidate_zarr_metadata():
+    # improves access times
+    s3_store = get_s3_store()
+    zarr.consolidate_metadata(s3_store)
 
 
 @_benchmark
 def slice_using_xarray(store, xs, ys):
-    with xr.open_zarr(store) as ds:
+    with xr.open_zarr(store, consolidated=True) as ds:
         data = slice_data(ds.temp, xs, ys, is_zarr=False)
         return data
 
@@ -116,7 +146,8 @@ def slice_using_xarray(store, xs, ys):
 @_benchmark
 def slice_using_zarr(store, xs, ys):
     # note: no need to explictly call close
-    z = zarr.open_group(store, mode='r')
+    # z = zarr.open_group(store, mode='r')
+    z = zarr.open_consolidated(store, mode='r')
     data = slice_data(z.temp, xs, ys, is_zarr=True)
     return data
 
@@ -162,14 +193,34 @@ def read_zarr_slice_from_local_fs(xs=None, ys=None, load_using_zarr=False):
 
 
 def main():
-    # !!! run one at a time to get more accurate memory profiles
-    # read_zarr_directly_local_fs()
-    # read_xarray_from_zarr_local_fs()
-    # dump_xarray_as_zarr_local_fs()
-    xs = slice(0, 200)
-    ys = slice(0, 200)
-    read_zarr_slice_from_local_fs(xs, ys, load_using_zarr=False)
 
+    # !!! run one at a time to get more accurate memory profiles
+
+    # == local ==
+
+    # -- run this only once to create the files in s3: it takes a while
+    # dump_xarray_as_zarr_local_fs()
+
+    # read_zarr_directly_local_fs()
+
+    # read_xarray_from_zarr_local_fs()
+
+    # xs = slice(0, 400)
+    # ys = slice(0, 400)
+    # read_zarr_slice_from_local_fs(xs, ys, load_using_zarr=True)
+
+    # == s3 ==
+
+    # -- run this only once to create the files in s3: it takes a while
+    # dump_zarr_to_s3()
+    # consolidate_zarr_metadata()
+
+    # similar profile to the one in get_data_from_opendap.py
+    for slices in [
+            (slice(10,100), slice(10, 100)),
+            (slice(100,400), slice(100, 400)),
+            (slice(400,None), slice(400, None)) ]:
+        read_zarr_slice_from_s3(slices[0], slices[1], load_using_zarr=False)
 
 if __name__ == '__main__':
     main()
