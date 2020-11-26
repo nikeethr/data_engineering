@@ -1,5 +1,6 @@
 import datetime
 import dash_bootstrap_components as dbc
+import dash_daq as daq
 import dash_core_components as dcc
 import dash_html_components as html
 
@@ -36,6 +37,7 @@ def layout_streamflow_graph():
     return dbc.Card([
         dbc.CardHeader('Streamflow Time-series'),
         dbc.CardBody([
+            toggle_daily_or_hourly(),
             dbc.Spinner(dcc.Graph(id='graph-streamflow'))
         ])
     ])
@@ -66,6 +68,14 @@ def select_awrc_id():
             value=options[0]["value"]
         )
     ])
+
+
+def toggle_daily_or_hourly():
+    return html.Div([
+        html.Div("DAILY", id='label-daily'),
+        daq.ToggleSwitch(id='toggle-freq', size=40, value=True),
+        html.Div("HOURLY", id='label-hourly')
+    ], id='toggle-freq-container')
 
 
 def select_fc_date():

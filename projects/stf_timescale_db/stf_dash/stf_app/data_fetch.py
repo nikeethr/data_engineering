@@ -8,7 +8,8 @@ from dateutil.relativedelta import relativedelta
 from pytz import timezone
 
 DEBUG_STF_API_URI='http://localhost:8052/stf_api'
-STF_API_URI='http://stf_api:8052/stf_api'
+STF_API_URI='http://localhost:8052/stf_api'
+# STF_API_URI='http://stf_api:8052/stf_api'
 DEFAULT_AWRC_ID = '403227'
 DT_FMT = '%Y-%m-%d %H:%M %Z'
 
@@ -38,12 +39,21 @@ def get_fc_date_range(awrc_id=DEFAULT_AWRC_ID):
         return (d[0][0], d[0][1])
 
 
-def get_obs_dataframe(start_dt, end_dt, awrc_id=DEFAULT_AWRC_ID):
-    # query range excludes end date - adding 1 hour to include it.
-    end_dt += relativedelta(hours=1)
+def get_obs_dataframe(
+        start_dt, end_dt, awrc_id=DEFAULT_AWRC_ID, daily=False, agg=None):
+    # query range excludes end time - adding 1 hour to include it for hourly
+    # for plot continuity.
+    if not daily:
+        end_dt += relativedelta(hours=1)
     uri = os.path.join(STF_API_URI, 'obs', awrc_id,
         start_dt.strftime(DT_FMT), end_dt.strftime(DT_FMT))
-    r = requests.get(uri)
+    payload = None
+
+    if daily:
+        agg = agg or 'sum'
+        payload = { 'daily': True, 'daily_agg_method': agg }
+
+    r = requests.get(uri, params=payload)
 
     if r.ok:
         d = r.json()
@@ -53,10 +63,17 @@ def get_obs_dataframe(start_dt, end_dt, awrc_id=DEFAULT_AWRC_ID):
         return df
 
 
-def get_fc_dataframe(fc_dt, awrc_id=DEFAULT_AWRC_ID):
-    uri = os.path.join(STF_API_URI, 'fc', awrc_id, fc_dt.strftime(DT_FMT))
+def get_fc_dataframe(fc_dt, awrc_id=DEFAULT_AWRC_ID, daily=False, agg=None):
     # fetch takes about 50ms
-    r = requests.get(uri)
+    uri = os.path.join(STF_API_URI, 'fc', awrc_id, fc_dt.strftime(DT_FMT))
+    payload = None
+
+    if daily:
+        agg = agg or 'sum'
+        payload = { 'daily': True, 'daily_agg_method': agg }
+
+    r = requests.get(uri, params=payload)
+
     if r.ok:
         d = r.json()
         df = pd.DataFrame(data=d['entries'], columns=d['keys'])

@@ -55,8 +55,15 @@ def streamflow_daily(df_obs, df_fc):
         plot_bgcolor='rgba(0,0,0,0)',
         showlegend=True,
         margin={'l':0, 'r':0, 't':40, 'b':40},
-        legend={'x':1, 'y':0.5},
-        height=SF_HEIGHT_PX
+        height=SF_HEIGHT_PX,
+        # legend={'x':1, 'y':0.5},
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-.1,
+            xanchor="right",
+            x=1
+        )
     )
 
     return fig
@@ -128,8 +135,8 @@ def streamflow_hourly(df_obs, df_fc):
         plot_bgcolor='rgba(0,0,0,0)',
         showlegend=True,
         margin={'l':0, 'r':0, 't':40, 'b':40},
-       #  legend={'x':1, 'y':0.5},
         height=SF_HEIGHT_PX,
+        # legend={'x':1, 'y':0.5},
         legend=dict(
             orientation="h",
             yanchor="top",

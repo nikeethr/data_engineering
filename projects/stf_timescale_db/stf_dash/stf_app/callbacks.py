@@ -24,23 +24,28 @@ def update_fc_graph(store_ts, store_data):
         raise PreventUpdate
 
     fc_date = data_fetch.parse_fc_dt_utc(store_data['fc_date'])
+    daily = store_data['daily']
 
     df_fc = data_fetch.get_fc_dataframe(
         fc_date,
-        store_data['awrc_id']
+        store_data['awrc_id'],
+        daily=daily
     )
 
     # get past 4 days of observed data
     df_obs = data_fetch.get_obs_dataframe(
         fc_date - relativedelta(days=4),
         fc_date,
-        store_data['awrc_id']
+        store_data['awrc_id'],
+        daily=daily
     )
 
-    return [
-        fg.streamflow_hourly(df_obs, df_fc),
-        store_data['awrc_id']
-    ]
+    if daily:
+        fig = fg.streamflow_daily(df_obs, df_fc)
+    else:
+        fig = fg.streamflow_hourly(df_obs, df_fc)
+
+    return fig, store_data['awrc_id']
 
 
 @app.callback(
@@ -82,11 +87,12 @@ def update_stf_map(click_data, ts, figure_data, store_data):
     [
         Input('select-awrc-id', 'value'),
         Input('fc-date-picker', 'date'),
-        Input('stf-map', 'clickData')
+        Input('stf-map', 'clickData'),
+        Input('toggle-freq', 'value')
     ],
     [State('store-controls', 'data')]
 )
-def update_control_store(awrc_id, fc_date, click_data, store_data):
+def update_control_store(awrc_id, fc_date, click_data, toggle, store_data):
     # TODO: change to update and use store as state
     # TODO: convert fc_date to timezone aware (as database can handle this)
     ctx = dash.callback_context
@@ -95,11 +101,12 @@ def update_control_store(awrc_id, fc_date, click_data, store_data):
     if ctx.triggered:
         elem_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
-    valid_ids =  [ 'select-awrc-id', 'fc-date-picker' ]
+    valid_ids =  [ 'select-awrc-id', 'fc-date-picker', 'toggle-freq' ]
     if init or (elem_id in valid_ids and awrc_id and fc_date):
         store_data.update({
             'awrc_id': awrc_id,
             'fc_date': fc_date,
+            'daily': not toggle
         })
 
         return store_data

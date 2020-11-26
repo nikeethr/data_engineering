@@ -1,9 +1,10 @@
 import dateutil.parser
 from flask import Blueprint
-from flask import jsonify, make_response
+from flask import jsonify, make_response, request
 from pytz import timezone
 from sqlalchemy import func, and_, distinct
 from sqlalchemy.dialects.postgresql import INTERVAL
+from sqlalchemy import DateTime
 from sqlalchemy.sql.functions import concat
 
 from stf_api.models.test_models import (
@@ -13,7 +14,10 @@ from stf_api.models.base import db
 
 
 stf_bp = Blueprint('stf_api', __name__, url_prefix='/stf_api')
-
+agg_map = {
+    'sum': func.sum,
+    'avg': func.avg
+}
 
 @stf_bp.route('/fc/<awrc_id>/<fc_dt>')
 def stf_fc_flow(awrc_id, fc_dt):
@@ -43,7 +47,43 @@ def stf_fc_flow(awrc_id, fc_dt):
     dt_utc = parse_dt_to_utc(fc_dt)
     # force the forecast hour to 23:00
     dt_utc = dt_utc.replace(hour=FORCE_FC_HOUR)
+    daily = request.args.get('daily', False)
+    daily_agg_method = request.args.get('daily_agg_method', 'sum')
 
+    if daily:
+        q = stf_fc_flow_daily(awrc_id, dt_utc, daily_agg_method)
+    else: # hourly
+        q = stf_fc_flow_hourly(awrc_id, dt_utc)
+
+    # TODO: send 404 if entry is empty...?
+    return ts_response(q)
+
+
+def stf_fc_flow_daily(awrc_id, dt_utc, agg_type='sum'):
+    assert agg_type in agg_map
+    agg_func = agg_map[agg_type]
+
+    q = StfFcFlow.query.with_entities(
+        (
+            StfFcFlow.fc_datetime
+            + (StfFcFlow.lead_time_hours / 24) * func.cast(concat(1, ' DAY'), INTERVAL)
+        ).label('timestamp'),
+        agg_func(StfFcFlow.pctl_5).label('pctl_5'),
+        agg_func(StfFcFlow.pctl_25).label('pctl_25'),
+        agg_func(StfFcFlow.pctl_50).label('pctl_50'),
+        agg_func(StfFcFlow.pctl_75).label('pctl_75'),
+        agg_func(StfFcFlow.pctl_95).label('pctl_95')
+    ).join(
+        StfMetadatum, StfMetadatum.pk_meta == StfFcFlow.meta_id
+    ).filter(
+        func.date_trunc('hour', StfFcFlow.fc_datetime) == func.date_trunc('hour', dt_utc),
+        StfMetadatum.awrc_id == awrc_id
+    ).group_by('timestamp').order_by('timestamp')
+
+    return q
+
+
+def stf_fc_flow_hourly(awrc_id, dt_utc):
     q = StfFcFlow.query.with_entities(
         (
             StfFcFlow.fc_datetime
@@ -61,8 +101,7 @@ def stf_fc_flow(awrc_id, fc_dt):
         StfMetadatum.awrc_id == awrc_id
     ).order_by('timestamp')
 
-    # TODO: send 404 if entry is empty...?
-    return ts_response(q)
+    return q
 
 
 @stf_bp.route('/obs/<awrc_id>/<start_dt>/<end_dt>')
@@ -92,6 +131,42 @@ def stf_obs_flow(awrc_id, start_dt, end_dt):
     start_dt_utc = parse_dt_to_utc(start_dt)
     end_dt_utc = parse_dt_to_utc(end_dt)
 
+    daily = request.args.get('daily', False)
+    daily_agg_method = request.args.get('daily_agg_method', 'sum')
+
+    if daily:
+        q = stf_obs_flow_daily(awrc_id, start_dt_utc, end_dt_utc, daily_agg_method)
+    else: # hourly
+        q = stf_obs_flow_hourly(awrc_id, start_dt_utc, end_dt_utc)
+
+    return ts_response(q)
+
+
+def stf_obs_flow_daily(awrc_id, start_dt_utc, end_dt_utc, agg_type='sum'):
+    assert agg_type in agg_map
+    agg_func = agg_map[agg_type]
+
+    q = StfObsFlow.query.with_entities(
+            (
+                # so that the date interval starts at the start_dt
+                func.cast(start_dt_utc, DateTime(True)) + func.date_part(
+                    'day',
+                    StfObsFlow.obs_datetime - start_dt_utc
+                ) * func.cast(concat(1, ' DAY'), INTERVAL)
+            ).label('timestamp'),
+            agg_func(StfObsFlow.value).label('value')
+        ).join(
+            StfMetadatum, StfMetadatum.pk_meta == StfObsFlow.meta_id
+        ).filter(and_(
+            StfMetadatum.awrc_id == awrc_id,
+            StfObsFlow.obs_datetime >= start_dt_utc,
+            StfObsFlow.obs_datetime < end_dt_utc
+        )).group_by('timestamp').order_by('timestamp')
+
+    return q
+
+
+def stf_obs_flow_hourly(awrc_id, start_dt_utc, end_dt_utc):
     q = StfObsFlow.query.with_entities(
             StfObsFlow.obs_datetime.label('timestamp'),
             StfObsFlow.value
@@ -103,7 +178,8 @@ def stf_obs_flow(awrc_id, start_dt, end_dt):
             StfObsFlow.obs_datetime < end_dt_utc
         )).order_by('timestamp')
 
-    return ts_response(q)
+    return q
+
 
 @stf_bp.route('/geo/catchment_boundaries')
 def stf_catchment_boundaries():
