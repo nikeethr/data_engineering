@@ -1,9 +1,17 @@
+import os
 import json
 
 import pytest
 import logging
+from zarr.storage import DirectoryStore
 
 from lambda_plot_nc import app
+
+_DIR = os.path.dirname(os.path.abspath(__file__))
+TEST_ZARR_PATH = os.path.join(
+    _DIR,
+    '../system_tests/test_data/s_moa_sst_20201107_e01.zarr/'
+)
 
 
 @pytest.fixture()
@@ -35,7 +43,7 @@ def apigw_event():
             },
             "stage": "prod",
         },
-        "queryStringParameters": {"time": "2020-01-03 23:00", "var": "temperature"},
+        "queryStringParameters": {"time": "2020-01-03 23:00", "var": "temp"},
         "headers": {
             "Via": "1.1 08f323deadbeefa7af34d5feb414ce27.cloudfront.net (CloudFront)",
             "Accept-Language": "en-US,en;q=0.8",
@@ -63,6 +71,17 @@ def apigw_event():
     }
 
 
-def test_lambda_handler(apigw_event, mocker, monkeypatch):
+def test_lambda_handler(apigw_event, mocker, monkeypatch, caplog):
+    @app._benchmark
+    def mock_get_s3_zarr_store():
+        store = DirectoryStore(TEST_ZARR_PATH)
+        return store
+
     monkeypatch.setattr(app, "LOCAL_MODE", True)
+    monkeypatch.setattr(app, "get_s3_zarr_store", mock_get_s3_zarr_store)
+
+    caplog.set_level(logging.DEBUG, app.LOGGER.name)
+    ret = app.lambda_handler(apigw_event, "")
+
+    # second handler to check if time taken is reduced from caching
     ret = app.lambda_handler(apigw_event, "")

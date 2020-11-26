@@ -115,6 +115,7 @@ def dump_xarray_as_zarr_local_fs():
         ds_chunked = chunk_dataset(ds)
         # overwrite if exists
         ds_chunked.to_zarr(fs_store, mode="w")
+        consolidate_local_zarr_metadata()
 
 
 @_benchmark
@@ -126,14 +127,22 @@ def dump_zarr_to_s3():
         ds_chunked = chunk_dataset(ds)
         # overwrite if exists
         ds_chunked.to_zarr(s3_store, mode="w")
-        consolidate_zarr_metadata()
+        consolidate_s3_zarr_metadata()
 
 @_benchmark
 @profile
-def consolidate_zarr_metadata():
+def consolidate_s3_zarr_metadata():
     # improves access times
     s3_store = get_s3_store()
     zarr.consolidate_metadata(s3_store)
+
+
+@_benchmark
+@profile
+def consolidate_local_zarr_metadata():
+    # improves access times
+    local_fs_store = get_local_fs_store()
+    zarr.consolidate_metadata(local_fs_store)
 
 
 @_benchmark
@@ -150,6 +159,24 @@ def slice_using_zarr(store, xs, ys):
     z = zarr.open_consolidated(store, mode='r')
     data = slice_data(z.temp, xs, ys, is_zarr=True)
     return data
+
+@_benchmark
+def get_slice_where(da, lon_range, lat_range):
+    da_sliced = da.where(
+        ((da.nav_lon >= lon_range[0]) &
+        (da.nav_lon <= lon_range[1]) &
+        (da.nav_lat >= lat_range[0]) &
+        (da.nav_lat <= lat_range[1])),
+        drop=True
+    )
+    return da_sliced
+
+
+@profile
+def slice_using_where(lon_range, lat_range):
+    store = get_local_fs_store()
+    with xr.open_zarr(store, consolidated=True) as ds:
+        da = get_slice_where(ds.temp[0, 0], lon_range, lat_range)
 
 
 @_benchmark
@@ -200,6 +227,7 @@ def main():
 
     # -- run this only once to create the files in s3: it takes a while
     # dump_xarray_as_zarr_local_fs()
+    # consolidate_local_zarr_metadata()
 
     # read_zarr_directly_local_fs()
 
@@ -208,12 +236,13 @@ def main():
     # xs = slice(0, 400)
     # ys = slice(0, 400)
     # read_zarr_slice_from_local_fs(xs, ys, load_using_zarr=True)
+    # slice_using_where([-180, 180], [-90, 90])
 
     # == s3 ==
 
     # -- run this only once to create the files in s3: it takes a while
     # dump_zarr_to_s3()
-    # consolidate_zarr_metadata()
+    # consolidate_s3_zarr_metadata()
 
     # similar profile to the one in get_data_from_opendap.py
     for slices in [

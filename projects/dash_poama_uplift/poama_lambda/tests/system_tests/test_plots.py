@@ -1,3 +1,4 @@
+import os
 import hvplot
 import simplejson
 import hvplot.xarray
@@ -10,10 +11,17 @@ import datashader
 from memory_profiler import profile
 from datashader import transfer_functions as tf, reductions as rd
 
+
+_DIR = os.path.dirname(os.path.abspath(__file__))
+TEST_DIR = os.path.join(_DIR, 'test_data')
+NC_PATH = os.path.join(TEST_DIR, 's_moa_sst_20201107_e01.nc')
+
+
 def test_hvplot_from_ds():
-    with xr.open_dataset('test_data/s_moa_sst_20201107_e01.nc') as ds:
+    with xr.open_dataset(NC_PATH) as ds:
         ts = time.time()
-        plot = ds.temp[0, 0, slice(0,100), slice(0,100)].hvplot.quadmesh(
+        da = ds.temp[0, 0, slice(500,600), slice(100, 200)]
+        plot = da.hvplot.quadmesh(
             'nav_lon', 'nav_lat',
             crs=ccrs.PlateCarree(), projection=ccrs.PlateCarree(),
             project=True,
@@ -26,11 +34,11 @@ def test_hvplot_from_ds():
         print("dynamic plot: {:.3f}s".format(time.time() - ts))
 
         ts = time.time()
-        hvplot.save(plot, 'test_dynamic_plot.html')
+        hvplot.save(plot, os.path.join(TEST_DIR, 'test_dynamic_plot.html'))
         print("savfig: {:.3f}s".format(time.time() - ts))
 
 def test_plot_from_ds():
-    with xr.open_dataset('test_data/s_moa_sst_20201107_e01.nc') as ds:
+    with xr.open_dataset(NC_PATH) as ds:
         ts = time.time()
         plt.figure(figsize=(14,6))
         ax = plt.axes(projection=ccrs.PlateCarree())
@@ -58,13 +66,13 @@ def test_plot_from_ds():
         print("setup axis: {:.3f}s".format(time.time() - ts))
 
         ts = time.time()
-        fn = 'test_static_plot.png'
+        fn = os.path.join(TEST_DIR, 'test_static_plot.png')
         plt.savefig(fn, dpi=90)
         plt.close()
         print("savfig: {:.3f}s".format(time.time() - ts))
 
 def test_plot_from_mpl():
-    with xr.open_dataset('test_data/s_moa_sst_20201107_e01.nc') as ds:
+    with xr.open_dataset(NC_PATH) as ds:
         ts = time.time()
         plt.figure(figsize=(14,6))
         ax = plt.axes(projection=ccrs.PlateCarree())
@@ -92,7 +100,7 @@ def test_plot_from_mpl():
         print("setup axis: {:.3f}s".format(time.time() - ts))
 
         ts = time.time()
-        fn = 'test_static_plot.png'
+        fn = os.path.join(TEST_DIR, 'test_static_plot.png')
         plt.savefig(fn, dpi=90)
         plt.close()
         print("savfig: {:.3f}s".format(time.time() - ts))
@@ -106,7 +114,7 @@ def test_data_shader():
         map. For 1-d coordinates you can use `raster`.
         https://datashader.org/user_guide/Grids.html
     """
-    with xr.open_dataset('test_data/s_moa_sst_20201107_e01.nc') as ds:
+    with xr.open_dataset(NC_PATH) as ds:
         ts = time.time()
         da = ds.temp[0, 0]
         # da = da_.copy(deep=True)
@@ -121,7 +129,9 @@ def test_data_shader():
 
         ts = time.time()
         qm = canvas.quadmesh(da, x='nav_lon', y='nav_lat')
-        tf.shade(qm).to_pil().save('test_shader.png')
+        tf.shade(qm).to_pil().save(
+            os.path.join(TEST_DIR, 'test_shader.png')
+        )
         print("quad mesh: {:.3f}s".format(time.time() - ts))
 
         ts = time.time()
@@ -135,8 +145,34 @@ def test_data_shader():
             f.write(s)
         print("output json: {:.3f}s".format(time.time() - ts))
 
+# @profile
+def test_data_shader_minimal():
+    """
+        Test for small dataset
+    """
+    Qy = [[1, 2, 4],
+          [1, 2, 3],
+          [1, 2, 3]]
+
+    Qx = [[1, 1, 1],
+          [2, 2, 2],
+          [2.5, 3, 3]]
+
+    Z = [[1, 2, 3],
+         [4, 5, 6],
+         [7, 8, 9]]
+
+    da = xr.DataArray(Z, name='Z', dims = ['y', 'x'],
+                      coords={'Qy': (['y', 'x'], Qy),
+                              'Qx': (['y', 'x'], Qx)})
+
+    ts = time.time()
+    canvas = datashader.Canvas(plot_height=3, plot_width=3)
+    qm = canvas.raster(da)
+    print("quad mesh: {:.3f}s".format(time.time() - ts))
 
 if __name__ == '__main__':
     # test_plot_from_ds()
     test_hvplot_from_ds()
     # test_data_shader()
+    # test_data_shader_minimal()
