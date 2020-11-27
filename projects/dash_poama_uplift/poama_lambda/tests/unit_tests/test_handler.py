@@ -43,7 +43,9 @@ def apigw_event():
             },
             "stage": "prod",
         },
-        "queryStringParameters": {"time": "2020-01-03 23:00", "var": "temp"},
+        "queryStringParameters": {
+            "time": "2020-01-03 23:00", "var": "temp"
+        },
         "headers": {
             "Via": "1.1 08f323deadbeefa7af34d5feb414ce27.cloudfront.net (CloudFront)",
             "Accept-Language": "en-US,en;q=0.8",
@@ -84,4 +86,11 @@ def test_lambda_handler(apigw_event, mocker, monkeypatch, caplog):
     ret = app.lambda_handler(apigw_event, "")
 
     # second handler to check if time taken is reduced from caching
+    apigw_event["queryStringParameters"]["lat_min"] = -60
+    apigw_event["queryStringParameters"]["lat_max"] = -40
+    apigw_event["queryStringParameters"]["lon_min"] = -90
+    apigw_event["queryStringParameters"]["lon_max"] = -50
     ret = app.lambda_handler(apigw_event, "")
+
+    with open(os.path.join(_DIR, 'test.html'), mode="w", encoding="utf-8") as f:
+        f.write(ret)

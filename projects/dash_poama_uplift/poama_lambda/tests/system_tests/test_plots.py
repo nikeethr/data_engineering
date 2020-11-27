@@ -20,16 +20,33 @@ NC_PATH = os.path.join(TEST_DIR, 's_moa_sst_20201107_e01.nc')
 def test_hvplot_from_ds():
     with xr.open_dataset(NC_PATH) as ds:
         ts = time.time()
-        da = ds.temp[0, 0, slice(500,600), slice(100, 200)]
+
+        da = ds.temp[0, 0, slice(100,200), slice(200,600)]
+        #y_idx, x_idx = np.where(
+        #    np.abs(da.nav_lon[:, 1:] - da.nav_lon[:, 0:-1]) > 355)
+        #for i, y in enumerate(y_idx):
+        #    da.nav_lon[y, x_idx[i]:] += 360
+        #print("slice: {:.3f}s".format(time.time() - ts))
+
+        # swap
+        # ts = time.time()
+        # da = ds.temp[0, 0]
+        # da = xr.concat([da[100:200, 600:], da[100:200, :200]], dim='x_2')
+        # print("swap: {:.3f}s".format(time.time() - ts))
+
+        ts = time.time()
         plot = da.hvplot.quadmesh(
             'nav_lon', 'nav_lat',
-            crs=ccrs.PlateCarree(), projection=ccrs.PlateCarree(),
+            crs=ccrs.PlateCarree(), projection=ccrs.PlateCarree(180,),
             project=True,
             geo=True,
             coastline=True,
             rasterize=True,
             frame_width=600,
-            dynamic=False
+            dynamic=False,
+            cmap='viridis',
+        ).opts(
+            toolbar='above'
         )
         print("dynamic plot: {:.3f}s".format(time.time() - ts))
 

@@ -7,6 +7,12 @@ import logging
 import xarray as xr
 import numpy as np
 from scipy.spatial import KDTree
+import cartopy.crs as ccrs
+
+# patch xarray to use hvplot
+import holoviews as hv
+import hvplot.xarray  # noqa
+from bokeh.io import export as bk_export
 # ===
 
 
@@ -100,6 +106,9 @@ def lambda_handler(event, context):
     LOGGER.debug(json.dumps(params, indent=4, default=str))
 
     store = get_s3_zarr_store()
+
+    res = None
+
     with xr.open_zarr(store, consolidated=True) as ds:
         # if the entire dataset lies within the lat/lon ranges then don't do
         # any kdtree computations.
@@ -107,6 +116,8 @@ def lambda_handler(event, context):
             # TODO
             pass
         else:
+            # should only run the first time as long as lambda function is
+            # warm.
             kdtree = construct_kdtree(ds)
 
             # get x_2 y_2 range from lat lon range
@@ -118,11 +129,19 @@ def lambda_handler(event, context):
                 ds, params['lon_range'], params['lat_range'])
             LOGGER.debug("{}, {}".format(x2_range, y2_range))
 
-            da = slice_dataset()
+            # slice the required data
+            da, swapped = slice_dataset(ds, x2_range, y2_range, params)
+
+            # create interactive plot
+            plot_hv = hv_plot(da, x2_range, swapped)
+
+            # convert to html to send via browser
+            res = convert_hv_plot_to_html(plot_hv)
+
 
     LOGGER.info(">>>> TOTAL TIME TAKEN: {:.3f} s".format(time.time() - ts))
 
-    return None
+    return res
 
 # ===
 
@@ -219,10 +238,16 @@ def get_x_2_y_2_from_lat_lon(ds, lon_range, lat_range):
         for p in bbox_pt_1d
     ]
 
-    y_2_range = [bbox_pt_2d[0][0], bbox_pt_2d[0][1]]
-    x_2_range = [bbox_pt_2d[1][0], bbox_pt_2d[1][1]]
+    y_2_range = [bbox_pt_2d[0][0], bbox_pt_2d[1][0]]
+    x_2_range = [bbox_pt_2d[0][1], bbox_pt_2d[1][1]]
 
     return x_2_range, y_2_range
+
+
+@_benchmark
+def ds_within_lat_lon(*args):
+    # TODO
+    return False
 
 
 @_benchmark
@@ -237,9 +262,9 @@ def get_slice_where(da, lon_range, lat_range):
     return da_sliced
 
 @_benchmark
-def slice_dataset(ds, xs, ys, lons):
-    # TODO: have a specific slicing for tripolar
-    n_y, n_x = ds.shape
+def slice_dataset(ds, xs, ys, params):
+    # TODO: rename this since it's specific slicing for tripolar
+    # NOTE: This is very specific to OVT data
 
     # check if swap required. This is because the dataset switches from -180 to
     # 180 at different points due to the tripolar nature. This will cause
@@ -274,10 +299,32 @@ def slice_dataset(ds, xs, ys, lons):
     # proportionally similar to the lon range. If it isn't we select:
     # 0 -> x_2[0] and x_2[1] -> max_x_2 instead as per the illustration above.
 
-    
-    LON_SPAN = 360 # degrees
-    x_diff = xs[1] - xs[0]
-    lon_diff = lon[1] - lon[0]
+    da = ds[params['var']].sel(
+        time_counter=params['dt'], method="nearest").squeeze()
+
+    n_y, n_x = da.shape
+    max_lon = 360 # degrees
+    lon_range = params['lon_range']
+
+    lon_diff = np.abs(lon_range[1] - lon_range[0]) / max_lon
+    x_diff_noswap = np.abs(xs[1] - xs[0]) / n_x
+    x_diff_swap = (n_x - np.abs(xs[1] - xs[0])) / n_x
+
+    if np.abs(x_diff_swap - lon_diff) < np.abs(x_diff_noswap - lon_diff):
+        swapped = True
+        LOGGER.info("!!! x/y range did not match lat/lon range: swapped dataarray")
+        da = xr.concat(
+            [
+                da[slice(*ys), slice(0, xs[0])],
+                da[slice(*ys), slice(xs[1], None)]
+            ],
+            dim='x_2'
+        )
+    else:
+        swapped = False
+        da = da[slice(*ys), slice(*xs)]
+
+    return da, swapped
 
 
 
@@ -312,15 +359,74 @@ def preprocess_plot_data(da):
     return plot_data
 
 
-def plot(plot_data):
+@_benchmark
+def hv_plot(da, xs, swapped):
     """
         Do the actual plot.
     """
-    # [ ] meshgrid plot
-    # [ ] layouts etc.
-    # [ ] save plot in byte array
-    # [ ] encode to base64
-    return byte_array
+    dc = check_for_lon_discontinuity(xs, swapped)
+    translate_lon = 180 if dc else 0
+
+    if dc:
+        LOGGER.info(
+            "!!! Discontinuity detected - "
+            "translating nav_lon by 180 to prevent artefacts"
+        )
+
+    plot_hv = da.hvplot.quadmesh(
+        'nav_lon', 'nav_lat',
+        crs=ccrs.PlateCarree(), projection=ccrs.PlateCarree(translate_lon,),
+        project=True,
+        geo=True,
+        coastline=True,
+        rasterize=True,
+        frame_width=600,
+        dynamic=False,
+        cmap='viridis',
+    ).opts(
+        toolbar='above'
+    )
+
+    return plot_hv
+
+
+@_benchmark
+def check_for_lon_discontinuity(xs, swapped):
+    """
+        If data is discontinuous in longitude true
+        This is used to determine if the projection needs to be shifted by 180
+    """
+    TRIPOLE_RANGE = [266, 626]
+
+    # knowing that tripoles happen between 226 and 626 it's faster to check it
+    # this way
+    if swapped:
+        # Not sure if dicontinuity happens when swapping so set to False if
+        # this produces bad artefacts
+        dc = xs[0] >= TRIPOLE_RANGE[0] or x[1] < TRIPOLE_RANGE[1]
+    else:
+        # return true if any one of the x slices cuts through the discontinuity
+        # region (note: it may not actually be discontinuous for specific lat
+        # ranges but ignoring this for now.)
+        dc = ((xs[0] >= TRIPOLE_RANGE[0] and xs[0] < TRIPOLE_RANGE[1])
+            or (xs[1] >= TRIPOLE_RANGE[0] and xs[1] < TRIPOLE_RANGE[1]))
+    return dc
+
+    # !!! Not used... but potentially useful
+    # This is a slower way of doing it
+    THRESHOLD = 355  # discontinuity happens from -180 -> 180 => 360 difference
+                     # so > 355 is sufficient to capture this.
+    a = np.where(da.nav_lon[:, 1:] - da.nav_lon[:, 0:-1] > THRESHOLD)
+    return len(a[1]) > 0
+    # !!!
+
+@_benchmark
+def convert_hv_plot_to_html(plot_hv):
+    # Convert to bokeh figure then save using bokeh
+    renderer = hv.renderer('bokeh')
+    plot_bk = renderer.get_plot(plot_hv).state
+    html_utf8 = bk_export.get_layout_html(plot_bk)
+    return html_utf8
 
 
 def convert_plot_to_response(img_64, content_type):
