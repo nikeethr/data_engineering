@@ -89,8 +89,8 @@ def get_fc_lead_dataframe(
         same as get_`fc_dataframe` but for a particular lead_day
     """
     uri = os.path.join(
-        STF_API_URI, 'fc_lead', lead_day, start_date.strftime(DT_FMT),
-        end_date.strftime(DT_FMT))
+        STF_API_URI, 'fc_lead', awrc_id, str(lead_day),
+        start_date.strftime(DT_FMT), end_date.strftime(DT_FMT))
     payload = None
 
     if daily:
@@ -138,13 +138,14 @@ def store_current_product():
     return dcc.Store(id='store-controls', data={})
 
 
-def parse_fc_dt_utc(dt_str):
+def parse_fc_dt_utc(dt_str, force_hour=True):
     dt = dateutil.parser.parse(dt_str)
     if dt.tzinfo is None:
         dt_utc = dt.replace(tzinfo=timezone('utc'))
     else:
         dt_utc = dt.astimezone(timezone('utc'))
-    dt_utc = dt_utc.replace(hour=FORCE_FC_HOUR)
+    if force_hour:
+        dt_utc = dt_utc.replace(hour=FORCE_FC_HOUR)
     return dt_utc
 
 

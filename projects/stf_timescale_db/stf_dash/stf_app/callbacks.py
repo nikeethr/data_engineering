@@ -23,22 +23,55 @@ def update_fc_graph(store_ts, store_data):
     if not store_ts or not store_data:
         raise PreventUpdate
 
-    fc_date = data_fetch.parse_fc_dt_utc(store_data['fc_date'])
+    plot_type = store_data.get('plot_type', 'fc')
+
+    if plot_type not in ['fc', 'an']:
+        raise PreventUpdate
+
     daily = store_data['daily']
 
-    df_fc = data_fetch.get_fc_dataframe(
-        fc_date,
-        store_data['awrc_id'],
-        daily=daily
-    )
+    if plot_type == 'fc':
+        fc_date = data_fetch.parse_fc_dt_utc(store_data['fc_date'])
+        df_fc = data_fetch.get_fc_dataframe(
+            fc_date,
+            store_data['awrc_id'],
+            daily=daily
+        )
 
-    # get past 4 days of observed data
-    df_obs = data_fetch.get_obs_dataframe(
-        fc_date - relativedelta(days=4),
-        fc_date,
-        store_data['awrc_id'],
-        daily=daily
-    )
+        # get past 4 days of observed data
+        df_obs = data_fetch.get_obs_dataframe(
+            fc_date - relativedelta(days=4),
+            fc_date,
+            store_data['awrc_id'],
+            daily=daily
+        )
+    else: # plot_type == 'an'
+        days_to_show = store_data['an_days_to_show']
+        lead_day = store_data['an_lead_day']
+
+        obs_start_dt = data_fetch.parse_fc_dt_utc(store_data['an_start_date'])
+        obs_end_dt = obs_start_dt + relativedelta(days=days_to_show)
+
+        # subtract lead days so that start date is still include
+        fc_start_dt = obs_start_dt - relativedelta(days=lead_day-1)
+        fc_end_dt = fc_start_dt + relativedelta(days=days_to_show)
+
+        df_fc = data_fetch.get_fc_lead_dataframe(
+            fc_start_dt,
+            fc_end_dt,
+            lead_day,
+            store_data['awrc_id'],
+            daily=daily
+        )
+
+        # adding 1 hour shift so that it matches forecast range
+        df_obs = data_fetch.get_obs_dataframe(
+            obs_start_dt,
+            obs_end_dt,
+            store_data['awrc_id'],
+            daily=daily
+        )
+
 
     if daily:
         fig = fg.streamflow_daily(df_obs, df_fc)
@@ -109,7 +142,7 @@ def update_stf_map(click_data, ts, figure_data, store_data):
         Input('select-awrc-id', 'value'),
         Input('fc-date-picker', 'date'),
         Input('an-date-picker', 'date'),
-        Input('slider-lead-days', 'value'),
+        Input('slider-lead-day', 'value'),
         Input('slider-days-to-show', 'value'),
         Input('stf-map', 'clickData'),
         Input('toggle-freq', 'value'),
@@ -118,7 +151,7 @@ def update_stf_map(click_data, ts, figure_data, store_data):
     [State('store-controls', 'data')]
 )
 def update_control_store(
-        awrc_id, fc_date, an_start_date, lead_days, days_to_show, click_data,
+        awrc_id, fc_date, an_start_date, lead_day, days_to_show, click_data,
         toggle_freq, toggle_fc_an, store_data):
     # TODO: change to update and use store as state
     # TODO: convert fc_date to timezone aware (as database can handle this)
@@ -129,8 +162,8 @@ def update_control_store(
         elem_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
     valid_ids =  [
-        'select-awrc-id', 'fc-date-picker', 'toggle-freq',
-        'toggle-forecast-analysis'
+        'select-awrc-id', 'fc-date-picker', 'an-date-picker', 'toggle-freq',
+        'toggle-forecast-analysis', 'slider-lead-day', 'slider-days-to-show'
     ]
     if init or (elem_id in valid_ids and awrc_id and fc_date and an_start_date):
         store_data.update({
@@ -138,7 +171,7 @@ def update_control_store(
             'fc_date': fc_date,
             'an_start_date': an_start_date,
             'an_days_to_show': days_to_show,
-            'an_lead_days': lead_days,
+            'an_lead_day': lead_day,
             'daily': not toggle_freq,
             'plot_type': 'fc' if toggle_fc_an else 'an'
         })

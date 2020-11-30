@@ -162,7 +162,10 @@ def stf_fc_lead_flow_daily(
     agg_func = agg_map[agg_type]
 
     q = StfFcFlow.query.with_entities(
-        StfFcFlow.fc_datetime.label('timestamp'),
+        (
+            # lead_day - 1 since the timestamp is the start of the day
+            StfFcFlow.fc_datetime + func.cast(concat(lead_day - 1, ' DAY'), INTERVAL)
+        ).label('timestamp'),
         agg_func(StfFcFlow.pctl_5).label('pctl_5'),
         agg_func(StfFcFlow.pctl_25).label('pctl_25'),
         agg_func(StfFcFlow.pctl_50).label('pctl_50'),

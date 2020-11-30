@@ -37,7 +37,10 @@ def layout_streamflow_graph():
     return dbc.Card([
         dbc.CardHeader('Streamflow Time-series'),
         dbc.CardBody([
-            toggle_daily_or_hourly(),
+            dbc.Row([
+                dbc.Col(toggle_daily_or_hourly(), width=6, lg=3),
+                dbc.Col(select_agg_method(), width=6, lg=3)
+            ]),
             dbc.Spinner(dcc.Graph(id='graph-streamflow'))
         ])
     ])
@@ -69,6 +72,17 @@ def select_awrc_id():
         )
     ])
 
+
+def select_agg_method():
+    return dbc.Select(
+        id="select-agg-method",
+        options=[
+            { "label": "sum", "value": "sum" },
+            { "label": "avg", "value": "avg" }
+        ],
+        value='sum'
+    )
+    
 
 def toggle_daily_or_hourly():
     return html.Div([
@@ -151,7 +165,7 @@ def analysis_controls(hidden=True):
                 value=1,
                 included=False,
                 marks={ i: {'label': str(i)} for i in range(1, MAX_LEAD_DAY+1)},
-                id='slider-lead-days'
+                id='slider-lead-day'
             )
         ]),
         html.Div([
