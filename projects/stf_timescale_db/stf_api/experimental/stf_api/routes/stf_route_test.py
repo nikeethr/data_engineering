@@ -1,6 +1,6 @@
 import dateutil.parser
 from flask import Blueprint
-from flask import jsonify, make_response, request
+from flask import jsonify, make_response, request, json
 from pytz import timezone
 from sqlalchemy import func, and_, distinct
 from sqlalchemy.dialects.postgresql import INTERVAL
@@ -98,6 +98,107 @@ def stf_fc_flow_hourly(awrc_id, dt_utc):
         StfMetadatum, StfMetadatum.pk_meta == StfFcFlow.meta_id
     ).filter(
         func.date_trunc('hour', StfFcFlow.fc_datetime) == func.date_trunc('hour', dt_utc),
+        StfMetadatum.awrc_id == awrc_id
+    ).order_by('timestamp')
+
+    return q
+
+
+# TODO: maybe we need to split fc, obs and metadata into different blueprints
+# - This should really be part of the fc API
+@stf_bp.route('/fc_lead/<awrc_id>/<lead_day>/<start_dt>/<end_dt>')
+def stf_fc_by_lead_day(awrc_id, lead_day, start_dt, end_dt):
+    """
+        API:
+        stf_api/fc/<awrc_id>/<start_dt>/<end_dt>
+
+        IN:
+            - awrc_id: AWRC ID of station (required)
+            - lead_day: the lead_day to extract forecast for (required)
+            - start_dt: starting observation datetime (required)
+            - end_dt: ending observation datetime (required)
+        OUT (json):
+            - streamflow forecast for a particular lead day
+
+        ```sql
+        SELECT
+            fc_datetime + INTERVAL '1 HOUR' * lead_time_hours AS timestamp,
+            pctl_5,
+            pctl_25,
+            pctl_50,
+            pctl_75,
+            pctl_95
+        FROM stf_fc_flow
+        INNER JOIN stf_metadata ON stf_metadata.pk_meta = stf_fc_flow.meta_id
+        WHERE
+            awrc_id = <awrc_id> AND
+            lead_time_hours >= ((<lead_day> - 1) * 24 + 1) AND
+            lead_time_hours <= <lead_day> * 24 AND
+            fc_datetime >= start_dt AND
+            fc_datetime <= end_dt;
+        ```
+    """
+    FORCE_FC_HOUR = 23
+    # force the forecast hour to 23:00
+    dt_start_utc = parse_dt_to_utc(start_dt).replace(hour=FORCE_FC_HOUR)
+    dt_end_utc = parse_dt_to_utc(end_dt).replace(hour=FORCE_FC_HOUR)
+    daily = request.args.get('daily', False)
+    daily_agg_method = request.args.get('daily_agg_method', 'sum')
+    lead_day = int(lead_day)
+
+    if daily:
+        q = stf_fc_lead_flow_daily(
+            awrc_id, lead_day, dt_start_utc, dt_end_utc, daily_agg_method)
+    else: # hourly
+        q = stf_fc_lead_flow_hourly(awrc_id, lead_day, dt_start_utc, dt_end_utc)
+
+    # TODO: send 404 if entry is empty...?
+    return ts_response(q)
+
+
+def stf_fc_lead_flow_daily(
+        awrc_id, lead_day, dt_start_utc, dt_end_utc, agg_type='sum'):
+    assert agg_type in agg_map
+    agg_func = agg_map[agg_type]
+
+    q = StfFcFlow.query.with_entities(
+        StfFcFlow.fc_datetime.label('timestamp'),
+        agg_func(StfFcFlow.pctl_5).label('pctl_5'),
+        agg_func(StfFcFlow.pctl_25).label('pctl_25'),
+        agg_func(StfFcFlow.pctl_50).label('pctl_50'),
+        agg_func(StfFcFlow.pctl_75).label('pctl_75'),
+        agg_func(StfFcFlow.pctl_95).label('pctl_95')
+    ).join(
+        StfMetadatum, StfMetadatum.pk_meta == StfFcFlow.meta_id
+    ).filter(
+        StfFcFlow.fc_datetime >= dt_start_utc,
+        StfFcFlow.fc_datetime < dt_end_utc,
+        StfFcFlow.lead_time_hours <= 24 * lead_day,
+        StfFcFlow.lead_time_hours > 24 * (lead_day - 1),
+        StfMetadatum.awrc_id == awrc_id
+    ).group_by('timestamp').order_by('timestamp')
+
+    return q
+
+
+def stf_fc_lead_flow_hourly(awrc_id, lead_day, dt_start_utc, dt_end_utc):
+    q = StfFcFlow.query.with_entities(
+        (
+            StfFcFlow.fc_datetime
+            + StfFcFlow.lead_time_hours * func.cast(concat(1, ' HOURS'), INTERVAL)
+        ).label('timestamp'),
+        StfFcFlow.pctl_5,
+        StfFcFlow.pctl_25,
+        StfFcFlow.pctl_50,
+        StfFcFlow.pctl_75,
+        StfFcFlow.pctl_95
+    ).join(
+        StfMetadatum, StfMetadatum.pk_meta == StfFcFlow.meta_id
+    ).filter(
+        StfFcFlow.fc_datetime >= dt_start_utc,
+        StfFcFlow.fc_datetime < dt_end_utc,
+        StfFcFlow.lead_time_hours <= 24 * lead_day,
+        StfFcFlow.lead_time_hours > 24 * (lead_day - 1),
         StfMetadatum.awrc_id == awrc_id
     ).order_by('timestamp')
 
@@ -214,7 +315,7 @@ def stf_catchment_boundaries():
     r = q.fetchall()
 
     # unpack entries and jsonify
-    return jsonify(r[0][0])
+    return my_jsonify(r[0][0])
 
 
 def query_station_info(filt):
@@ -284,7 +385,7 @@ def stf_awrc_ids():
         StfMetadatum.awrc_id
     ).join(t_unique_meta_id, t_unique_meta_id.c.meta_id == StfMetadatum.pk_meta)
 
-    return jsonify(q_awrc_ids.all())
+    return my_jsonify(q_awrc_ids.all())
 
 
 # get forecast dates by awrc_id
@@ -311,7 +412,7 @@ def stf_fc_dates(awrc_id):
         func.max(StfFcFlow.fc_datetime).label('max_fc_date')
     ).filter(StfFcFlow.meta_id.in_(t_meta_id))
 
-    return jsonify(q_fc_dates.all())
+    return my_jsonify(q_fc_dates.all())
 
 
 # --- helper funcs ---
@@ -329,8 +430,17 @@ def ts_response(q):
     # TODO: enable this if using from browser
     # if 'Cache-Control' not in r.headers:
     #     r.headers['Cache-Control'] = 'public, max-age=86400, must-revalidate'
-    return make_response(jsonify({
+    # requires simplejson
+    return my_jsonify({
         'keys': [ x['name'] for x in q.column_descriptions ],
         'entries': q.all()
-    }))
+    })
 
+
+def my_jsonify(obj):
+    try:
+        r = make_response(json.dumps(obj, namedtuple_as_object=False))
+    except Exception as e:
+        r = make_response(json.dumps(obj))
+    r.mimetype = "application/json"
+    return r

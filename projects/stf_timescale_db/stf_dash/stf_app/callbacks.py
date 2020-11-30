@@ -49,6 +49,27 @@ def update_fc_graph(store_ts, store_data):
 
 
 @app.callback(
+    [
+        Output('analysis-controls', 'className'),
+        Output('forecast-controls', 'className')
+    ],
+    [Input('store-controls', 'modified_timestamp')],
+    [State('store-controls', 'data')]
+)
+def switch_plot_controls(store_ts, store_data):
+    if not store_ts or not store_data:
+        raise PreventUpdate
+
+    plot_type = store_data.get('plot_type', 'fc')
+    if plot_type == 'fc':
+        return ('hide-control', 'forecast-controls')
+    elif plot_type == 'an':
+        return ('analysis-controls', 'hide-control')
+    else:
+        raise PreventUpdate
+
+
+@app.callback(
     Output('stf-map', 'figure'),
     [
         Input('stf-map', 'clickData'),
@@ -87,12 +108,18 @@ def update_stf_map(click_data, ts, figure_data, store_data):
     [
         Input('select-awrc-id', 'value'),
         Input('fc-date-picker', 'date'),
+        Input('an-date-picker', 'date'),
+        Input('slider-lead-days', 'value'),
+        Input('slider-days-to-show', 'value'),
         Input('stf-map', 'clickData'),
-        Input('toggle-freq', 'value')
+        Input('toggle-freq', 'value'),
+        Input('toggle-forecast-analysis', 'value'),
     ],
     [State('store-controls', 'data')]
 )
-def update_control_store(awrc_id, fc_date, click_data, toggle, store_data):
+def update_control_store(
+        awrc_id, fc_date, an_start_date, lead_days, days_to_show, click_data,
+        toggle_freq, toggle_fc_an, store_data):
     # TODO: change to update and use store as state
     # TODO: convert fc_date to timezone aware (as database can handle this)
     ctx = dash.callback_context
@@ -101,12 +128,19 @@ def update_control_store(awrc_id, fc_date, click_data, toggle, store_data):
     if ctx.triggered:
         elem_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
-    valid_ids =  [ 'select-awrc-id', 'fc-date-picker', 'toggle-freq' ]
-    if init or (elem_id in valid_ids and awrc_id and fc_date):
+    valid_ids =  [
+        'select-awrc-id', 'fc-date-picker', 'toggle-freq',
+        'toggle-forecast-analysis'
+    ]
+    if init or (elem_id in valid_ids and awrc_id and fc_date and an_start_date):
         store_data.update({
             'awrc_id': awrc_id,
             'fc_date': fc_date,
-            'daily': not toggle
+            'an_start_date': an_start_date,
+            'an_days_to_show': days_to_show,
+            'an_lead_days': lead_days,
+            'daily': not toggle_freq,
+            'plot_type': 'fc' if toggle_fc_an else 'an'
         })
 
         return store_data

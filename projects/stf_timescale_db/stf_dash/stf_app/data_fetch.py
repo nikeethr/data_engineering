@@ -82,6 +82,30 @@ def get_fc_dataframe(fc_dt, awrc_id=DEFAULT_AWRC_ID, daily=False, agg=None):
         df.index = pd.to_datetime(df.index)
         return df
 
+def get_fc_lead_dataframe(
+        start_date, end_date, lead_day, awrc_id=DEFAULT_AWRC_ID, daily=False,
+        agg=None):
+    """
+        same as get_`fc_dataframe` but for a particular lead_day
+    """
+    uri = os.path.join(
+        STF_API_URI, 'fc_lead', lead_day, start_date.strftime(DT_FMT),
+        end_date.strftime(DT_FMT))
+    payload = None
+
+    if daily:
+        agg = agg or 'sum'
+        payload = { 'daily': True, 'daily_agg_method': agg }
+
+    r = requests.get(uri, params=payload)
+
+    if r.ok:
+        d = r.json()
+        df = pd.DataFrame(data=d['entries'], columns=d['keys'])
+        df = df.set_index('timestamp')
+        # NOTE: to_datetime is slow, takes about 100ms
+        df.index = pd.to_datetime(df.index)
+        return df
 
 def get_catchment_boundaries():
     uri = os.path.join(STF_API_URI, 'geo', 'catchment_boundaries')
