@@ -1,0 +1,18 @@
+[
+    {
+        "ParameterKey": "Region",
+        "ParameterValue": "ap-southeast-2"
+    },
+    {
+        "ParameterKey": "SSHIp",
+        "ParameterValue": "0.0.0.0"
+    },
+    {
+        "ParameterKey": "KeyName",
+        "ParameterValue": "stf-ec2-keypair"
+    },
+    {
+        "ParameterKey": "InstanceTypeParameter",
+        "ParameterValue": "t2.micro"
+    }
+]
