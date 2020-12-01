@@ -74,14 +74,19 @@ def select_awrc_id():
 
 
 def select_agg_method():
-    return dbc.Select(
-        id="select-agg-method",
-        options=[
-            { "label": "sum", "value": "sum" },
-            { "label": "avg", "value": "avg" }
-        ],
-        value='sum'
-    )
+    return html.Div([
+        html.Div("AGGREGATE: ", id='label-agg'),
+        html.Div(
+            dbc.Select(
+                id="select-agg-method",
+                options=[
+                    { "label": "sum", "value": "sum" },
+                    { "label": "avg", "value": "avg" }
+                ],
+                value='sum'
+            ), id="select-agg-container"
+        )
+    ], id="agg-controls", className='hide-control')  # hide by default
     
 
 def toggle_daily_or_hourly():

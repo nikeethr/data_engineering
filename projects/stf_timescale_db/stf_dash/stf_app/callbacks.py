@@ -30,12 +30,17 @@ def update_fc_graph(store_ts, store_data):
 
     daily = store_data['daily']
 
+    agg = None
+    if daily:
+        agg = store_data.get('daily_agg_method', 'sum')
+
     if plot_type == 'fc':
         fc_date = data_fetch.parse_fc_dt_utc(store_data['fc_date'])
         df_fc = data_fetch.get_fc_dataframe(
             fc_date,
             store_data['awrc_id'],
-            daily=daily
+            daily=daily,
+            agg=agg
         )
 
         # get past 4 days of observed data
@@ -43,7 +48,8 @@ def update_fc_graph(store_ts, store_data):
             fc_date - relativedelta(days=4),
             fc_date,
             store_data['awrc_id'],
-            daily=daily
+            daily=daily,
+            agg=agg
         )
     else: # plot_type == 'an'
         days_to_show = store_data['an_days_to_show']
@@ -65,7 +71,8 @@ def update_fc_graph(store_ts, store_data):
             fc_end_dt,
             lead_day,
             store_data['awrc_id'],
-            daily=daily
+            daily=daily,
+            agg=agg
         )
 
         # adding 1 hour shift so that it matches forecast range
@@ -73,7 +80,8 @@ def update_fc_graph(store_ts, store_data):
             obs_start_dt,
             obs_end_dt,
             store_data['awrc_id'],
-            daily=daily
+            daily=daily,
+            agg=agg
         )
 
 
@@ -104,6 +112,20 @@ def switch_plot_controls(store_ts, store_data):
         return ('analysis-controls', 'hide-control')
     else:
         raise PreventUpdate
+
+
+@app.callback(
+    Output('agg-controls', 'className'),
+    [Input('store-controls', 'modified_timestamp')],
+    [State('store-controls', 'data')]
+)
+def show_agg_if_daily(store_ts, store_data):
+    if not store_ts or not store_data:
+        raise PreventUpdate
+    if store_data.get('daily', False):
+        return 'agg-controls'
+    else:
+        return 'hide-control'
 
 
 @app.callback(
@@ -151,12 +173,13 @@ def update_stf_map(click_data, ts, figure_data, store_data):
         Input('stf-map', 'clickData'),
         Input('toggle-freq', 'value'),
         Input('toggle-forecast-analysis', 'value'),
+        Input('select-agg-method', 'value'),
     ],
     [State('store-controls', 'data')]
 )
 def update_control_store(
         awrc_id, fc_date, an_start_date, lead_day, days_to_show, click_data,
-        toggle_freq, toggle_fc_an, store_data):
+        toggle_freq, toggle_fc_an, agg_method, store_data):
     # TODO: change to update and use store as state
     # TODO: convert fc_date to timezone aware (as database can handle this)
     ctx = dash.callback_context
@@ -167,7 +190,8 @@ def update_control_store(
 
     valid_ids =  [
         'select-awrc-id', 'fc-date-picker', 'an-date-picker', 'toggle-freq',
-        'toggle-forecast-analysis', 'slider-lead-day', 'slider-days-to-show'
+        'toggle-forecast-analysis', 'slider-lead-day', 'slider-days-to-show',
+        'select-agg-method'
     ]
     if init or (elem_id in valid_ids and awrc_id and fc_date and an_start_date):
         store_data.update({
@@ -177,6 +201,7 @@ def update_control_store(
             'an_days_to_show': days_to_show,
             'an_lead_day': lead_day,
             'daily': not toggle_freq,
+            'daily_agg_method': agg_method,
             'plot_type': 'fc' if toggle_fc_an else 'an'
         })
 
