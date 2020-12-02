@@ -45,8 +45,8 @@ SELECT create_hypertable(
     create_default_indexes=>FAlSE
 );
 
-DROP INDEX obs_datetime_idx;
-DROP INDEX station_id_obs_datetime_idx;
+DROP INDEX IF EXISTS obs_datetime_idx;
+DROP INDEX IF EXISTS station_id_obs_datetime_idx;
 -- ASC is actually not needed here explicitly - it's the default
 CREATE INDEX obs_datetime_idx ON stf_obs_flow (obs_datetime ASC);
 CREATE UNIQUE INDEX station_id_obs_datetime_idx ON stf_obs_flow (meta_id, obs_datetime ASC);
@@ -76,9 +76,9 @@ SELECT create_hypertable(
     create_default_indexes=>FAlSE
 );
 
-DROP INDEX fc_datetime_idx;
-DROP INDEX station_id_fc_datetime_idx;
-DROP INDEX station_id_lead_time_hours_fc_datetime_idx;
+DROP INDEX IF EXISTS fc_datetime_idx;
+DROP INDEX IF EXISTS station_id_fc_datetime_idx;
+DROP INDEX IF EXISTS station_id_lead_time_hours_fc_datetime_idx;
 -- ASC is actually not needed here explicitly - it's the default
 CREATE INDEX fc_datetime_idx ON stf_fc_flow (fc_datetime ASC);
 CREATE INDEX station_id_fc_datetime_idx ON stf_fc_flow (meta_id, fc_datetime ASC);
