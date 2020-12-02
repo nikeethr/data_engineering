@@ -60,6 +60,10 @@ sudo -u ec2-user bash <<'EOF'
 
     # create materialized view for faster geom access for shp files
     docker exec -i stf_db psql -U postgres -d stf_db < views.sql
+
+    # spin up other containers
+    cd /home/ec2-user/data_engineering/projects/stf_timescaledb
+    docker-compose up -d
 EOF
 
 # ---

@@ -8,8 +8,7 @@ from dateutil.relativedelta import relativedelta
 from pytz import timezone
 
 DEBUG_STF_API_URI='http://localhost:8052/stf_api'
-STF_API_URI='http://localhost:8052/stf_api'
-# STF_API_URI='http://stf_api:8052/stf_api'
+STF_API_URI='http://stf_api:8052/stf_api'
 DEFAULT_AWRC_ID = '403227'
 DT_FMT = '%Y-%m-%d %H:%M %Z'
 
