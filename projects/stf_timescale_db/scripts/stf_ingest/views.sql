@@ -1,7 +1,7 @@
 -- view for catchment boundaries
 -- TODO: set SRID to global
 
-DROP MATERIALIZED VIEW view_catchment_boundaries;
+DROP MATERIALIZED VIEW IF EXISTS view_catchment_boundaries;
 CREATE MATERIALIZED VIEW view_catchment_boundaries AS
     SELECT jsonb_build_object(
         'type',     'FeatureCollection',

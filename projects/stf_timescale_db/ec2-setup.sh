@@ -30,16 +30,36 @@ sudo chmod +x /usr/local/bin/docker-compose
 # - start up other containers
 
 sudo -u ec2-user bash <<'EOF'
+    # clone repo
     cd /home/ec2-user
     git clone https://github.com/nikeethr/data_engineering.git
     cd data_engineering/projects/stf_timescale_db
+
+    # spin up stf database
     /usr/local/bin/docker-compose up -d stf_db
+
+    # get data from s3
     /bin/bash get_sample_data_from_s3.sh
+
+    # prepare python environment for ingesting netcdf/csv data via psycopg
     /bin/python3 -m venv /tmp/temp_env
     source /tmp/temp_env/bin/activate
     pip3 install -r requirements.txt
-    python3 scripts/stf_ingest/ingest_meta.py
-    python3 scripts/stf_ingest/ingest_stf_flow.py
+    cd scripts/stf_ingest
+
+    # ingest metadata csv file
+    python3 ingest_meta.py
+
+    # ingest netcdf files
+    python3 ingest_stf_flow.py
+
+    # copy and ingest shp files directly from docker
+    docker cp sample_data stf_db:/tmp/
+    docker cp ingest_shp_files_docker.sh stf_db:/tmp/
+    docker exec stf_db /tmp/ingest_shp_files_docker.sh
+
+    # create materialized view for faster geom access for shp files
+    docker exec -i stf_db psql -U postgres -d stf_db < views.sql
 EOF
 
 # ---
