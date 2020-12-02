@@ -5,6 +5,7 @@ sudo yum update -y
 sudo amazon-linux-extras install docker
 sudo yum install docker -y
 sudo yum install python3 -y
+sudo yum install git -y
 
 # start docker
 sudo systemctl enable docker
@@ -28,7 +29,7 @@ sudo -u ec2-user bash <<'EOF'
     cd /home/ec2-user
     git clone https://github.com/nikeethr/data_engineering.git
     cd data_engineering/projects/stf_timescale_db
-    docker-compose up -d stf_db
+    /usr/local/bin/docker-compose up -d stf_db
 EOF
 
 # ---
