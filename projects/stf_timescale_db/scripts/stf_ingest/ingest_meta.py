@@ -6,7 +6,7 @@ import stf_conf
 
 DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(DIR, 'sample_data')
-METADATA_CSV = os.path.join(DATA_DIR, 'ovens_example', 'station_metadata.csv')
+METADATA_CSV = os.path.join(DATA_DIR, 'metadata', 'station_metadata.csv')
 
 # TODO: abstract out SRID
 SRID_AUS=4283

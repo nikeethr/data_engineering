@@ -19,9 +19,12 @@ sudo curl -L \
 sudo chmod +x /usr/local/bin/docker-compose
 
 # --- run as user ---
-
+# WARNING: This contains some hardcoded scripts/paths assumed from the git repo
 # - clone repo
 # - start up timescaledb
+# - download sample data from s3
+# - create virtual env
+# - install requirements
 # - run ingestion scripts
 # - start up other containers
 
@@ -30,18 +33,9 @@ sudo -u ec2-user bash <<'EOF'
     git clone https://github.com/nikeethr/data_engineering.git
     cd data_engineering/projects/stf_timescale_db
     /usr/local/bin/docker-compose up -d stf_db
+    /bin/bash get_sample_data_from_s3.sh
+    python3 -m venv /tmp/temp_env
+    source /tmp/temp_env/bin/activate
 EOF
 
 # ---
-
-# TODO:
-# - git
-# - update tsdb image to initialize tables
-# - download git dir
-# - start docker service for tsdb
-# - check that it worked
-# - install python packages & tools for ingestion scripts
-# - store ingest data in s3 bucket
-# - update ingestion scripts to source from s3
-# - run ingestion scripts
-# - check db
