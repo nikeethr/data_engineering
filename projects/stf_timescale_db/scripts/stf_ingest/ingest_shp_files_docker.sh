@@ -9,7 +9,7 @@ SAMPLE_SUBAREA_SHP=$EXAMPLE_DIR/VIC_SWIFT_Subcatchment_ovens
 DB_NAME=stf_db
 
 run_query() {
-    psql --db_name ${DB_NAME} -f $1
+    psql -d ${DB_NAME} -f $1
 }
 
 
