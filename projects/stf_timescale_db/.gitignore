@@ -5,6 +5,7 @@ __pycache__
 stf_db/stf_db_data
 scripts/tutorial/data
 scripts/stf_ingest/sample_data
+scripts/stf_ingest/sample_data_archive
 scripts/stf_ingest/tmp*.sql
 scripts/stf_ingest/.tmp*.sql
 docker-compose.override.yml
