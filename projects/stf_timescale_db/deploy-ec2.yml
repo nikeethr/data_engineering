@@ -1,132 +1,171 @@
 ---
 AWSTemplateFormatVersion: 2010-09-09
+
 Parameters:
-    # This may not be needed if using the specified region in profile
-    # In which case you can just use AWS::Region
-    Region:
-        Type: String
-        Default: ap-southeast-2
-        Description: AWS region
-    SSHIp:
-        Type: String
-        Description: IP address used to access EC2 via SSH
-    KeyName:
-        Type: String
-        Description: Name of key used to access EC2 instance
-    InstanceTypeParameter:
-        Type: String
-        Default: t2.micro
-        AllowedValues:
-            - t2.micro
-    # Note: has to be base64
-    UserData:
-        Type: String
-        Default: ""
+  # This may not be needed if using the specified region in profile
+  # In which case you can just use AWS::Region
+  Region:
+    Type: String
+    Default: ap-southeast-2
+    Description: AWS region
+  SSHIp:
+    Type: String
+    Description: IP address used to access EC2 via SSH
+  KeyName:
+    Type: String
+    Description: Name of key used to access EC2 instance
+  InstanceTypeParameter:
+    Type: String
+    Default: t2.micro
+    Description: EC2 instance type
+    AllowedValues:
+      - t2.micro
+  DataBucket:
+    Type: String
+    Description: Name of S3 bucket containing data
+  # Note: has to be base64
+  UserData:
+    Type: String
+    Description: Base64 encoded init script
 # Currently only ap-southeast-2 Amazon Linux 2 supported
 Mappings:
-    RegionMap:
-        ap-southeast-2:
-            AMI: ami-09f765d333a8ebb4b
+  RegionMap:
+    ap-southeast-2:
+      AMI: ami-09f765d333a8ebb4b
+
 Resources:
-    VPC:
-        Type: AWS::EC2::VPC
-        Properties:
-            CidrBlock: 10.1.0.0/16
-            EnableDnsSupport: true
-            EnableDnsHostnames: true
-            Tags:
-            - Key: Name
-              # TODO: add date at the end
-              Value: !Join ["-", [!Ref "AWS::StackName", "VPC"]]
-    # Create gateway for internet access to VPC
-    InternetGateway:
-        Type: AWS::EC2::InternetGateway
-        DependsOn: VPC
-    # Attach gateway to VPC
-    AttachGateway:
-        Type: AWS::EC2::VPCGatewayAttachment
-        Properties:
-            VpcId: !Ref VPC
-            InternetGatewayId: !Ref InternetGateway
-    PublicSubnetA:
-        Type: AWS::EC2::Subnet
-        Properties:
-            VpcId: !Ref VPC
-            CidrBlock: 10.1.0.0/24
-            AvailabilityZone: !Select 
-                # Get first availibility zone for region
-                - 0
-                - Fn::GetAZs: !Ref Region
-            MapPublicIpOnLaunch: true
-            Tags:
-            - Key: Name
-              Value: !Sub "${AWS::StackName}-Public-Subnet-A"
-    PublicRouteTable:
-        Type: AWS::EC2::RouteTable
-        Properties:
-            VpcId: !Ref VPC
-            Tags:
-                - Key: Name
-                  Value: Public-Route-Table
-    # Route internet traffic to internet gateway
-    InternetRoute:
-        # Route is a entry in route table
-        Type: AWS::EC2::Route
-        DependsOn: AttachGateway
-        Properties:
-            RouteTableId: !Ref PublicRouteTable
-            DestinationCidrBlock: 0.0.0.0/0
-            GatewayId: !Ref InternetGateway
-    # Attach routetable to subnet. (Otherwise a main route table will be used)
-    PublicSubnetARouteTableAssociation:
-        Type: AWS::EC2::SubnetRouteTableAssociation
-        Properties:
-            SubnetId: !Ref PublicSubnetA
-            RouteTableId: !Ref PublicRouteTable
-    InstanceSecurityGroup:
-        Type: AWS::EC2::SecurityGroup
-        Properties:
-            GroupName: "Internet Group"
-            GroupDescription: "SSH and some web traffic in, all traffic out"
-            VpcId: !Ref VPC
-            # Inbound traffic allowed for port 8050 via web and 22 for ssh
-            SecurityGroupIngress:
-                - IpProtocol: tcp
-                  FromPort: "8050"
-                  ToPort: "8050"
-                  CidrIp: 0.0.0.0/0
-                - IpProtocol: tcp
-                  FromPort: "22"
-                  ToPort: "22"
-                  CidrIp: !Sub "${SSHIp}/32"
-            # All outbound traffic allowed
-            SecurityGroupEgress:
-                - IpProtocol: -1
-                  CidrIp: 0.0.0.0/0
-    EC2Instance:
-        Type: AWS::EC2::Instance
-        Properties:
-            ImageId: !FindInMap [RegionMap, !Ref Region, AMI]
-            InstanceType: !Ref InstanceTypeParameter
-            SubnetId: !Ref PublicSubnetA
-            KeyName: !Ref KeyName
-            SecurityGroupIds:
-                - !Ref InstanceSecurityGroup
-            UserData: !Ref UserData
-                #Fn::Base64:
-                #    !Sub |
-                #        #!/bin/bash -ex
-                #        touch /tmp/hello_world
-            BlockDeviceMappings:
-                - DeviceName: /dev/xvda
-                  Ebs:
-                    VolumeSize: 20
-                    VolumeType: gp2
-                    DeleteOnTermination: true
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+      - Key: Name
+        # TODO: add date at the end
+        Value: !Join ["-", [!Ref "AWS::StackName", "VPC"]]
+  # Create gateway for internet access to VPC
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    DependsOn: VPC
+  # Attach gateway to VPC
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.1.0.0/24
+      AvailabilityZone: !Select
+        # Get first availibility zone for region
+        - 0
+        - Fn::GetAZs: !Ref Region
+      MapPublicIpOnLaunch: true
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-Public-Subnet-A"
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Public-Route-Table
+  # Route internet traffic to internet gateway
+  InternetRoute:
+    # Route is a entry in route table
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  # Attach routetable to subnet. (Otherwise a main route table will be used)
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "Internet Group"
+      GroupDescription: "SSH and some web traffic in, all traffic out"
+      VpcId: !Ref VPC
+      # Inbound traffic allowed for port 8050 via web and 22 for ssh
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: "8050"
+          ToPort: "8050"
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: "22"
+          ToPort: "22"
+          CidrIp: !Sub "${SSHIp}/32"
+      # All outbound traffic allowed
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [RegionMap, !Ref Region, AMI]
+      InstanceType: !Ref InstanceTypeParameter
+      SubnetId: !Ref PublicSubnetA
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup
+      UserData: !Ref UserData
+        #Fn::Base64:
+        #  !Sub |
+        #    #!/bin/bash -ex
+        #    touch /tmp/hello_world
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+            VolumeType: gp2
+            DeleteOnTermination: true
+  # Generate instance profile to read from s3 bucket
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: STFDataBucketReadOnly
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: s3:List*
+                Resource: !Sub "arn:aws:s3:::${DataBucket}"
+              - Effect: Allow
+                Action: s3:Get*
+                Resource: !Sub "arn:aws:s3:::${DataBucket}/*"
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref EC2InstanceRole
+
 Outputs:
-    PublicIp:
-        Value: !GetAtt EC2Instance.PublicIp
-        Description: EC2 instance public IP to connect to
-    PublicDnsName:
-        Value: !GetAtt EC2Instance.PublicDnsName
-        Description: DNS of EC2 instance to connect to
+  PublicIp:
+    Value: !GetAtt EC2Instance.PublicIp
+    Description: EC2 instance public IP to connect to
+  PublicDnsName:
+    Value: !GetAtt EC2Instance.PublicDnsName
+    Description: DNS of EC2 instance to connect to

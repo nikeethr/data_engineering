@@ -2,6 +2,7 @@
 
 ec2_setup_b64=$(base64 -w0 ec2-setup.sh)
 ip_addr=$(curl http://checkip.amazonaws.com)
+data_bucket=stf-prototype-sample-data
 
 cat <<EOF > deploy-ec2-params.json
 [
@@ -20,6 +21,10 @@ cat <<EOF > deploy-ec2-params.json
     {
         "ParameterKey": "InstanceTypeParameter",
         "ParameterValue": "t2.micro"
+    },
+    {
+        "ParameterKey": "DataBucket",
+        "ParameterValue": "${data_bucket}"
     },
     {
         "ParameterKey": "UserData",

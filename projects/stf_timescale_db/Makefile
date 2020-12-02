@@ -50,6 +50,7 @@ validate-template:
 deploy-stack:
 	aws cloudformation create-stack \
 		--stack-name ${STACK_NAME} \
+		--capabilities CAPABILITY_IAM \
 		--template-body file://deploy-ec2.yml \
 		--parameters file://deploy-ec2-params.json \
 		--profile ${AWS_PROFILE}
@@ -62,6 +63,7 @@ deploy-stack-wait: deploy-stack
 update-stack:
 	aws cloudformation update-stack \
 		--stack-name ${STACK_NAME} \
+		--capabilities CAPABILITY_IAM \
 		--template-body file://deploy-ec2.yml \
 		--parameters file://deploy-ec2-params.json \
 		--profile ${AWS_PROFILE}
