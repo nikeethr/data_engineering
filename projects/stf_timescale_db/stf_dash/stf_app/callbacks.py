@@ -57,13 +57,7 @@ def update_fc_graph(store_ts, store_data):
 
         obs_start_dt = data_fetch.parse_fc_dt_utc(store_data['an_start_date'])
         obs_end_dt = obs_start_dt + relativedelta(days=days_to_show)
-
-        # subtract lead days so that start date is still included
-        if daily:
-            fc_start_dt = obs_start_dt - relativedelta(days=lead_day)
-        else: # hourly
-            # start 1 day less since e.g. day 1 includes hours 1 -> 24
-            fc_start_dt = obs_start_dt - relativedelta(days=lead_day-1)
+        fc_start_dt = obs_start_dt - relativedelta(days=lead_day-1)
         fc_end_dt = fc_start_dt + relativedelta(days=days_to_show)
 
         df_fc = data_fetch.get_fc_lead_dataframe(
@@ -75,7 +69,6 @@ def update_fc_graph(store_ts, store_data):
             agg=agg
         )
 
-        # adding 1 hour shift so that it matches forecast range
         df_obs = data_fetch.get_obs_dataframe(
             obs_start_dt,
             obs_end_dt,
