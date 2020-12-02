@@ -112,7 +112,7 @@ Resources:
             KeyName: !Ref KeyName
             SecurityGroupIds:
                 - !Ref InstanceSecurityGroup
-            UserData: !UserData
+            UserData: !Ref UserData
                 #Fn::Base64:
                 #    !Sub |
                 #        #!/bin/bash -ex
