@@ -20,11 +20,12 @@ sudo chmod +x /usr/local/bin/docker-compose
 
 # --- run as user ---
 # WARNING: This contains some hardcoded scripts/paths assumed from the git repo
+# TODO: can probably extract this to a separate script in the repo to be run
 # - clone repo
 # - start up timescaledb
 # - download sample data from s3
 # - create virtual env
-# - install requirements
+# - install python requirements
 # - run ingestion scripts
 # - start up other containers
 
@@ -34,8 +35,11 @@ sudo -u ec2-user bash <<'EOF'
     cd data_engineering/projects/stf_timescale_db
     /usr/local/bin/docker-compose up -d stf_db
     /bin/bash get_sample_data_from_s3.sh
-    python3 -m venv /tmp/temp_env
+    /bin/python3 -m venv /tmp/temp_env
     source /tmp/temp_env/bin/activate
+    pip3 install -r requirements.txt
+    python3 scripts/stf_ingest/ingest_meta.py
+    python3 scripts/stf_ingest/ingest_stf_flow.py
 EOF
 
 # ---
