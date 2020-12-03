@@ -1,0 +1,9 @@
+# read/process layer
+netcdf4
+numpy
+pandas
+python-dateutil
+pytz
+xarray
+zarr
+scipy
