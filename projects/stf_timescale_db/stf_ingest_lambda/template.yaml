@@ -13,7 +13,7 @@ Globals:
 Parameters:
   TestDataBucketName:
     Type: String
-    Default: stf-prototype-sample-data
+    Default: stf-prototype-netcdf-ingest
     Description: S3 bucket containing the stf data
   BaseStack:
     Type: String
@@ -34,7 +34,9 @@ Resources:
   PrivateSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref VPC
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${BaseStack}-VPCID"
       CidrBlock: 10.1.1.0/24
       AvailabilityZone: !Select
         # Get first availibility zone for region
@@ -46,7 +48,9 @@ Resources:
   PrivateRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: !Ref VPC # TODO: replace with base stack
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${BaseStack}-VPCID"
       Tags:
         - Key: Name
           Value: Private-Route-Table
@@ -60,7 +64,9 @@ Resources:
     Properties:
       GroupName: "Private Group"
       GroupDescription: "Within VPC communication"
-      VpcId: !Ref VPC # TODO: replace with base stack
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${BaseStack}-VPCID"
       # So that lambda allows outgoing traffic to S3
       SecurityGroupEgress:
         DestinationPrefixListId: !Ref S3EndpointPrefixListId
@@ -73,33 +79,47 @@ Resources:
         Version: 2012-10-17
         Statement:
           - Effect: Allow
-            Action: s3:list*
-            Resource: !Sub "arn:aws:s3:::${TestDataBucketName}"
-          - Effect: Allow
-            Action: s3:Get*
-            Resource: !Sub "arn:aws:s3:::${TestDataBucketName}/*"
+            Principal: '*'
+            Action:
+                - 's3:List*'
+                - 's3:Get*'
+            Resource:
+                - !Sub "arn:aws:s3:::${TestDataBucketName}"
+                - !Sub "arn:aws:s3:::${TestDataBucketName}/*"
       # Add this endpoint to the private route table
       RouteTableIds:
         - !Ref PrivateRouteTable
       ServiceName: !Sub "com.amazonaws.${Region}.s3"
       VpcEndpointType: Gateway
-      VpcId: !Ref VPC # TODO: replace with base stack
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${BaseStack}-VPCID"
 
   # the main lambda function to plot the netcdf file from an s3 bucket
   StfIngestFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: lambda_plot_nc/
+      CodeUri: lambda_ingest_s3_stf_data/
       Handler: app.lambda_handler
-      Runtime: python3.7
+      Runtime: python3.8
       MemorySize: 512
       Layers:
         - !Ref StfIngestLayer
+      Environment:
+        Variables:
+          STF_BUCKET_NAME: !Ref TestDataBucketName
+          STFDB_INSTANCE_IP:
+            Fn::ImportValue:
+              !Sub "${BaseStack}-InstancePrivateIp"
+          # NOTE: This is for testing purposes only for an actual deployment,
+          # keep these somewhere safe.
+          STFDB_USER: postgres
+          STFDB_PASSWD: "1234"
       Events:
         StfObjCreated:
           Type: S3
           Properties:
-            Bucket: !Ref TestDataBucketName
+            Bucket: !Ref TestBucket
             Events: s3:ObjectCreated:*
             Filter:
               S3Key:
@@ -119,6 +139,12 @@ Resources:
           - !Ref PrivateInstanceSecurityGroup
         SubnetIds:
           - !Ref PrivateSubnetA
+  # Bucket needs to be declared in same template as lambda function
+  TestBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref TestDataBucketName
+    DeletionPolicy: Retain
   # contains packages to help read netcdf files easily
   StfIngestLayer:
     Type: AWS::Serverless::LayerVersion
@@ -126,21 +152,21 @@ Resources:
       LayerName: stf-ingest-layer
       ContentUri: layer_ingest_deps/
       CompatibleRuntimes: 
-        - python3.7
+        - python3.8
       RetentionPolicy: Delete
     Metadata:
-      BuildMethod: python3.7
+      # BuildMethod: python3.8
       # for custom building/flags:
-      # BuildMethod: makefile
+      BuildMethod: makefile
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
   StfIngestFunction:
-    Description: "NetcdfPlot Lambda Function ARN"
+    Description: "Stf Ingest Lambda Function ARN"
     Value: !GetAtt StfIngestFunction.Arn
   StfIngestFunctionIamRole:
-    Description: "Implicit IAM Role created for NetcdfPlot function"
+    Description: "Implicit IAM Role created for StfIngest function"
     Value: !GetAtt StfIngestFunctionRole.Arn
 

@@ -15,7 +15,7 @@ import s3fs
 
 # --- const ---
 
-BUCKET_NAME = 'stf-prototype-sample-data'
+BUCKET_NAME = os.environ.get('STF_BUCKET_NAME', 'stf-prototype-sample-data')
 STFDB_INSTANCE_IP = os.environ.get('STFDB_INSTANCE_IP', 'localhost')
 STFDB_USER = os.environ.get('STFDB_USER', 'postgres')
 STFDB_PASSWD = os.environ.get('STFDB_PASSWD', '1234')
@@ -33,6 +33,9 @@ OBS_TABLE_NAME = 'stf_obs_flow'
 AWS_REGION = 'ap-southeast-2'
 LOGGER = logging.getLogger(__name__)
 
+# TODO: change to INFO when happy with lambda function
+LOGGER.setLevel(logging.DEBUG)
+
 # --- func ---
 
 def lambda_handler(event, context):
@@ -43,11 +46,14 @@ def lambda_handler(event, context):
     bucket = event['Records'][0]['s3']['bucket']['name']
     s3_file = event['Records'][0]['s3']['object']['key']
 
+    LOGGER.debug('Connection={}'.format(STFDB_CONNECTION))
+    LOGGER.debug('Bucket={}'.format(bucket))
+
     fs = s3fs.S3FileSystem(
         anon=False,
         client_kwargs={ 'region_name': AWS_REGION },
         # required if using s3 gateway endpoint instead of internet
-        config_kwargs={ 'addressing_style': 'path' }
+        config_kwargs={ 's3': { 'addressing_style': 'path' } }
     )
 
     if os.path.splitext(s3_file)[1] != '.nc':

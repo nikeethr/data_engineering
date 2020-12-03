@@ -10,8 +10,8 @@ import logging
 import numpy as np
 import pandas as pd
 import xarray as xr
-import s3fs
-
+import boto3
+from botocore.client import Config
 
 # --- const ---
 
@@ -57,6 +57,30 @@ def ingest_stf_nc_to_db():
                 LOGGER.error("Invalid stf netcdf filename")
                 return
 
+
+def get_ds_s3(bucket, key):
+    # TODO: use `s3fs` instead of this as it may handle things better
+    start_t = time.time()
+
+    session = boto3.Session()
+    s3 = session.client('s3')
+
+    nc_buffer = io.BytesIO()
+    s3.download_fileobj(
+        bucket,
+        key,
+        nc_buffer,
+        profile_name=)
+    nc_buffer.seek(0)
+
+    ds = xr.load_dataset(nc_buffer)
+
+    delta_t = time.time() - start_t
+    LOGGER.debug(ds)
+    LOGGER.info("Successfully retrieved dataset from S3.")
+    LOGGER.info("--- [get_ds_s3] time taken: {:.2f}s ---".format(delta_t))
+
+    return ds
 
 def ingest_fc(f_obj, fn):
     # decode_times = False because "hours since time of forecast" is not
@@ -341,7 +365,7 @@ def copy_to_db(values_buffer, stf_type, ignore_duplicates=False):
 
 if __name__ == '__main__':
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="[%(asctime)s|%(levelname)s|%(module)s.%(funcName)s]: %(message)s"
     )
     ingest_stf_nc_to_db()

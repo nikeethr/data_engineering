@@ -41,9 +41,9 @@ Resources:
       EnableDnsSupport: true
       EnableDnsHostnames: true
       Tags:
-      - Key: Name
-        # TODO: add date at the end
-        Value: !Join ["-", [!Ref "AWS::StackName", "VPC"]]
+        - Key: Name
+          # TODO: add date at the end
+          Value: !Join ["-", [!Ref "AWS::StackName", "VPC"]]
   # Create gateway for internet access to VPC
   InternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -65,8 +65,21 @@ Resources:
         - Fn::GetAZs: !Ref Region
       MapPublicIpOnLaunch: true
       Tags:
-      - Key: Name
-        Value: !Sub "${AWS::StackName}-Public-Subnet-A"
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-Public-Subnet-A"
+  # Private subnet for lambda
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.1.1.0/24
+      AvailabilityZone: !Select
+        # Get first availibility zone for region
+        - 0
+        - Fn::GetAZs: !Ref Region
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-Private-Subnet-A"
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -74,6 +87,14 @@ Resources:
       Tags:
         - Key: Name
           Value: Public-Route-Table
+  # This is not attached to any gateway local traffic only
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Private-Route-Table
   # Route internet traffic to internet gateway
   InternetRoute:
     # Route is a entry in route table
@@ -89,6 +110,11 @@ Resources:
     Properties:
       SubnetId: !Ref PublicSubnetA
       RouteTableId: !Ref PublicRouteTable
+  PrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -105,7 +131,7 @@ Resources:
           FromPort: "22"
           ToPort: "22"
           CidrIp: !Sub "${SSHIp}/32"
-        # Allow access to database within VPC
+        # allow access to database within VPC
         - IpProtocol: tcp
           FromPort: "5432"
           ToPort: "5432"
@@ -114,6 +140,18 @@ Resources:
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
+  PrivateInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "Private Group"
+      GroupDescription: "Within VPC communication"
+      VpcId: !Ref VPC
+      # Inbound traffic allowed for ssh within VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: "22"
+          ToPort: "22"
+          CidrIp: 10.1.0.0/16
   EC2Instance:
     Type: AWS::EC2::Instance
     Properties:
@@ -132,9 +170,30 @@ Resources:
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:
-            VolumeSize: 20
+            VolumeSize: 16
             VolumeType: gp2
             DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: STF-EC2-Instance
+  PrivateEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [RegionMap, !Ref Region, AMI]
+      InstanceType: !Ref InstanceTypeParameter
+      SubnetId: !Ref PrivateSubnetA
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref PrivateInstanceSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp2
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: STF-EC2-Private-Instance
   # Generate instance profile to read from s3 bucket
   EC2InstanceRole:
     Type: AWS::IAM::Role
@@ -171,16 +230,9 @@ Outputs:
   PublicIp:
     Value: !GetAtt EC2Instance.PublicIp
     Description: EC2 instance public IP to connect to
-  PrivateIp:
-    Value: !GetAtt EC2Instance.PrivateIp
-    Description: EC2 instance private IP
-    Export:
-        Name: !Sub "${AWS::StackName}-InstancePrivateIp"
-  StackVPC:
-    Description: The ID of the VPC
-    Value: !Ref VPC
-    Export:
-      Name: !Sub "${AWS::StackName}-VPCID"
   PublicDnsName:
     Value: !GetAtt EC2Instance.PublicDnsName
     Description: DNS of EC2 instance to connect to
+  PrivateIp:
+    Value: !GetAtt PrivateEC2Instance.PrivateIp
+    Description: Ip of private EC2 instance
