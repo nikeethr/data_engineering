@@ -1,0 +1,146 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  sam-app
+
+  Sample SAM Template for sam-app
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 20
+
+Parameters:
+  TestDataBucketName:
+    Type: String
+    Default: stf-prototype-sample-data
+    Description: S3 bucket containing the stf data
+  BaseStack:
+    Type: String
+    Default: stf-prototype-dash-app
+    Description: The base cloudformation stack to refer to
+  Region:
+    Type: String
+    Default: ap-southeast-2
+    Description: AWS region to setup subnets
+  S3EndpointPrefixListId:
+    Type: String
+    # you can get the id from `aws ec2 describe-prefix-lists`
+    Default: pl-6ca54005
+    Description: prefix list id for S3 service to setup outbound rules in security group
+
+Resources:
+  # This lambda will run on the VPC setup by the base stack
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.1.1.0/24
+      AvailabilityZone: !Select
+        # Get first availibility zone for region
+        - 0
+        - Fn::GetAZs: !Ref Region
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-Private-Subnet-A"
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC # TODO: replace with base stack
+      Tags:
+        - Key: Name
+          Value: Private-Route-Table
+  PrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+  PrivateInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "Private Group"
+      GroupDescription: "Within VPC communication"
+      VpcId: !Ref VPC # TODO: replace with base stack
+      # So that lambda allows outgoing traffic to S3
+      SecurityGroupEgress:
+        DestinationPrefixListId: !Ref S3EndpointPrefixListId
+        IpProtocol: -1
+  # S3 gateway for direct access to S3 without internet
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: s3:list*
+            Resource: !Sub "arn:aws:s3:::${TestDataBucketName}"
+          - Effect: Allow
+            Action: s3:Get*
+            Resource: !Sub "arn:aws:s3:::${TestDataBucketName}/*"
+      # Add this endpoint to the private route table
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+      ServiceName: !Sub "com.amazonaws.${Region}.s3"
+      VpcEndpointType: Gateway
+      VpcId: !Ref VPC # TODO: replace with base stack
+
+  # the main lambda function to plot the netcdf file from an s3 bucket
+  StfIngestFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: lambda_plot_nc/
+      Handler: app.lambda_handler
+      Runtime: python3.7
+      MemorySize: 512
+      Layers:
+        - !Ref StfIngestLayer
+      Events:
+        StfObjCreated:
+          Type: S3
+          Properties:
+            Bucket: !Ref TestDataBucketName
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: nc
+                  - Name: prefix
+                    Value: sample_data/netcdf
+      Policies:
+        # for reading data from s3 bucket
+        - S3ReadPolicy:
+            BucketName: !Ref TestDataBucketName
+        # for setting up VPC interfaces
+        - VPCAccessPolicy: {}
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref PrivateInstanceSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnetA
+  # contains packages to help read netcdf files easily
+  StfIngestLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: stf-ingest-layer
+      ContentUri: layer_ingest_deps/
+      CompatibleRuntimes: 
+        - python3.7
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: python3.7
+      # for custom building/flags:
+      # BuildMethod: makefile
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  StfIngestFunction:
+    Description: "NetcdfPlot Lambda Function ARN"
+    Value: !GetAtt StfIngestFunction.Arn
+  StfIngestFunctionIamRole:
+    Description: "Implicit IAM Role created for NetcdfPlot function"
+    Value: !GetAtt StfIngestFunctionRole.Arn
+

@@ -105,6 +105,11 @@ Resources:
           FromPort: "22"
           ToPort: "22"
           CidrIp: !Sub "${SSHIp}/32"
+        # Allow access to database within VPC
+        - IpProtocol: tcp
+          FromPort: "5432"
+          ToPort: "5432"
+          CidrIp: 10.1.0.0/16
       # All outbound traffic allowed
       SecurityGroupEgress:
         - IpProtocol: -1
