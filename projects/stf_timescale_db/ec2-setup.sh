@@ -42,10 +42,10 @@ sudo -u ec2-user bash <<'EOF'
     /bin/bash get_sample_data_from_s3.sh
 
     # prepare python environment for ingesting netcdf/csv data via psycopg
+    cd scripts/stf_ingest
     /bin/python3 -m venv /tmp/temp_env
     source /tmp/temp_env/bin/activate
     pip3 install -r requirements.txt
-    cd scripts/stf_ingest
 
     # ingest metadata csv file
     python3 ingest_meta.py
@@ -62,8 +62,8 @@ sudo -u ec2-user bash <<'EOF'
     docker exec -i stf_db psql -U postgres -d stf_db < views.sql
 
     # spin up other containers
-    cd /home/ec2-user/data_engineering/projects/stf_timescaledb
-    docker-compose up -d
+    cd /home/ec2-user/data_engineering/projects/stf_timescale_db
+    /usr/local/bin/docker-compose up -d
 EOF
 
 # ---

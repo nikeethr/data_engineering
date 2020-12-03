@@ -95,4 +95,4 @@ create-ec2-keypair:
 
 ssh-to-ec2:
 	@read -p "EC2 DNS/IP: " EC2IP; \
-	ssh -i "${EC2_KEYPAIR_NAME}.pem" ${EC2_USER}@$$EC2IP
+	ssh -o ForwardAgent=yes -A -i "${EC2_KEYPAIR_NAME}.pem" ${EC2_USER}@$$EC2IP
