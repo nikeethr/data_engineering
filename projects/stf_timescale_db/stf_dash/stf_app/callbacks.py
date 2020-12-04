@@ -156,6 +156,24 @@ def update_stf_map(click_data, ts, figure_data, store_data):
 
 
 @app.callback(
+    [
+        Output('fc-date-picker', 'min_date_allowed'),
+        Output('fc-date-picker', 'max_date_allowed'),
+        Output('an-date-picker', 'min_date_allowed'),
+        Output('an-date-picker', 'max_date_allowed')
+    ],
+    [Input('select-awrc-id', 'value')]
+)
+def update_fc_date_range(awrc_id):
+    # TOOD: currently only using fc date range to determine the date range to
+    # pick, use obs date range as well for analysis
+    fc_date_range = data_fetch.get_fc_date_range(awrc_id)
+    start_date = data_fetch.strip_fc_date(fc_date_range[0])
+    end_date = data_fetch.strip_fc_date(fc_date_range[1])
+    return [ start_date, end_date, start_date, end_date ]
+
+
+@app.callback(
     Output('store-controls', 'data'),
     [
         Input('select-awrc-id', 'value'),
