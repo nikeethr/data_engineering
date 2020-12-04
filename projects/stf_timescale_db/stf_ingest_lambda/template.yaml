@@ -8,7 +8,7 @@ Description: >
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 20
+    Timeout: 60
 
 Parameters:
   TestDataBucketName:
@@ -67,10 +67,13 @@ Resources:
       VpcId:
         Fn::ImportValue:
           !Sub "${BaseStack}-VPCID"
-      # So that lambda allows outgoing traffic to S3
       SecurityGroupEgress:
-        DestinationPrefixListId: !Ref S3EndpointPrefixListId
-        IpProtocol: -1
+        # So that lambda allows outgoing traffic to S3
+        - IpProtocol: -1
+          DestinationPrefixListId: !Ref S3EndpointPrefixListId
+        # Lambda should also allow outgoing traffic to VPC
+        - IpProtocol: -1
+          CidrIp: 10.1.0.0/16
   # S3 gateway for direct access to S3 without internet
   S3Endpoint:
     Type: AWS::EC2::VPCEndpoint
@@ -115,6 +118,8 @@ Resources:
           # keep these somewhere safe.
           STFDB_USER: postgres
           STFDB_PASSWD: "1234"
+      EventInvokeConfig:
+        MaximumRetryAttempts: 2
       Events:
         StfObjCreated:
           Type: S3
@@ -139,7 +144,14 @@ Resources:
           - !Ref PrivateInstanceSecurityGroup
         SubnetIds:
           - !Ref PrivateSubnetA
-  # Bucket needs to be declared in same template as lambda function
+  # Bucket needs to be declared in same template as lambda function and
+  # therefore has to be empty
+  # Note: This is a temporary bucket which will need to be removed on stack 
+  # takedown before launching the stack again. DeletionPolicy: Delete cannot
+  # actually delete the bucket if it has objects in it.
+  # An alternative is a lifecycle rule to push it to a different bucket and use
+  # this bucket as a proxy to trigger the lambda which will then delete it once
+  # it is done.
   TestBucket:
     Type: AWS::S3::Bucket
     Properties:

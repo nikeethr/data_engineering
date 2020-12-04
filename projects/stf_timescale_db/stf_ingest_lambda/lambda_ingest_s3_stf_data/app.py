@@ -10,9 +10,9 @@ import logging
 import numpy as np
 import pandas as pd
 import xarray as xr
-import s3fs
-
-
+import boto3
+from botocore.client import Config
+ 
 # --- const ---
 
 BUCKET_NAME = os.environ.get('STF_BUCKET_NAME', 'stf-prototype-sample-data')
@@ -33,8 +33,7 @@ OBS_TABLE_NAME = 'stf_obs_flow'
 AWS_REGION = 'ap-southeast-2'
 LOGGER = logging.getLogger(__name__)
 
-# TODO: change to INFO when happy with lambda function
-LOGGER.setLevel(logging.DEBUG)
+LOGGER.setLevel(logging.INFO)
 
 # --- func ---
 
@@ -46,28 +45,54 @@ def lambda_handler(event, context):
     bucket = event['Records'][0]['s3']['bucket']['name']
     s3_file = event['Records'][0]['s3']['object']['key']
 
-    LOGGER.debug('Connection={}'.format(STFDB_CONNECTION))
-    LOGGER.debug('Bucket={}'.format(bucket))
+    LOGGER.info('Connection={}'.format(STFDB_CONNECTION))
+    LOGGER.info('Bucket={}'.format(bucket))
 
-    fs = s3fs.S3FileSystem(
-        anon=False,
-        client_kwargs={ 'region_name': AWS_REGION },
-        # required if using s3 gateway endpoint instead of internet
-        config_kwargs={ 's3': { 'addressing_style': 'path' } }
-    )
 
     if os.path.splitext(s3_file)[1] != '.nc':
         LOGGER.error("Incorrect file format. required *.nc")
         return
     else:
-        with fs.open(f"s3://{bucket}/{s3_file}", 'rb') as f:
-            if 'Observed-Flow' in s3_file:
-                ingest_obs(f, s3_file)
-            elif 'Forecast-Flow' in s3_file:
-                ingest_fc(f, s3_file)
-            else:
-                LOGGER.error("Invalid stf netcdf filename")
-                return
+        if 'Observed-Flow' in s3_file:
+            f = get_ds_s3(bucket, s3_file)
+
+            # TODO: remove in prod
+            # This is set late to avoid getting the boto junk but still get
+            # debug for xarray stuff
+            LOGGER.setLevel(logging.DEBUG)
+
+            ingest_obs(f, s3_file)
+        elif 'Forecast-Flow' in s3_file:
+            f = get_ds_s3(bucket, s3_file)
+
+            # TODO: remove in prod
+            # This is set late to avoid getting the boto junk but still get
+            # debug for xarray stuff
+            LOGGER.setLevel(logging.DEBUG)
+
+            ingest_fc(f, s3_file)
+        else:
+            LOGGER.error("Invalid stf netcdf filename")
+            return
+
+
+def get_ds_s3(bucket, key):
+    # TODO: use `s3fs` instead of this as it may handle things better
+    start_t = time.time()
+
+    session = boto3.Session()
+    s3 = session.client('s3', region_name=AWS_REGION,
+        config=Config( s3={'addressing_style': 'path'}))
+
+    nc_buffer = io.BytesIO()
+    s3.download_fileobj(bucket, key, nc_buffer)
+    nc_buffer.seek(0)
+
+    delta_t = time.time() - start_t
+    LOGGER.info("Successfully retrieved dataset from S3.")
+    LOGGER.info("--- [get_ds_s3] time taken: {:.2f}s ---".format(delta_t))
+
+    return nc_buffer
 
 
 def ingest_fc(f_obj, fn):

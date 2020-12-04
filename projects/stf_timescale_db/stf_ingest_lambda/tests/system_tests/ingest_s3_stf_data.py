@@ -37,50 +37,52 @@ LOGGER = logging.getLogger(__name__)
 # --- func ---
 
 def ingest_stf_nc_to_db():
-    # SAMPLE_NETCDF_FILE = 'sample_data/netcdf/kiewa/SWIFT-Ensemble-Observed-Flow_kiewa_20201009_2300.nc'
-    SAMPLE_NETCDF_FILE = 'sample_data/netcdf/kiewa/SWIFT-Ensemble-Forecast-Flow_kiewa_20201009_2300.nc'
-    fs = s3fs.S3FileSystem(
-        anon=False,
-        client_kwargs={ 'region_name': AWS_REGION },
-        profile=AWS_PROFILE
-    )
+    SAMPLE_NETCDF_FILE = 'sample_data/netcdf/kiewa/SWIFT-Ensemble-Observed-Flow_kiewa_20201009_2300.nc'
+    # SAMPLE_NETCDF_FILE = 'sample_data/netcdf/kiewa/SWIFT-Ensemble-Forecast-Flow_kiewa_20201009_2300.nc'
+    # --- using s3fs ---
+    # fs = s3fs.S3FileSystem(
+    #     anon=False,
+    #     client_kwargs={ 'region_name': AWS_REGION },
+    #     profile=AWS_PROFILE
+    # )
+    # with fs.open(os.path.join('s3://'+BUCKET_NAME, SAMPLE_NETCDF_FILE), 'rb') as f:
+    #     pass
+    # ---
     if os.path.splitext(SAMPLE_NETCDF_FILE)[1] != '.nc':
         LOGGER.error("Incorrect file format. required *.nc")
         return
     else:
-        with fs.open(os.path.join('s3://'+BUCKET_NAME, SAMPLE_NETCDF_FILE), 'rb') as f:
-            if 'Observed-Flow' in SAMPLE_NETCDF_FILE:
-                ingest_obs(f, SAMPLE_NETCDF_FILE)
-            elif 'Forecast-Flow' in SAMPLE_NETCDF_FILE:
-                ingest_fc(f, SAMPLE_NETCDF_FILE)
-            else:
-                LOGGER.error("Invalid stf netcdf filename")
-                return
+        f = get_ds_s3(BUCKET_NAME, SAMPLE_NETCDF_FILE)
+        if 'Observed-Flow' in SAMPLE_NETCDF_FILE:
+            ingest_obs(f, SAMPLE_NETCDF_FILE)
+        elif 'Forecast-Flow' in SAMPLE_NETCDF_FILE:
+            ingest_fc(f, SAMPLE_NETCDF_FILE)
+        else:
+            LOGGER.error("Invalid stf netcdf filename")
+            return
 
 
 def get_ds_s3(bucket, key):
     # TODO: use `s3fs` instead of this as it may handle things better
     start_t = time.time()
 
-    session = boto3.Session()
-    s3 = session.client('s3')
+    session = boto3.Session(profile_name=AWS_PROFILE)
+    s3 = session.client('s3', region_name=AWS_REGION)
+        
+    # --- for lambda ---
+    # s3 = session.client('s3', region_name=AWS_REGION,
+    #     config=Config( s3={'addressing_style': 'path'}))
+    # ---
 
     nc_buffer = io.BytesIO()
-    s3.download_fileobj(
-        bucket,
-        key,
-        nc_buffer,
-        profile_name=)
+    s3.download_fileobj(bucket, key, nc_buffer)
     nc_buffer.seek(0)
 
-    ds = xr.load_dataset(nc_buffer)
-
     delta_t = time.time() - start_t
-    LOGGER.debug(ds)
     LOGGER.info("Successfully retrieved dataset from S3.")
     LOGGER.info("--- [get_ds_s3] time taken: {:.2f}s ---".format(delta_t))
 
-    return ds
+    return nc_buffer
 
 def ingest_fc(f_obj, fn):
     # decode_times = False because "hours since time of forecast" is not
