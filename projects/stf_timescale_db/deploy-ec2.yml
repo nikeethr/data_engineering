@@ -129,7 +129,7 @@ Resources:
       InstanceType: !Ref InstanceTypeParameter
       SubnetId: !Ref PublicSubnetA
       KeyName: !Ref KeyName
-      IamInstanceProfile: !Ref EC2InstanceProfile
+      IamInstanceProfile: !Ref StfEC2InstanceProfile
       SecurityGroupIds:
         - !Ref InstanceSecurityGroup
       UserData: !Ref UserData
@@ -143,8 +143,11 @@ Resources:
             VolumeSize: 20
             VolumeType: gp2
             DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: stf-prototype-app
   # Generate instance profile to read from s3 bucket
-  EC2InstanceRole:
+  StfEC2InstanceRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -168,12 +171,12 @@ Resources:
               - Effect: Allow
                 Action: s3:Get*
                 Resource: !Sub "arn:aws:s3:::${DataBucket}/*"
-  EC2InstanceProfile:
+  StfEC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Path: /
       Roles:
-        - !Ref EC2InstanceRole
+        - !Ref StfEC2InstanceRole
 
 Outputs:
   PublicIp:

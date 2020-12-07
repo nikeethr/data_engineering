@@ -1,6 +1,6 @@
 TS_DB_NAME:=stf_db
 TS_DB_PORT:=5432
-AWS_PROFILE:=my-stf-admin
+AWS_PROFILE:=water-models
 STACK_NAME:=stf-prototype-dash-app
 EC2_KEYPAIR_NAME:=stf-ec2-keypair
 EC2_USER:=ec2-user

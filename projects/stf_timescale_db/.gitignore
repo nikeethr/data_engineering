@@ -1,6 +1,7 @@
 *.pyc
 *.log
 *.pem
+*.bkp
 __pycache__
 stf_db/stf_db_data
 scripts/tutorial/data
