@@ -4,21 +4,20 @@
 
 set -u
 
-SCRIPT_DIR=$(dirname $(readlink -f $0))
-AWS_PROFILE=my-stf-admin
-TEST_BUCKET=stf-prototype-sample-data
-TEST_DATA="${SCRIPT_DIR}/scripts/stf_ingest/sample_data"
-S3_TEST_DATA="s3://${TEST_BUCKET}/sample_data"
-REGION=ap-southeast-2
+. ./deploy_scripts.cfg
 
-bucket_exists=$(aws s3 ls --profile $AWS_PROFILE | grep -c "${TEST_BUCKET}")
+SCRIPT_DIR=$(dirname $(readlink -f $0))
+TEST_DATA="${SCRIPT_DIR}/scripts/stf_ingest/sample_data"
+S3_TEST_DATA="s3://${SAMPLE_DATA_BUCKET}/sample_data"
+
+bucket_exists=$(aws s3 ls --profile $AWS_PROFILE | grep -c "${SAMPLE_DATA_BUCKET}")
 
 if [ "${bucket_exists}" -eq "0" ]; then
-    aws s3 mb "s3://${TEST_BUCKET}" \
+    aws s3 mb "s3://${SAMPLE_DATA_BUCKET}" \
         --profile $AWS_PROFILE \
         --region $REGION
 else
-    echo "bucket: ${TEST_BUCKET} already exists. skipping..."
+    echo "bucket: ${SAMPLE_DATA_BUCKET} already exists. skipping..."
 fi
 
 aws s3 sync $TEST_DATA $S3_TEST_DATA --profile $AWS_PROFILE

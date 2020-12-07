@@ -14,6 +14,12 @@ services:
             - ./stf_db/.env
         networks:
             - stf_net
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD", "pg_isready", "-U", "postgres"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
     stf_api:
         container_name: stf_api
         build: ./stf_api
@@ -25,7 +31,9 @@ services:
         networks:
             - stf_net
         depends_on:
-            - stf_db
+            stf_db:
+                condition: service_healthy
+        restart: unless-stopped
     stf_dash:
         container_name: stf_dash
         build: ./stf_dash
@@ -37,8 +45,11 @@ services:
         networks:
             - stf_net
         depends_on:
-            - stf_api
-            - stf_db
+            stf_db:
+                condition: service_healthy
+            stf_api:
+                condition: service_started
+        restart: unless-stopped
     nginx:
         container_name: stf_nginx
         image: nginx:latest
@@ -50,8 +61,11 @@ services:
         networks:
             - stf_net
         depends_on:
-            - stf_api
-            - stf_dash
+            stf_api:
+                condition: service_started
+            stf_dash:
+                condition: service_started
+        restart: unless-stopped
     #grafana:
     #    container_name: grafana
     #    hostname: grafana

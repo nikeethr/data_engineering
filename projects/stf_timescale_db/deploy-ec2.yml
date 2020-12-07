@@ -114,6 +114,14 @@ Resources:
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
+  # So that the public Ip remains constant in the event that a EC2 instance
+  # fails and needs to be replaced by another.
+  ElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      DependsOn: AttachGateway
+      Domain: vpc
+      InstanceId: !Ref EC2Instance
   EC2Instance:
     Type: AWS::EC2::Instance
     Properties:

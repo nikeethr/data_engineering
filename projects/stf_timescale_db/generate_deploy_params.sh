@@ -1,14 +1,17 @@
 #!/bin/bash
 
+set -u
+
+. ./deploy_scripts.cfg
+
 ec2_setup_b64=$(base64 -w0 ec2-setup.sh)
 ip_addr=$(curl http://checkip.amazonaws.com)
-data_bucket=stf-prototype-sample-data
 
 cat <<EOF > deploy-ec2-params.json
 [
     {
         "ParameterKey": "Region",
-        "ParameterValue": "ap-southeast-2"
+        "ParameterValue": "${REGION}"
     },
     {
         "ParameterKey": "SSHIp",
@@ -16,15 +19,15 @@ cat <<EOF > deploy-ec2-params.json
     },
     {
         "ParameterKey": "KeyName",
-        "ParameterValue": "stf-ec2-keypair"
+        "ParameterValue": "${EC2_KEYPAIR_NAME}"
     },
     {
         "ParameterKey": "InstanceTypeParameter",
-        "ParameterValue": "t2.micro"
+        "ParameterValue": "${INSTANCE_TYPE}"
     },
     {
         "ParameterKey": "DataBucket",
-        "ParameterValue": "${data_bucket}"
+        "ParameterValue": "${SAMPLE_DATA_BUCKET}"
     },
     {
         "ParameterKey": "UserData",
