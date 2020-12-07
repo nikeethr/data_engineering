@@ -118,8 +118,8 @@ Resources:
   # fails and needs to be replaced by another.
   ElasticIp:
     Type: AWS::EC2::EIP
+    DependsOn: AttachGateway
     Properties:
-      DependsOn: AttachGateway
       Domain: vpc
       InstanceId: !Ref EC2Instance
   EC2Instance:

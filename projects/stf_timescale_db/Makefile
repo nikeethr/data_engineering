@@ -93,6 +93,9 @@ create-ec2-keypair:
 		--output text > ${EC2_KEYPAIR_NAME}.pem && \
 	chmod 400 ${EC2_KEYPAIR_NAME}.pem
 
+delete-ec2-keypair:
+	aws ec2 delete-key-pair --key-name ${EC2_KEYPAIR_NAME}
+
 ssh-to-ec2:
 	@read -p "EC2 DNS/IP: " EC2IP; \
 	ssh -o ForwardAgent=yes -A -i "${EC2_KEYPAIR_NAME}.pem" ${EC2_USER}@$$EC2IP
