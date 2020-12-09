@@ -121,8 +121,8 @@ Resources:
     DependsOn: AttachGateway
     Properties:
       Domain: vpc
-      InstanceId: !Ref EC2Instance
-  EC2Instance:
+      InstanceId: !Ref StfEC2Instance
+  StfEC2Instance:
     Type: AWS::EC2::Instance
     Properties:
       ImageId: !FindInMap [RegionMap, !Ref Region, AMI]
@@ -180,10 +180,10 @@ Resources:
 
 Outputs:
   PublicIp:
-    Value: !GetAtt EC2Instance.PublicIp
+    Value: !GetAtt StfEC2Instance.PublicIp
     Description: EC2 instance public IP to connect to
   PrivateIp:
-    Value: !GetAtt EC2Instance.PrivateIp
+    Value: !GetAtt StfEC2Instance.PrivateIp
     Description: EC2 instance private IP
     Export:
         Name: !Sub "${AWS::StackName}-InstancePrivateIp"
@@ -193,5 +193,5 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-VPCID"
   PublicDnsName:
-    Value: !GetAtt EC2Instance.PublicDnsName
+    Value: !GetAtt StfEC2Instance.PublicDnsName
     Description: DNS of EC2 instance to connect to
