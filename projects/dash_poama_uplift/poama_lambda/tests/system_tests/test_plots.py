@@ -146,6 +146,7 @@ def test_data_shader():
 
         ts = time.time()
         qm = canvas.quadmesh(da, x='nav_lon', y='nav_lat')
+        import pdb; pdb.set_trace()
         tf.shade(qm).to_pil().save(
             os.path.join(TEST_DIR, 'test_shader.png')
         )
@@ -155,9 +156,11 @@ def test_data_shader():
         out_json = {
             'height': 168,
             'width': 360,
-            'values': qm.values.ravel().astype(np.float32).tolist()
+            'lat': qm.nav_lat.values.astype(np.float16).tolist(),
+            'lon': qm.nav_lon.values.astype(np.float16).tolist(),
+            'values': qm.values.ravel().astype(np.float16).tolist()
         }
-        with open('ovt_data.json', 'w') as f:
+        with open(os.path.join(TEST_DIR, 'ovt_data.json'), 'w') as f:
             s = simplejson.dumps(out_json, ignore_nan=True)
             f.write(s)
         print("output json: {:.3f}s".format(time.time() - ts))
@@ -184,12 +187,12 @@ def test_data_shader_minimal():
                               'Qx': (['y', 'x'], Qx)})
 
     ts = time.time()
-    canvas = datashader.Canvas(plot_height=3, plot_width=3)
-    qm = canvas.raster(da)
+    canvas = datashader.Canvas(plot_height=100, plot_width=100)
+    qm = canvas.quadmesh(da, x='Qx', y='Qy')
     print("quad mesh: {:.3f}s".format(time.time() - ts))
 
 if __name__ == '__main__':
     # test_plot_from_ds()
-    test_hvplot_from_ds()
-    # test_data_shader()
+    # test_hvplot_from_ds()
+    test_data_shader()
     # test_data_shader_minimal()
