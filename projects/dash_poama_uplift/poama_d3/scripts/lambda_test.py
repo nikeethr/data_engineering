@@ -10,7 +10,8 @@ import numpy as np
 import datashader
 import simplejson
 import s3fs
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+# TODO:
+# import jinja2
 from scipy.spatial import KDTree
 from datashader import transfer_functions as tf
 
@@ -21,7 +22,6 @@ from datashader import transfer_functions as tf
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _TEMPLATE_DIR = os.path.join(_DIR, 'templates')
 _DATA_OUT = os.path.join(_DIR, 'out', 'data')
-_HTML_OUT = os.path.join(_DIR, 'out', 'index.html')
 # ---
 
 LOCAL_MODE = False
@@ -29,17 +29,6 @@ LOCAL_MODE = False
 AWS_PROFILE = 'sam_deploy'
 AWS_REGION = 'ap-southeast-2'
 S3_ZARR_STORE = 'fvt-test-zarr-nr/test_zarr_store.zarr'
-
-jinja_env = Environment(
-    loader=FileSystemLoader(_TEMPLATE_DIR),
-    autoescape=select_autoescape(['html'])
-)
-
-
-# TODO:
-# can be same bucket - can setup lifecycle rule to do this as well:
-# S3_PLOT_DATA
-# S3_PAGE_TEMPLATE
 
 KD_TREE_CACHE = None
 
@@ -154,10 +143,7 @@ def lambda_handler(event, context):
             da, swapped = slice_dataset(ds, x2_range, y2_range, params)
 
             # datashader output
-            data_uri = rasterize(da)
-
-            # make html page
-            res = make_html_page(params, data_uri)
+            rasterize(da)
 
     LOGGER.info(">>>> TOTAL TIME TAKEN: {:.3f} s".format(time.time() - ts))
 
@@ -186,22 +172,19 @@ def get_s3_zarr_store():
 
 @_benchmark
 def rasterize(da):
-    # approximate ratio of the dataframe
-    MAX_RES_X = 240
-    MAX_RES_Y = 180
-
-    ratio = (da.shape[1] / max(da.shape[0], 1)) * (MAX_RES_Y / MAX_RES_X)
+    MAX_RES = 180
+    ratio = da.shape[1] / max(da.shape[0], 1)
 
     # to maintain proportional resolution/aspect ratio somewhat
     if ratio < 1:
-        width = max(int(MAX_RES_X * ratio), 1)
-        height = MAX_RES_Y
+        width = max(int(MAX_RES * ratio), 1)
+        height = MAX_RES
     elif ratio > 1:
-        width = MAX_RES_X
-        height = max(int(MAX_RES_Y / ratio), 1)
+        width = MAX_RES
+        height = max(int(MAX_RES / ratio), 1)
     else: # ratio == 1
-        width = MAX_RES_X
-        height = MAX_RES_Y
+        width = MAX_RES
+        height = MAX_RES
 
     LOGGER.info('datashader canvas - width: {}, height: {}'.format(width, height))
         
@@ -212,8 +195,8 @@ def rasterize(da):
     if True:
         tf.shade(qm).to_pil().save(os.path.join(_DATA_OUT, 'test_shader.png'))
 
-    # ---
     # TODO: break out this part into a different function
+    # ---
     out_json = {
         'height': height,
         'width': width,
@@ -225,28 +208,6 @@ def rasterize(da):
     # TODO: in reality this will be stored in s3
     with open(os.path.join(_DATA_OUT, 'ovt_data.json'), 'w') as f:
         s = simplejson.dump(out_json, f, ignore_nan=True)
-
-    # TODO: return s3 url instead
-    return '/data/ovt_data/json'
-    # ---
-
-
-@_benchmark
-def make_html_page(params, data_uri):
-    # TODO: replace with appropriate s3 url
-    js_include = '/js/main-svg.js'
-    css_include = '/css/style.css'
-    data_uri = '/data/ovt_data.json'
-
-    index_template = jinja_env.get_template('index-template.html')
-
-    return index_template.render(
-        lat_range=params['lat_range'],
-        lon_range=params['lon_range'],
-        js_include=js_include,
-        css_include=css_include,
-        plot_data_url=data_uri
-    )
 
 
 @_benchmark

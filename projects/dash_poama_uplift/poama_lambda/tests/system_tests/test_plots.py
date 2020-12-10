@@ -146,7 +146,6 @@ def test_data_shader():
 
         ts = time.time()
         qm = canvas.quadmesh(da, x='nav_lon', y='nav_lat')
-        import pdb; pdb.set_trace()
         tf.shade(qm).to_pil().save(
             os.path.join(TEST_DIR, 'test_shader.png')
         )

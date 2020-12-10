@@ -1,5 +1,4 @@
 # === imports ===
-import os
 import time
 import dateutil.parser
 import functools
@@ -7,39 +6,19 @@ import json
 import logging
 import xarray as xr
 import numpy as np
-import datashader
-import simplejson
-import s3fs
-from jinja2 import Environment, FileSystemLoader, select_autoescape
 from scipy.spatial import KDTree
-from datashader import transfer_functions as tf
+import cartopy.crs as ccrs
 
+# patch xarray to use hvplot
+import holoviews as hv
+import hvplot.xarray  # noqa
+from bokeh.io import export as bk_export
 # ===
 
-# ---
-# TODO: potentially remove in lambda function
-_DIR = os.path.dirname(os.path.abspath(__file__))
-_TEMPLATE_DIR = os.path.join(_DIR, 'templates')
-_DATA_OUT = os.path.join(_DIR, 'out', 'data')
-_HTML_OUT = os.path.join(_DIR, 'out', 'index.html')
-# ---
 
 LOCAL_MODE = False
-
-AWS_PROFILE = 'sam_deploy'
 AWS_REGION = 'ap-southeast-2'
 S3_ZARR_STORE = 'fvt-test-zarr-nr/test_zarr_store.zarr'
-
-jinja_env = Environment(
-    loader=FileSystemLoader(_TEMPLATE_DIR),
-    autoescape=select_autoescape(['html'])
-)
-
-
-# TODO:
-# can be same bucket - can setup lifecycle rule to do this as well:
-# S3_PLOT_DATA
-# S3_PAGE_TEMPLATE
 
 KD_TREE_CACHE = None
 
@@ -109,9 +88,9 @@ def lambda_handler(event, context):
     Example:
         http://<path/to/lambda>/alpha/plot_nc??time=2020-01-05&var=temp&lat_range=50,75&lon_range=-50,50
     """
-    # [x] parse query strings
-    # [x] retrieve data from zarr
-    # [ ] plot the data (or datashsader)
+    # [ ] parse query strings
+    # [ ] retrieve data from opendap
+    # [ ] plot the data
     # [ ] log the various stages
     # [ ] if there is an error, raise the error and fail/respond fast
 
@@ -153,11 +132,12 @@ def lambda_handler(event, context):
             # slice the required data
             da, swapped = slice_dataset(ds, x2_range, y2_range, params)
 
-            # datashader output
-            data_uri = rasterize(da)
+            # create interactive plot
+            plot_hv = hv_plot(da, x2_range, swapped)
 
-            # make html page
-            res = make_html_page(params, data_uri)
+            # convert to html to send via browser
+            res = convert_hv_plot_to_html(plot_hv)
+
 
     LOGGER.info(">>>> TOTAL TIME TAKEN: {:.3f} s".format(time.time() - ts))
 
@@ -173,8 +153,7 @@ def lambda_handler(event, context):
 def get_s3_zarr_store():
     s3 = s3fs.S3FileSystem(
         anon=False,
-        # TODO: remove on real lambda
-        profile=AWS_PROFILE,
+        # profile=AWS_PROFILE,
         client_kwargs=dict(
             region_name=AWS_REGION,
         )
@@ -182,71 +161,6 @@ def get_s3_zarr_store():
     # TODO: this ZARR_STORE should be specifiable via the API
     store = s3fs.S3Map(root=S3_ZARR_STORE, s3=s3, check=False)
     return store
-
-
-@_benchmark
-def rasterize(da):
-    # approximate ratio of the dataframe
-    MAX_RES_X = 240
-    MAX_RES_Y = 180
-
-    ratio = (da.shape[1] / max(da.shape[0], 1)) * (MAX_RES_Y / MAX_RES_X)
-
-    # to maintain proportional resolution/aspect ratio somewhat
-    if ratio < 1:
-        width = max(int(MAX_RES_X * ratio), 1)
-        height = MAX_RES_Y
-    elif ratio > 1:
-        width = MAX_RES_X
-        height = max(int(MAX_RES_Y / ratio), 1)
-    else: # ratio == 1
-        width = MAX_RES_X
-        height = MAX_RES_Y
-
-    LOGGER.info('datashader canvas - width: {}, height: {}'.format(width, height))
-        
-    canvas = datashader.Canvas(plot_width=width, plot_height=height)
-    qm = canvas.quadmesh(da, x='nav_lon', y='nav_lat')
-
-    # TODO: remove - for testing only
-    if True:
-        tf.shade(qm).to_pil().save(os.path.join(_DATA_OUT, 'test_shader.png'))
-
-    # ---
-    # TODO: break out this part into a different function
-    out_json = {
-        'height': height,
-        'width': width,
-        'lat': qm.nav_lat.values.astype(np.float16).tolist(),
-        'lon': qm.nav_lon.values.astype(np.float16).tolist(),
-        'values': qm.values.ravel().astype(np.float16).tolist()
-    }
-
-    # TODO: in reality this will be stored in s3
-    with open(os.path.join(_DATA_OUT, 'ovt_data.json'), 'w') as f:
-        s = simplejson.dump(out_json, f, ignore_nan=True)
-
-    # TODO: return s3 url instead
-    return '/data/ovt_data/json'
-    # ---
-
-
-@_benchmark
-def make_html_page(params, data_uri):
-    # TODO: replace with appropriate s3 url
-    js_include = '/js/main-svg.js'
-    css_include = '/css/style.css'
-    data_uri = '/data/ovt_data.json'
-
-    index_template = jinja_env.get_template('index-template.html')
-
-    return index_template.render(
-        lat_range=params['lat_range'],
-        lon_range=params['lon_range'],
-        js_include=js_include,
-        css_include=css_include,
-        plot_data_url=data_uri
-    )
 
 
 @_benchmark
@@ -271,18 +185,6 @@ def extract_params(query_params):
     lat_max = float(query_params.get("lat_max", 90))
     lon_min = float(query_params.get("lon_min", -180))
     lon_max = float(query_params.get("lon_max", 180))
-
-    MIN_LATLON = 5
-
-    if np.abs(lat_max - lat_min) <= MIN_LATLON:
-        lat_center = (lat_max + lat_min) / 2
-        lat_min = lat_center - 2.5
-        lat_max = lat_center + 2.5
-
-    if np.abs(lon_max - lon_min) <= MIN_LATLON:
-        lon_center = (lon_max + lon_min) / 2
-        lon_min = lon_center - 2.5
-        lon_max = lon_center + 2.5
 
     return {
         "lat_range": [lat_min, lat_max],
@@ -347,6 +249,17 @@ def ds_within_lat_lon(*args):
     # TODO
     return False
 
+
+@_benchmark
+def get_slice_where(da, lon_range, lat_range):
+    da_sliced = da.where(
+        ((da.nav_lon >= lon_range[0]) &
+        (da.nav_lon <= lon_range[1]) &
+        (da.nav_lat >= lat_range[0]) &
+        (da.nav_lat <= lat_range[1])),
+        drop=True
+    )
+    return da_sliced
 
 @_benchmark
 def slice_dataset(ds, xs, ys, params):
@@ -414,6 +327,69 @@ def slice_dataset(ds, xs, ys, params):
     return da, swapped
 
 
+
+def load_opendap_dataset(params):
+    """
+        Returns the sliced data set according to params
+    """
+    # [ ] slice params
+    # [ ] raise error if dataset doesn't conform
+
+    return da
+
+
+def load_zarr_s3_dataset(params):
+    """
+        Returns the sliced data set according to params
+    """
+    # [ ] slice params
+    # [ ] raise error if dataset doesn't conform
+
+    return da
+
+
+def preprocess_plot_data(da):
+    """
+        Transforms the data to plot ready data. The main thing is that the
+        lat/lon grids are not monotonically increasing/decreasing which is
+        required for meshgrid plots.
+    """
+    # [ ] rearrange data so it's monotonically increasing
+    # [ ] return data to be plotted
+    return plot_data
+
+
+@_benchmark
+def hv_plot(da, xs, swapped):
+    """
+        Do the actual plot.
+    """
+    dc = check_for_lon_discontinuity(xs, swapped)
+    translate_lon = 180 if dc else 0
+
+    if dc:
+        LOGGER.info(
+            "!!! Discontinuity detected - "
+            "translating nav_lon by 180 to prevent artefacts"
+        )
+
+    plot_hv = da.hvplot.quadmesh(
+        'nav_lon', 'nav_lat',
+        crs=ccrs.PlateCarree(), projection=ccrs.PlateCarree(translate_lon,),
+        project=True,
+        geo=True,
+        coastline=True,
+        rasterize=True,
+        frame_width=600,
+        dynamic=False,
+        cmap='viridis',
+    ).opts(
+        toolbar='above'
+    )
+
+    return plot_hv
+
+
 @_benchmark
 def check_for_lon_discontinuity(xs, swapped):
     """
@@ -444,6 +420,31 @@ def check_for_lon_discontinuity(xs, swapped):
     return len(a[1]) > 0
     # !!!
 
+@_benchmark
+def convert_hv_plot_to_html(plot_hv):
+    # Convert to bokeh figure then save using bokeh
+    renderer = hv.renderer('bokeh')
+    plot_bk = renderer.get_plot(plot_hv).state
+    html_utf8 = bk_export.get_layout_html(plot_bk)
+    return html_utf8
+
+
+def convert_plot_to_response(img_64, content_type):
+    """
+        Converts plot data to appropriate format based on header
+    """
+    # [ ] convert data to html or base64 depending on request header
+    # [ ] build response
+    return response
+
+
+def embed_plot_in_html(img_64):
+    """
+        embeds plot in html document for display on browsers
+    """
+    # [ ] convert base64 byte array to html doc format (utf-8)
+    return html
+
 
 def error_response(err):
     """
@@ -461,17 +462,5 @@ def error_response(err):
 
 # ===
 
-if __name__ == '__main__':
-    event = {
-        "httpMethod": "GET",
-        "queryStringParameters": {
-            "time": "2020-10-01",
-            "var": "temp",
-            "lat_min": -50,
-            "lat_max": -20,
-            "lon_min": 110,
-            "lon_max": 140
-        }
-    }
-    context = None
-    lambda_handler(event, context)
+
+

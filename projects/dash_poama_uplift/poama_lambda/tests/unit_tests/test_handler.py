@@ -81,6 +81,8 @@ def test_lambda_handler(apigw_event, mocker, monkeypatch, caplog):
 
     monkeypatch.setattr(app, "LOCAL_MODE", True)
     monkeypatch.setattr(app, "get_s3_zarr_store", mock_get_s3_zarr_store)
+    monkeypatch.setattr(app, "_DATA_OUT", os.path.join(_DIR, 'out', 'data'))
+    monkeypatch.setattr(app, "_HTML_OUT", os.path.join(_DIR, 'out', 'index.html'))
 
     caplog.set_level(logging.DEBUG, app.LOGGER.name)
     ret = app.lambda_handler(apigw_event, "")
@@ -90,7 +92,8 @@ def test_lambda_handler(apigw_event, mocker, monkeypatch, caplog):
     apigw_event["queryStringParameters"]["lat_max"] = -40
     apigw_event["queryStringParameters"]["lon_min"] = -90
     apigw_event["queryStringParameters"]["lon_max"] = -50
+
     ret = app.lambda_handler(apigw_event, "")
 
-    with open(os.path.join(_DIR, 'test.html'), mode="w", encoding="utf-8") as f:
+    with open(app._HTML_OUT, 'w') as f:
         f.write(ret)
