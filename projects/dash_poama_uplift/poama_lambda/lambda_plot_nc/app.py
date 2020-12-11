@@ -28,7 +28,8 @@ _HTML_OUT = os.path.join(_DIR, 'out', 'index.html')
 
 LOCAL_MODE = False
 
-AWS_PROFILE = 'sam_deploy'
+# AWS_PROFILE = 'sam_deploy'
+AWS_PROFILE = None
 AWS_REGION = 'ap-southeast-2'
 S3_ZARR_STORE = 'fvt-test-zarr-nr/test_zarr_store.zarr'
 
