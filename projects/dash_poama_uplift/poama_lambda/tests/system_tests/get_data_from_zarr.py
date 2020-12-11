@@ -51,6 +51,7 @@ ZARR_PATH = os.path.splitext(NC_PATH)[0] + '.zarr'
 S3_STORE = 'fvt-test-zarr-nr/test_zarr_store.zarr'
 AWS_REGION = 'ap-southeast-2'
 AWS_PROFILE = 'sam_deploy'
+AWS_PROFILE = None
 
 
 def _benchmark(f):
@@ -85,7 +86,7 @@ def slice_data(da, xs, ys, is_zarr=False):
     if is_zarr:
         return da[0, 0, ys, xs]
     else:
-        return da[0, 0, ys, xs].values
+        return da[0, 0, ys, xs].compute()
 
 
 @_benchmark
@@ -147,7 +148,8 @@ def consolidate_local_zarr_metadata():
 
 @_benchmark
 def slice_using_xarray(store, xs, ys):
-    with xr.open_zarr(store, consolidated=True) as ds:
+    # Don't keep chunks just load into numpy memory lazily
+    with xr.open_zarr(store, consolidated=True, chunks=None) as ds:
         data = slice_data(ds.temp, xs, ys, is_zarr=False)
         return data
 
@@ -246,10 +248,11 @@ def main():
 
     # similar profile to the one in get_data_from_opendap.py
     for slices in [
+            (slice(1,2), slice(1,2)),
             (slice(10,100), slice(10, 100)),
             (slice(100,400), slice(100, 400)),
             (slice(400,None), slice(400, None)) ]:
-        read_zarr_slice_from_s3(slices[0], slices[1], load_using_zarr=True)
+        read_zarr_slice_from_s3(slices[0], slices[1], load_using_zarr=False)
 
 if __name__ == '__main__':
     main()

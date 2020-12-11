@@ -133,7 +133,8 @@ def lambda_handler(event, context):
 
     res = None
 
-    with xr.open_zarr(store, consolidated=True) as ds:
+    # Don't chunk for lambda with small CPU - just download and load to memory lazily
+    with xr.open_zarr(store, consolidated=True, chunks=None) as ds:
         # if the entire dataset lies within the lat/lon ranges then don't do
         # any kdtree computations.
         if ds_within_lat_lon(params):
@@ -405,14 +406,14 @@ def slice_dataset(ds, xs, ys, params):
         LOGGER.info("!!! x/y range did not match lat/lon range: swapped dataarray")
         da = xr.concat(
             [
-                da[slice(*ys), slice(0, xs[0])],
-                da[slice(*ys), slice(xs[1], None)]
+                da[slice(*ys), slice(0, xs[0])].compute(),
+                da[slice(*ys), slice(xs[1], None)].compute()
             ],
             dim='x_2'
         )
     else:
         swapped = False
-        da = da[slice(*ys), slice(*xs)]
+        da = da[slice(*ys), slice(*xs)].compute()
 
     return da, swapped
 
