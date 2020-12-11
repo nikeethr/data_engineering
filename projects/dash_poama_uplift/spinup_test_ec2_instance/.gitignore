@@ -1,0 +1,7 @@
+*.pyc
+*.log
+*.pem
+*.bkp
+__pycache__
+deploy-ec2-params.json
+temp_env/
