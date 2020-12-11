@@ -1,0 +1,13 @@
+div#tooltip {
+    position: absolute;        
+    display: inline-block;
+    padding: 5px;
+    font-family: courier new;
+    color: #fff;
+    background-color: #000;
+    border: 1px solid #999 white;
+    border-radius: 5px;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 1;
+}
