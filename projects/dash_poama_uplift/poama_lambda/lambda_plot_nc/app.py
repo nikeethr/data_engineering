@@ -1,4 +1,6 @@
 # === imports ===
+import sys
+sys.path.append("/tmp/python_packages")
 import os
 import time
 import dateutil.parser
@@ -297,8 +299,8 @@ def construct_kdtree(ds):
     global KD_TREE_CACHE
 
     if KD_TREE_CACHE is None:
-        lat_1d = np.ravel(ds.nav_lat)
-        lon_1d = np.ravel(ds.nav_lon)
+        lat_1d = np.ravel(ds.nav_lat.values)
+        lon_1d = np.ravel(ds.nav_lon.values)
         data = np.column_stack((lat_1d, lon_1d))
         # TODO: tweak leaf-size for best construction time/query trade-off
         # No. points is about 1.4e6

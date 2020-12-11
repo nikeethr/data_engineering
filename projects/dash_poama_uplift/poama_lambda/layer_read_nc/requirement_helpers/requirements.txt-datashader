@@ -1,0 +1,11 @@
+datashader
+netcdf4
+numpy
+pandas
+python-dateutil
+pytz
+xarray
+zarr
+scipy
+s3fs
+simplejson

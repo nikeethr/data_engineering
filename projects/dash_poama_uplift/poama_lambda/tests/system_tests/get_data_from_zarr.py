@@ -249,7 +249,7 @@ def main():
             (slice(10,100), slice(10, 100)),
             (slice(100,400), slice(100, 400)),
             (slice(400,None), slice(400, None)) ]:
-        read_zarr_slice_from_s3(slices[0], slices[1], load_using_zarr=False)
+        read_zarr_slice_from_s3(slices[0], slices[1], load_using_zarr=True)
 
 if __name__ == '__main__':
     main()

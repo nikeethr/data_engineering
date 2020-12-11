@@ -80,7 +80,7 @@ def test_lambda_handler(apigw_event, mocker, monkeypatch, caplog):
         return store
 
     monkeypatch.setattr(app, "LOCAL_MODE", True)
-    monkeypatch.setattr(app, "get_s3_zarr_store", mock_get_s3_zarr_store)
+    # monkeypatch.setattr(app, "get_s3_zarr_store", mock_get_s3_zarr_store)
     monkeypatch.setattr(app, "_DATA_OUT", os.path.join(_DIR, 'out', 'data'))
     monkeypatch.setattr(app, "_HTML_OUT", os.path.join(_DIR, 'out', 'index.html'))
 
