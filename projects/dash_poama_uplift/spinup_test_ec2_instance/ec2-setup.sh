@@ -3,8 +3,10 @@
 # install things
 sudo yum update -y
 sudo amazon-linux-extras install docker
+sudo yum groupinstall "Development Tools" -y
 sudo yum install docker -y
 sudo yum install python3 -y
+sudo yum install python3-devel -y
 sudo yum install git -y
 
 # start docker
