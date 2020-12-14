@@ -247,3 +247,10 @@ $RECYCLE.BIN/
 tests/system_tests/test_data
 *.out
 *.nc
+*.pyc
+*.log
+*.pem
+*.bkp
+__pycache__
+netcdf_to_zarr/zarr_out
+netcdf_to_zarr/netcdf_in

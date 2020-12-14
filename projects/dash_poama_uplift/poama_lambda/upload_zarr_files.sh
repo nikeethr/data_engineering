@@ -4,7 +4,7 @@ set -eu
 
 . ./deploy_scripts.cfg
 
-script_dir="$(dirname $(readlink -f $0))/scripts"
+script_dir="$(dirname $(readlink -f $0))/netcdf_to_zarr"
 nc_to_zarr="${script_dir}/netcdf_to_zarr.py"
 default_nc_dir="${script_dir}/netcdf_in"
 zarr_out="${script_dir}/zarr_out"

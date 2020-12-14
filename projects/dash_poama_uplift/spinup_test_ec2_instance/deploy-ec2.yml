@@ -20,11 +20,11 @@ Parameters:
     Description: EC2 instance type
     AllowedValues:
       - t2.micro
-  DataBucket:
-    Type: String
-    Description: Name of S3 bucket containing data
-  # Note: has to be base64
+  #DataBucket:
+  #  Type: String
+  #  Description: Name of S3 bucket containing data
   UserData:
+    # Note: has to be base64
     Type: String
     Description: Base64 encoded init script
 # Currently only ap-southeast-2 Amazon Linux 2 supported
