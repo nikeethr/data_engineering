@@ -15,5 +15,5 @@ else
     echo "bucket: ${s3_bucket} already exists. skipping..."
 fi
 
-# try to upload
-aws s3 sync $assets_dir "${s3_bucket}/assets"
+# try to upload - objects can be public
+aws s3 sync $assets_dir "${s3_bucket}/assets" --acl public-read

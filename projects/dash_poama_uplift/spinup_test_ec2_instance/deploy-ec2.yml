@@ -20,9 +20,6 @@ Parameters:
     Description: EC2 instance type
     AllowedValues:
       - t2.micro
-  #DataBucket:
-  #  Type: String
-  #  Description: Name of S3 bucket containing data
   UserData:
     # Note: has to be base64
     Type: String
@@ -159,18 +156,6 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonAPIGatewayAdministrator
         - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
-      ## read only from data bucket
-      #Policies:
-      #  - PolicyName: DataBucketReadWrite
-      #    PolicyDocument:
-      #      Version: 2012-10-17
-      #      Statement:
-      #        - Effect: Allow
-      #          Action: s3:List*
-      #          Resource: !Sub "arn:aws:s3:::${DataBucket}"
-      #        - Effect: Allow
-      #          Action: s3:*Object
-      #          Resource: !Sub "arn:aws:s3:::${DataBucket}/*"
   TestEC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:

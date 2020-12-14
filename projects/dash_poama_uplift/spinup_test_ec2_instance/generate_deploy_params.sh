@@ -26,10 +26,6 @@ cat <<EOF > deploy-ec2-params.json
         "ParameterValue": "${INSTANCE_TYPE}"
     },
     {
-        "ParameterKey": "DataBucket",
-        "ParameterValue": "${DATA_BUCKET}"
-    },
-    {
         "ParameterKey": "UserData",
         "ParameterValue": "${ec2_setup_b64}"
     }
