@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -u
+
 . ./deploy_scripts.cfg
 
 default_assets_dir="$(dirname $(readlink -f $0))/assets"
@@ -16,4 +18,4 @@ else
 fi
 
 # try to upload - objects can be public
-aws s3 sync $assets_dir "${s3_bucket}/assets" --acl public-read
+aws s3 sync $assets_dir "s3://${s3_bucket}/assets" --acl public-read
