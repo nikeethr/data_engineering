@@ -1,0 +1,14 @@
+{
+  "Rules": [
+		{
+      "ID": "expire-plot-data-from-lambda",
+      "Filter": {
+				"Prefix": "temp_plot_data/"
+      }, 
+      "Status": "Enabled", 
+      "Expiration": {
+        "Days": 1
+      }
+    }
+  ]
+}

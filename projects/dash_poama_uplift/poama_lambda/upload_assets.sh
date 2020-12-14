@@ -19,3 +19,8 @@ fi
 
 # try to upload - objects can be public
 aws s3 sync $assets_dir "s3://${s3_bucket}/assets" --acl public-read
+
+# setup lifecycle configuration for temporary plot data to expire
+aws s3api put-bucket-lifecycle-configuration \
+    --bucket $s3_bucket \
+    --lifecycle-configuration file://lambda_data_bucket_lifecycle.json
