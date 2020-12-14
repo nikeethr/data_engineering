@@ -151,17 +151,26 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: /
-      Policies:
-        - PolicyName: DataBucketReadWrite
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action: s3:List*
-                Resource: !Sub "arn:aws:s3:::${DataBucket}"
-              - Effect: Allow
-                Action: s3:*Object
-                Resource: !Sub "arn:aws:s3:::${DataBucket}/*"
+      # Managed policies required to deploy lambda functions via SAM
+      # see: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install-linux.html
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSLambdaFullAccess
+        - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/AmazonAPIGatewayAdministrator
+        - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+      ## read only from data bucket
+      #Policies:
+      #  - PolicyName: DataBucketReadWrite
+      #    PolicyDocument:
+      #      Version: 2012-10-17
+      #      Statement:
+      #        - Effect: Allow
+      #          Action: s3:List*
+      #          Resource: !Sub "arn:aws:s3:::${DataBucket}"
+      #        - Effect: Allow
+      #          Action: s3:*Object
+      #          Resource: !Sub "arn:aws:s3:::${DataBucket}/*"
   TestEC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
