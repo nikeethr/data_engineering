@@ -1,3 +1,3 @@
-#!/bin/sh
+#!/bin/bash
 
-sam build
+sam build --use-container

@@ -22,8 +22,8 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       StageName: alpha
-      #BinaryMediaTypes:
-      #  - image~1png
+      BinaryMediaTypes:
+        - image~1png
   
   # the main lambda function to plot the netcdf file from an s3 bucket
   NetcdfPlotFunction:
@@ -35,6 +35,7 @@ Resources:
       MemorySize: 512
       Layers:
         - !Ref ReadNetcdfLayer
+        - !Ref PlotLayer
       Events:
         NetcdfPlot:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -52,6 +53,20 @@ Resources:
     Properties:
       LayerName: read-netcdf-layer
       ContentUri: layer_read_nc/
+      CompatibleRuntimes: 
+        - python3.8
+      RetentionPolicy: Delete
+    Metadata:
+      # BuildMethod: python3.8
+      # for custom building/flags:
+      BuildMethod: makefile
+
+  # contains matplotlib for rendering the plot
+  PlotLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: plot-layer
+      ContentUri: layer_plot/
       CompatibleRuntimes: 
         - python3.8
       RetentionPolicy: Delete

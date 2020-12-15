@@ -254,3 +254,4 @@ tests/system_tests/test_data
 __pycache__
 netcdf_to_zarr/zarr_out
 netcdf_to_zarr/netcdf_in
+extra_core_packages.zip

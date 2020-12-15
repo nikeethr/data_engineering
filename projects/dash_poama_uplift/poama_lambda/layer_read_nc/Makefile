@@ -1,18 +1,14 @@
 build-ReadNetcdfLayer:
-	mkdir -p "$(ARTIFACTS_DIR)/python"
+	mkdir -p "$(ARTIFACTS_DIR)/python" && \
 	python -m pip install \
 		--no-cache-dir \
 		--no-compile \
 		--no-deps \
 		-r requirements.txt \
-		-t "$(ARTIFACTS_DIR)/python"
+		-t "$(ARTIFACTS_DIR)/python" && \
+	rm -rf "$(ARTIFACTS_DIR)/python/bokeh*" ||: && \
+	rm -rf "$(ARTIFACTS_DIR)/python/boto3*" ||: && \
+	rm -rf "$(ARTIFACTS_DIR)/python/botocore*" ||: && \
+	rm -rf "$(ARTIFACTS_DIR)/python/datashader/examples" ||: && \
+	rm -rf "$(ARTIFACTS_DIR)/python/pandas/tests" ||:
 
-# build-ReadNetcdfLayer:
-# 	mkdir -p "$(ARTIFACTS_DIR)/python"
-# 	CFLAGS="-g0 -Wl,--strip-all -I/usr/include:/usr/local/include -L/usr/lib:/usr/local/lib" \
-# 	python -m pip install \
-# 		--no-cache-dir \
-# 		--compile \
-# 		--global-option="build_ext" \
-# 		-r requirements.txt \
-# 		-t "$(ARTIFACTS_DIR)/python"
