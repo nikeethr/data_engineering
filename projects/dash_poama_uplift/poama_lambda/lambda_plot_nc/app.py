@@ -1,20 +1,26 @@
 # === imports ===
-import sys
-sys.path.append("/tmp/python_packages")
+import io
 import os
-import time
+import sys
 import dateutil.parser
 import functools
-import json
 import logging
+import requests
+import time
+import uuid
+import zipfile
 import xarray as xr
 import numpy as np
-import datashader
 import simplejson
 import s3fs
+import boto3
+from importlib import import_module
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from scipy.spatial import KDTree
-from datashader import transfer_functions as tf
+
+# delay load datashader as it depends on numba and llvmlite which will be
+# loaded on first lambda call
+datashader = None
 
 # ===
 
@@ -28,22 +34,20 @@ _HTML_OUT = os.path.join(_DIR, 'out', 'index.html')
 
 LOCAL_MODE = False
 
-# AWS_PROFILE = 'sam_deploy'
-AWS_PROFILE = None
-AWS_REGION = 'ap-southeast-2'
-S3_ZARR_STORE = 'fvt-test-zarr-nr/test_zarr_store.zarr'
+AWS_PROFILE = os.environ.get('AWS_PROFILE', None)
+AWS_REGION = os.environ.get('AWS_REGION', 'ap-southeast-2')
+S3_ZARR_BUCKET = os.environ.get('S3_ZARR_BUCKET', 'fvt-zarr-data')
+S3_OUTPUT_BUCKET = os.environ.get('S3_OUTPUT_BUCKET', 'fvt-lambda-public-data')
+S3_DEPLOY_BUCKET = os.environ.get('S3_DEPLOY_BUCKET', 'poama-test-lambda-deploy')
+EXTRA_PACKAGES_ZIP = os.environ.get('EXTRA_PACKAGES_ZIP', 'partial_core_deps.zip')
+LAMBDA_EXTRA_PACKAGES_PATH = os.environ.get('LAMBDA_EXTRA_PACKAGES_PATH', '/tmp/python_extra/')
 
 jinja_env = Environment(
     loader=FileSystemLoader(_TEMPLATE_DIR),
     autoescape=select_autoescape(['html'])
 )
 
-
-# TODO:
-# can be same bucket - can setup lifecycle rule to do this as well:
-# S3_PLOT_DATA
-# S3_PAGE_TEMPLATE
-
+# Keep KD-tree in memory for speedup
 KD_TREE_CACHE = None
 
 # === setup logging ===
@@ -71,6 +75,37 @@ def _benchmark(f):
             f.__name__, time.time() - ts))
         return r
     return wrapper
+
+
+@_benchmark
+def _prepare_lambda():
+    global datashader
+
+    if (os.path.isdir(LAMBDA_EXTRA_PACKAGES_PATH)
+            and len(os.listdir(LAMBDA_EXTRA_PACKAGES_PATH)) != 0):
+        LOGGER.info("dependencies already downloaded...")
+    else:
+        LOGGER.info("extracting extra core packages from s3...")
+        s3 = s3fs.S3FileSystem(
+            anon=False,
+            profile=AWS_PROFILE,
+            client_kwargs=dict(
+                region_name=AWS_REGION,
+            )
+        )
+        with s3.open("{}/extra/{}".format(S3_DEPLOY_BUCKET, EXTRA_PACKAGES_ZIP), 'rb') as s3_obj:
+            z = zipfile.ZipFile(io.BytesIO(s3_obj.read()))
+            if not os.path.isdir(LAMBDA_EXTRA_PACKAGES_PATH):
+                os.makedirs(LAMBDA_EXTRA_PACKAGES_PATH)
+            z.extractall(LAMBDA_EXTRA_PACKAGES_PATH)
+
+    sys.path.insert(0, LAMBDA_EXTRA_PACKAGES_PATH)
+    
+    LOGGER.info("importing datashader...")
+    if not datashader:
+        datashader = import_module('datashader')
+
+    LOGGER.info("imports successful.")
 
 # ===
 
@@ -104,6 +139,7 @@ def lambda_handler(event, context):
     Usage
     -----
     Query Parameters:
+        zarr_store [required]: name of zarr file store on s3
         time [required]: time instance
         lat_range [required]: lat slice. comma separated.
         lon_range [required]: lon slice. comma seperated.
@@ -114,22 +150,32 @@ def lambda_handler(event, context):
     """
     # [x] parse query strings
     # [x] retrieve data from zarr
-    # [ ] plot the data (or datashsader)
-    # [ ] log the various stages
+    # [x] plot the data (or datashsader)
+    # [x] log the various stages
     # [ ] if there is an error, raise the error and fail/respond fast
 
     LOGGER.info("executing lambda function, local_mode = {}".format(LOCAL_MODE))
+    ts = time.time()
 
     operation = event["httpMethod"]
     if operation != "GET":
         return error_response(
             ValueError("Unsupported method '{}'".format(operation)))
 
-    ts = time.time()
-    params = extract_params(event["queryStringParameters"])
-    LOGGER.debug(json.dumps(params, indent=4, default=str))
+    _prepare_lambda()
 
-    store = get_s3_zarr_store()
+    try:
+        params = extract_params(event["queryStringParameters"])
+    except (KeyError, ValueError) as e:
+        return error_response(e)
+
+    _, data_uri = get_result_obj_json_uri(params)
+
+    if requests.get(data_uri, timeout=0.5).ok:
+        LOGGER.info("data object already created for these params")
+        return make_html_response(params, data_uri)
+
+    store = get_s3_zarr_store(params['zarr_path'])
 
     res = None
 
@@ -158,10 +204,10 @@ def lambda_handler(event, context):
             da, swapped = slice_dataset(ds, x2_range, y2_range, params)
 
             # datashader output
-            data_uri = rasterize(da)
+            data_uri = rasterize(da, params)
 
             # make html page
-            res = make_html_page(params, data_uri)
+            res = make_html_response(params, data_uri)
 
     LOGGER.info(">>>> TOTAL TIME TAKEN: {:.3f} s".format(time.time() - ts))
 
@@ -174,22 +220,64 @@ def lambda_handler(event, context):
 # TOOD: test if this can go into a separate file(s)
 
 @_benchmark
-def get_s3_zarr_store():
+def get_s3_zarr_store(store_name):
     s3 = s3fs.S3FileSystem(
         anon=False,
-        # TODO: remove on real lambda
         profile=AWS_PROFILE,
         client_kwargs=dict(
             region_name=AWS_REGION,
         )
     )
-    # TODO: this ZARR_STORE should be specifiable via the API
-    store = s3fs.S3Map(root=S3_ZARR_STORE, s3=s3, check=False)
+    store = s3fs.S3Map(root=store_name, s3=s3, check=False)
     return store
 
 
+def get_result_obj_json_uri(params):
+    # using NAMESPACE_URL arbitrarily...
+    # but this will create a deterministic name for the json file
+    obj_name = str(uuid.uuid3(
+        uuid.NAMESPACE_URL,simplejson.dumps(params, default=str)))
+    s3_obj_uri = "temp_plot_data/{}.json".format(obj_name)
+    s3_uri_external = 'http://s3.{}.amazonaws.com/{}/{}'.format(
+        AWS_REGION, S3_OUTPUT_BUCKET, s3_obj_uri)
+    return s3_obj_uri, s3_uri_external
+
+
 @_benchmark
-def rasterize(da):
+def store_result_json(qm, height, width, params):
+    out_json = {
+        'height': height,
+        'width': width,
+        'lat': qm.nav_lat.values.astype(np.float16).tolist(),
+        'lon': qm.nav_lon.values.astype(np.float16).tolist(),
+        'values': qm.values.ravel().astype(np.float16).tolist()
+    }
+
+    s3_obj_uri, uri_external = get_result_obj_json_uri(params)
+
+    # dump data
+    data_str = simplejson.dumps(out_json, ignore_nan=True)
+    data_bytes = data_str.encode("utf-8")
+
+    # upload to s3
+    session = boto3.Session(region_name=AWS_REGION)
+    s3 = session.resource('s3')
+    s3_obj = s3.Object(S3_OUTPUT_BUCKET, s3_obj_uri)
+    s3_obj.put(
+        Body=data_bytes,
+        ACL='public-read',
+        CacheControl='public, max-age=86400, must-revalidate',
+        ContentType='application/json'
+    )
+
+    # TODO: return s3 url instead
+    return uri_external
+    # ---
+
+
+
+@_benchmark
+def rasterize(da, params):
     # approximate ratio of the dataframe
     MAX_RES_X = 240
     MAX_RES_Y = 180
@@ -211,46 +299,37 @@ def rasterize(da):
         
     canvas = datashader.Canvas(plot_width=width, plot_height=height)
     qm = canvas.quadmesh(da, x='nav_lon', y='nav_lat')
+    data_uri = store_result_json(qm, height, width, params)
 
-    # TODO: remove - for testing only
-    if True:
-        tf.shade(qm).to_pil().save(os.path.join(_DATA_OUT, 'test_shader.png'))
+    return data_uri
 
-    # ---
-    # TODO: break out this part into a different function
-    out_json = {
-        'height': height,
-        'width': width,
-        'lat': qm.nav_lat.values.astype(np.float16).tolist(),
-        'lon': qm.nav_lon.values.astype(np.float16).tolist(),
-        'values': qm.values.ravel().astype(np.float16).tolist()
-    }
-
-    # TODO: in reality this will be stored in s3
-    with open(os.path.join(_DATA_OUT, 'ovt_data.json'), 'w') as f:
-        s = simplejson.dump(out_json, f, ignore_nan=True)
-
-    # TODO: return s3 url instead
-    return '/data/ovt_data/json'
-    # ---
 
 
 @_benchmark
-def make_html_page(params, data_uri):
+def make_html_response(params, data_uri):
     # TODO: replace with appropriate s3 url
-    js_include = '/js/main-svg.js'
-    css_include = '/css/style.css'
-    data_uri = '/data/ovt_data.json'
+    js_include = 'http://s3.{}.amazonaws.com/{}/{}'.format(
+        AWS_REGION, S3_OUTPUT_BUCKET, 'assets/js/main-svg.js')
+    css_include = 'http://s3.{}.amazonaws.com/{}/{}'.format(
+        AWS_REGION, S3_OUTPUT_BUCKET, 'assets/css/style.css')
 
     index_template = jinja_env.get_template('index-template.html')
 
-    return index_template.render(
+    html_str = index_template.render(
         lat_range=params['lat_range'],
         lon_range=params['lon_range'],
         js_include=js_include,
         css_include=css_include,
         plot_data_url=data_uri
     )
+
+    return {
+        "statusCode": 200,
+        "body": html_str,
+        "headers": {
+            "Content-Type": "html/text"
+        }
+    }
 
 
 @_benchmark
@@ -261,13 +340,12 @@ def extract_params(query_params):
 
         Returns parsed params
     """
-    # [ ] attempt to parse various fields raise error if cannot be parsed /
-    # doesn't conform
-    # [ ] TODO: change lat min/max to multi-value query
-    # [ ] TODO: correct lat/lon to be in the right range
     dt = dateutil.parser.parse(query_params["time"])
-    var = query_params["var"]
+    var = query_params.get("var", "temp")
+    # example: <s3_bucket>/zarr/s_moa_sst_20201107_e01.zarr
+    zarr_path = "{}/zarr/{}.zarr".format(S3_ZARR_BUCKET, query_params["zarr_store"])
     valid_vars = ["temp"]
+
     if var not in valid_vars:
         raise KeyError("Invalid var: {}, only accept {}".format(var, valid_vars))
 
@@ -276,23 +354,24 @@ def extract_params(query_params):
     lon_min = float(query_params.get("lon_min", -180))
     lon_max = float(query_params.get("lon_max", 180))
 
-    MIN_LATLON = 5
+    MIN_LATLON = 4
 
     if np.abs(lat_max - lat_min) <= MIN_LATLON:
         lat_center = (lat_max + lat_min) / 2
-        lat_min = lat_center - 2.5
-        lat_max = lat_center + 2.5
+        lat_min = int(lat_center - MIN_LATLON / 2)
+        lat_max = int(lat_center + MIN_LATLON / 2)
 
     if np.abs(lon_max - lon_min) <= MIN_LATLON:
         lon_center = (lon_max + lon_min) / 2
-        lon_min = lon_center - 2.5
-        lon_max = lon_center + 2.5
+        lon_min = int(lon_center - MIN_LATLON / 2)
+        lon_max = int(lon_center + MIN_LATLON / 2)
 
     return {
         "lat_range": [lat_min, lat_max],
         "lon_range": [lon_min, lon_max],
         "var": var,
-        "dt": dt
+        "dt": dt,
+        "zarr_path": zarr_path
     }
 
 
@@ -454,7 +533,6 @@ def error_response(err):
         Error response to send if something fails. Takes in a Error type.
     """
     # [x] return json format with error message
-
     return {
         "statusCode": 400,
         "body": str(err),
@@ -465,17 +543,3 @@ def error_response(err):
 
 # ===
 
-if __name__ == '__main__':
-    event = {
-        "httpMethod": "GET",
-        "queryStringParameters": {
-            "time": "2020-10-01",
-            "var": "temp",
-            "lat_min": -50,
-            "lat_max": -20,
-            "lon_min": 110,
-            "lon_max": 140
-        }
-    }
-    context = None
-    lambda_handler(event, context)

@@ -1,17 +1,20 @@
 import os
 import json
-
+import sys
 import pytest
 import logging
-from zarr.storage import DirectoryStore
-
-from lambda_plot_nc import app
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_ZARR_PATH = os.path.join(
     _DIR,
     '../system_tests/test_data/s_moa_sst_20201107_e01.zarr/'
 )
+DEPLOY_PACKAGES = os.path.join(_DIR, '../../.aws-sam/build/ReadNetcdfLayer/python')
+if os.path.isdir(DEPLOY_PACKAGES):
+    sys.path.insert(0, DEPLOY_PACKAGES)
+
+from zarr.storage import DirectoryStore
+from lambda_plot_nc import app
 
 
 @pytest.fixture()
@@ -44,7 +47,9 @@ def apigw_event():
             "stage": "prod",
         },
         "queryStringParameters": {
-            "time": "2020-01-03 23:00", "var": "temp"
+            "time": "2020-01-03 23:00",
+            "var": "temp",
+            "zarr_store": "s_moa_sst_20201107_e01"
         },
         "headers": {
             "Via": "1.1 08f323deadbeefa7af34d5feb414ce27.cloudfront.net (CloudFront)",
@@ -94,6 +99,5 @@ def test_lambda_handler(apigw_event, mocker, monkeypatch, caplog):
     apigw_event["queryStringParameters"]["lon_max"] = -50
 
     ret = app.lambda_handler(apigw_event, "")
-
     with open(app._HTML_OUT, 'w') as f:
-        f.write(ret)
+        f.write(ret['body'])

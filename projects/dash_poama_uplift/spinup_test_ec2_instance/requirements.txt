@@ -11,4 +11,3 @@ s3fs
 simplejson
 pytest
 pytest-mock
-aws-sam-cli

@@ -31,7 +31,7 @@ Resources:
     Properties:
       CodeUri: lambda_plot_nc/
       Handler: app.lambda_handler
-      Runtime: python3.8
+      Runtime: python3.7
       MemorySize: 512
       Layers:
         - !Ref ReadNetcdfLayer
@@ -53,10 +53,10 @@ Resources:
       LayerName: read-netcdf-layer
       ContentUri: layer_read_nc/
       CompatibleRuntimes: 
-        - python3.8
+        - python3.7
       RetentionPolicy: Delete
     Metadata:
-      # BuildMethod: python3.8
+      # BuildMethod: python3.7
       # for custom building/flags:
       BuildMethod: makefile
 

@@ -1,3 +1,4 @@
 test.html
-out/data
+out/data/*
+!out/data/.gitkeep
 out/index.html

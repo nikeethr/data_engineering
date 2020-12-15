@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html>
-	<head>
-		<meta charset='utf-8'>
-		<link rel="stylesheet" type="text/css" href="{{ css_include }}">
-		<script src="https://d3js.org/d3.v6.min.js"></script>
+    <head>
+        <meta charset='utf-8'>
+        <link rel="stylesheet" type="text/css" href="{{ css_include }}">
+        <script src="https://d3js.org/d3.v6.min.js"></script>
         <script src="https://unpkg.com/topojson-client@3"></script>
-	</head>
-	<body>
-		<div id="chart"></div>
-		<div id="tooltip"></div>
+    </head>
+    <body>
+        <div id="chart"></div>
+        <div id="tooltip"></div>
         <script>
             window.g_lon0 = {{ lon_range[0] }}
             window.g_lon1 = {{ lon_range[1] }}
@@ -17,5 +17,5 @@
             window.g_plotDataUrl = "{{ plot_data_url }}"
         </script>
         <script src="{{ js_include }}"></script>
-	</body>
+    </body>
 </html>

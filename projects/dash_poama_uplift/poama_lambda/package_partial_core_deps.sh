@@ -1,10 +1,9 @@
 #!/bin/bash
 
-set -xu
+set -u
 
 . ./deploy_scripts.cfg
 
-extra_packages_zip="partial_core_deps.zip"
 extra_packages=("numba" "llvmlite")
 package_dir="${BUILD_DIR}/ReadNetcdfLayer/python"
 s3_bucket=$DEPLOY_BUCKET
@@ -13,7 +12,7 @@ pushd $package_dir
 
 echo "zip and remove packages: ${extra_packages[@]}..."
 for package in "${extra_packages[@]}"; do
-    zip -ur $extra_packages_zip $package
+    zip -ur $EXTRA_PACKAGES_ZIP $package
     rm -r $package
 done
 
@@ -26,9 +25,9 @@ else
     echo "bucket: ${s3_bucket} already exists. skipping..."
 fi
 
-aws s3 cp $extra_packages_zip "s3://${s3_bucket}/extra/${extra_packages_zip}"
+aws s3 cp $EXTRA_PACKAGES_ZIP "s3://${s3_bucket}/extra/${EXTRA_PACKAGES_ZIP}"
 
 echo "clean up..."
-rm $extra_packages_zip
+rm $EXTRA_PACKAGES_ZIP
 popd
 

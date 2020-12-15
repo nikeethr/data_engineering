@@ -20,6 +20,15 @@ sudo curl -L \
     -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
 
+# install base packages that the lambda will have
+sudo pip3 install "botocore==1.18.16" "boto3==1.15.16"
+
+# install pytest mock for testing outside of environment
+sudo pip3 install pytest pytest-mock
+
+# install aws sam cli for lambda deployment
+sudo pip3 install aws-sam-cli
+
 # --- run as user ---
 # WARNING: This contains some hardcoded scripts/paths assumed from the git repo
 # TODO: can probably extract this to a separate script in the repo to be run
@@ -37,7 +46,7 @@ sudo -u ec2-user bash <<'EOF'
     git clone https://github.com/nikeethr/data_engineering.git
     cd data_engineering/projects/dash_poama_uplift/spinup_test_ec2_instance
 
-    # setup environment
+    # setup environment for testing
     /bin/python3 -m venv /tmp/temp_env
     source /tmp/temp_env/bin/activate
     pip3 install -r requirements.txt
