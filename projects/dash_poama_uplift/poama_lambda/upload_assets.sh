@@ -24,3 +24,9 @@ aws s3 sync $assets_dir "s3://${s3_bucket}/assets" --acl public-read
 aws s3api put-bucket-lifecycle-configuration \
     --bucket $s3_bucket \
     --lifecycle-configuration file://lambda_data_bucket_lifecycle.json
+
+# setup CORS configuration so that cross-origin API clients can access the
+# resource (not just html)
+aws s3api put-bucket-cors \
+    --bucket $s3_bucket \
+    --cors-confugration file://cors-config.json

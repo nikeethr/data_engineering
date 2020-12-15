@@ -1,4 +1,5 @@
 test.html
-out/data/*
+out/
 !out/data/.gitkeep
-out/index.html
+!out/js/
+!out/css/
