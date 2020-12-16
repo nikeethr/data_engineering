@@ -25,7 +25,7 @@ else
     echo "bucket: ${s3_bucket} already exists. skipping..."
 fi
 
-aws s3 cp $EXTRA_PACKAGES_ZIP "s3://${s3_bucket}/extra/${EXTRA_PACKAGES_ZIP}"
+aws s3 cp $EXTRA_PACKAGES_ZIP "s3://${s3_bucket}/${EXTRA_PACKAGES_ZIP}"
 
 echo "clean up..."
 rm $EXTRA_PACKAGES_ZIP

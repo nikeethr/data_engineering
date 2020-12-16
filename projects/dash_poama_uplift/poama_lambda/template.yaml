@@ -8,12 +8,29 @@ Description: >
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 20
+    Timeout: 30
 
 Parameters:
-  TestDataBucketName:
+  DataBucket:
     Type: String
-    Default: sam-poama-netcdf-test-data
+    Description: Bucket containing the zarr data
+  OutputBucket:
+    Type: String
+    Description: Bucket to output the plot data
+  DeployBucket:
+    Type: String
+    Description: Bucket to extract extra core packages from
+  ExtraPackagesZipObj:
+    Type: String
+    Description: Extra packages obj key in DeployBucket
+  Region:
+    Type: String
+    Description: AWS region to retrieve resources from
+    Default: ap-southeast-2
+  LambdaExtraPackagesPath:
+    Type: String
+    Description: Path to store extra core packages within lambda
+    Default: /tmp/python_extra/
 
 Resources:
 
@@ -45,6 +62,14 @@ Resources:
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref TestDataBucketName
+      Environment:
+        Variables:
+          AWS_REGION: !Ref Region
+          S3_ZARR_BUCKET: !Ref DataBucket
+          S3_OUTPUT_BUCKET: !Ref OutputBucket
+          S3_DEPLOY_BUCKET: !Ref DeployBucket
+          EXTRA_PACKAGES_ZIP: !Ref ExtraPackagesZipObj
+          LAMBDA_EXTRA_PACKAGES_PATH: !Ref LambdaExtraPackagesPath
 
   # contains packages to help read netcdf files easily
   ReadNetcdfLayer:

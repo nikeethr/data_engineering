@@ -39,7 +39,7 @@ AWS_REGION = os.environ.get('AWS_REGION', 'ap-southeast-2')
 S3_ZARR_BUCKET = os.environ.get('S3_ZARR_BUCKET', 'fvt-zarr-data')
 S3_OUTPUT_BUCKET = os.environ.get('S3_OUTPUT_BUCKET', 'fvt-lambda-public-data')
 S3_DEPLOY_BUCKET = os.environ.get('S3_DEPLOY_BUCKET', 'poama-test-lambda-deploy')
-EXTRA_PACKAGES_ZIP = os.environ.get('EXTRA_PACKAGES_ZIP', 'partial_core_deps.zip')
+EXTRA_PACKAGES_ZIP = os.environ.get('EXTRA_PACKAGES_ZIP', 'extra/partial_core_deps.zip')
 LAMBDA_EXTRA_PACKAGES_PATH = os.environ.get('LAMBDA_EXTRA_PACKAGES_PATH', '/tmp/python_extra/')
 
 jinja_env = Environment(
@@ -93,7 +93,7 @@ def _prepare_lambda():
                 region_name=AWS_REGION,
             )
         )
-        with s3.open("{}/extra/{}".format(S3_DEPLOY_BUCKET, EXTRA_PACKAGES_ZIP), 'rb') as s3_obj:
+        with s3.open("{}/{}".format(S3_DEPLOY_BUCKET, EXTRA_PACKAGES_ZIP), 'rb') as s3_obj:
             z = zipfile.ZipFile(io.BytesIO(s3_obj.read()))
             if not os.path.isdir(LAMBDA_EXTRA_PACKAGES_PATH):
                 os.makedirs(LAMBDA_EXTRA_PACKAGES_PATH)
