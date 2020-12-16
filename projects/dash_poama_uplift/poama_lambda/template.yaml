@@ -8,7 +8,7 @@ Description: >
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 30
+    Timeout: 60
 
 Parameters:
   DataBucket:
@@ -49,7 +49,7 @@ Resources:
       CodeUri: lambda_plot_nc/
       Handler: app.lambda_handler
       Runtime: python3.7
-      MemorySize: 512
+      MemorySize: 1024
       Layers:
         - !Ref ReadNetcdfLayer
       Events:
@@ -61,15 +61,21 @@ Resources:
             RestApiId: !Ref NetcdfPlotApi
       Policies:
         - S3ReadPolicy:
-            BucketName: !Ref TestDataBucketName
+            BucketName: !Ref DataBucket
+        - S3ReadPolicy:
+            BucketName: !Ref DeployBucket
+        - S3WritePolicy:
+            BucketName: !Ref OutputBucket
       Environment:
         Variables:
-          AWS_REGION: !Ref Region
+          REGION: !Ref Region
           S3_ZARR_BUCKET: !Ref DataBucket
           S3_OUTPUT_BUCKET: !Ref OutputBucket
           S3_DEPLOY_BUCKET: !Ref DeployBucket
           EXTRA_PACKAGES_ZIP: !Ref ExtraPackagesZipObj
           LAMBDA_EXTRA_PACKAGES_PATH: !Ref LambdaExtraPackagesPath
+          # required for numba caching:
+          NUMBA_CACHE_DIR: /tmp
 
   # contains packages to help read netcdf files easily
   ReadNetcdfLayer:

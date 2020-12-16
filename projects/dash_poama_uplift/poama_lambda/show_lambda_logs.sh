@@ -6,5 +6,5 @@ set -u
 
 sam logs -n \
     $LAMBDA_FUNC_NAME \
-    --profile $AWS_PROFILE \
+    --region $REGION \
     --stack-name $STACK_NAME --tail

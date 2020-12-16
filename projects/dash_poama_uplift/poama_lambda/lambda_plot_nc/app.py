@@ -35,7 +35,7 @@ _HTML_OUT = os.path.join(_DIR, 'out', 'index.html')
 LOCAL_MODE = False
 
 AWS_PROFILE = os.environ.get('AWS_PROFILE', None)
-AWS_REGION = os.environ.get('AWS_REGION', 'ap-southeast-2')
+AWS_REGION = os.environ.get('REGION', 'ap-southeast-2')
 S3_ZARR_BUCKET = os.environ.get('S3_ZARR_BUCKET', 'fvt-zarr-data')
 S3_OUTPUT_BUCKET = os.environ.get('S3_OUTPUT_BUCKET', 'fvt-lambda-public-data')
 S3_DEPLOY_BUCKET = os.environ.get('S3_DEPLOY_BUCKET', 'poama-test-lambda-deploy')
@@ -146,7 +146,7 @@ def lambda_handler(event, context):
         var [required]: variable to plot. So far only supports "temp"
 
     Example:
-        http://<path/to/lambda>/alpha/plot_nc??time=2020-01-05&var=temp&lat_range=50,75&lon_range=-50,50
+        http://<path/to/lambda>/alpha/plot_nc?zarr_store=s_moa_sst_20201107_e01&time=2020-01-05&var=temp&lat_min=50&lat_max=75&lon_min=-50&lon_max=50
     """
     # [x] parse query strings
     # [x] retrieve data from zarr
@@ -198,7 +198,7 @@ def lambda_handler(event, context):
             ))
             x2_range, y2_range = get_x_2_y_2_from_lat_lon(
                 ds, params['lon_range'], params['lat_range'])
-            LOGGER.debug("{}, {}".format(x2_range, y2_range))
+            LOGGER.info("{}, {}".format(x2_range, y2_range))
 
             # slice the required data
             da, swapped = slice_dataset(ds, x2_range, y2_range, params)
@@ -238,7 +238,7 @@ def get_result_obj_json_uri(params):
     obj_name = str(uuid.uuid3(
         uuid.NAMESPACE_URL,simplejson.dumps(params, default=str)))
     s3_obj_uri = "temp_plot_data/{}.json".format(obj_name)
-    s3_uri_external = 'http://s3.{}.amazonaws.com/{}/{}'.format(
+    s3_uri_external = 'https://s3.{}.amazonaws.com/{}/{}'.format(
         AWS_REGION, S3_OUTPUT_BUCKET, s3_obj_uri)
     return s3_obj_uri, s3_uri_external
 
@@ -308,9 +308,9 @@ def rasterize(da, params):
 @_benchmark
 def make_html_response(params, data_uri):
     # TODO: replace with appropriate s3 url
-    js_include = 'http://s3.{}.amazonaws.com/{}/{}'.format(
+    js_include = 'https://s3.{}.amazonaws.com/{}/{}'.format(
         AWS_REGION, S3_OUTPUT_BUCKET, 'assets/js/main-svg.js')
-    css_include = 'http://s3.{}.amazonaws.com/{}/{}'.format(
+    css_include = 'https://s3.{}.amazonaws.com/{}/{}'.format(
         AWS_REGION, S3_OUTPUT_BUCKET, 'assets/css/style.css')
 
     index_template = jinja_env.get_template('index-template.html')
@@ -327,7 +327,7 @@ def make_html_response(params, data_uri):
         "statusCode": 200,
         "body": html_str,
         "headers": {
-            "Content-Type": "html/text"
+            "Content-Type": "text/html"
         }
     }
 

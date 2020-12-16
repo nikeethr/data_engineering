@@ -101,8 +101,8 @@ function plotMap(data) {
     map.heatmap.selectAll("path").data(ovtData.values)
         .enter().append("path")
         .attr('delay', function(d, i) { return i })
-        .attr('data-lat', function(d, i) { return ovtData.lon[i % ovtData.width] })
-        .attr('data-lon', function(d, i) { return ovtData.lat[Math.floor(i / ovtData.width)] })
+        .attr('data-lon', function(d, i) { return ovtData.lon[i % ovtData.width] })
+        .attr('data-lat', function(d, i) { return ovtData.lat[Math.floor(i / ovtData.width)] })
         .attr('d', function(d, i) {
             var r = Math.floor(i / ovtData.width)
             var c = i % ovtData.width
