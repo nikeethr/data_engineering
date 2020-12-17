@@ -133,7 +133,7 @@ Resources:
             DeleteOnTermination: true
       Tags:
         - Key: Name
-          Value: stf-prototype-app
+          Value: ec2-poama-lambda-deploy
   # Generate instance profile to read from s3 bucket
   TestEC2InstanceRole:
     Type: AWS::IAM::Role
