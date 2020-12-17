@@ -270,7 +270,6 @@ def store_result_json(qm, height, width, params):
         ContentType='application/json'
     )
 
-    # TODO: return s3 url instead
     return uri_external
     # ---
 
@@ -307,7 +306,6 @@ def rasterize(da, params):
 
 @_benchmark
 def make_html_response(params, data_uri):
-    # TODO: replace with appropriate s3 url
     js_include = 'https://s3.{}.amazonaws.com/{}/{}'.format(
         AWS_REGION, S3_OUTPUT_BUCKET, 'assets/js/main-svg.js')
     css_include = 'https://s3.{}.amazonaws.com/{}/{}'.format(
@@ -316,6 +314,9 @@ def make_html_response(params, data_uri):
     index_template = jinja_env.get_template('index-template.html')
 
     html_str = index_template.render(
+        filename=params['zarr_store'],
+        variable=params['var'],
+        time=str(params['dt']),
         lat_range=params['lat_range'],
         lon_range=params['lon_range'],
         js_include=js_include,
@@ -340,6 +341,7 @@ def extract_params(query_params):
 
         Returns parsed params
     """
+    # TODO: load dataset first before updating query params
     dt = dateutil.parser.parse(query_params["time"])
     var = query_params.get("var", "temp")
     # example: <s3_bucket>/zarr/s_moa_sst_20201107_e01.zarr
@@ -371,7 +373,8 @@ def extract_params(query_params):
         "lon_range": [lon_min, lon_max],
         "var": var,
         "dt": dt,
-        "zarr_path": zarr_path
+        "zarr_path": zarr_path,
+        "zarr_store": query_params["zarr_store"]
     }
 
 
