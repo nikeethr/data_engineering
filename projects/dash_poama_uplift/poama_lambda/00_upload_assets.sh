@@ -23,7 +23,7 @@ if [ "${bucket_exists}" -eq "0" ]; then
     # resource (not just html)
     aws s3api put-bucket-cors \
         --bucket $s3_bucket \
-        --cors-confugration file://cors-config.json
+        --cors-configuration file://cors-config.json
 else
     echo "bucket: ${s3_bucket} already exists. skipping..."
 fi

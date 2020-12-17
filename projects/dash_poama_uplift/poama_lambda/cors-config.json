@@ -1,4 +1,5 @@
-[
+{
+  "CORSRules": [
     {
         "AllowedHeaders": [
             "*"
@@ -11,4 +12,5 @@
         ],
         "ExposeHeaders": []
     }
-]
+  ]
+}
