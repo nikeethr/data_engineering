@@ -202,7 +202,7 @@ def lambda_handler(event, context):
 
             # get x_2 y_2 range from lat lon range
             x2_range, y2_range = get_x_2_y_2_from_lat_lon(
-                ds, params['lon_range'], params['lat_range'])
+                ds, params['lon_range'].copy(), params['lat_range'].copy())
             LOGGER.info("{}, {}".format(x2_range, y2_range))
 
             # slice the required data
