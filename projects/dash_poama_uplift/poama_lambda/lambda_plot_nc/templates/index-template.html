@@ -8,6 +8,24 @@
     </head>
     <body>
         <div id="chart"></div>
+        <div id="info">
+            <table>
+            <tr>
+                <th>filename</th>
+                <th>lat_range</th>
+                <th>lon_range</th>
+                <th>variable</th>
+                <th>date</th>
+            </tr>
+            <tr>
+                <td>{{ filename }}</td>
+                <td>{{ lat_range[0] }} to {{ lat_range[1] }}</td>
+                <td>{{ lon_range[0] }} to {{ lon_range[1] }} </td>
+                <td>{{ variable }}</td>
+                <td>{{ time }}</td>
+            </tr>
+            </table>
+        </div>
         <div id="tooltip"></div>
         <script>
             window.g_lon0 = {{ lon_range[0] }}

@@ -13,6 +13,9 @@ env = Environment(
 
 
 def make_html():
+    filename = 's_moa'
+    variable = 'temp'
+    time = '2020-01-20'
     lat_range = [-70, -40]
     lon_range = [0, 180]
     js_include = '/js/main-svg.js'
@@ -23,6 +26,9 @@ def make_html():
 
     with open(os.path.join(OUT_DIR, 'index.html'), 'w') as f:
         out_str = index_template.render(
+            filename=filename,
+            variable=variable,
+            time=time,
             lat_range=lat_range,
             lon_range=lon_range,
             js_include=js_include,
