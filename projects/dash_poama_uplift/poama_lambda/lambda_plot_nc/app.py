@@ -182,10 +182,8 @@ def lambda_handler(event, context):
             params['lat_range'] = data['lat_range']
         except KeyError:
             LOGGER.info("json param keys incorrect - forcing regen...")
-            pass
         else:
-            pass
-            # return make_html_response(params, data_uri)
+            return make_html_response(params, data_uri)
 
     store = get_s3_zarr_store(params['zarr_path'])
     res = None
@@ -258,7 +256,7 @@ def store_result_json(qm, da, height, width, params):
         'lat': qm.nav_lat.values.astype(np.float16).tolist(),
         'lon': qm.nav_lon.values.astype(np.float16).tolist(),
         'values': qm.values.ravel().astype(np.float16).tolist(),
-        'time': str(da.time_counter.item()),
+        'time': str(da.time_counter.dt.strftime("%Y-%m-%d %H:%M:%S %Z").item()),
         'lon_range': [int(np.amin(da.nav_lon)), int(np.amax(da.nav_lon))],
         'lat_range': [int(np.amin(da.nav_lat)), int(np.amax(da.nav_lat))],
     }

@@ -146,8 +146,8 @@ function plotMap(data) {
         // adjust svg rect
         bbox = map.heatmap.node().getBoundingClientRect()
         g_all.attr("transform", "translate(" + -bbox.left + "," + -bbox.top + ")")
-        svg.attr("width", bbox.height)
-        svg.attr("height", bbox.width)
+        svg.attr("width", bbox.width)
+        svg.attr("height", bbox.height)
 }
 
 function setProj() {
