@@ -171,12 +171,21 @@ def lambda_handler(event, context):
 
     _, data_uri = get_result_obj_json_uri(params)
 
-    if requests.get(data_uri, timeout=0.5).ok:
+    r_exists = requests.get(data_uri, timeout=0.5)
+    if r_exists.ok:
         LOGGER.info("data object already created for these params")
-        return make_html_response(params, data_uri)
+        # update params from json
+        try:
+            data = r_exists.json()
+            params['dt'] = data['time']
+            params['lon_range'] = data['lon_range']
+            params['lat_range'] = data['lat_range']
+        except KeyError:
+            LOGGER.info("json param keys incorrect - forcing regen...")
+        else:
+            return make_html_response(params, data_uri)
 
     store = get_s3_zarr_store(params['zarr_path'])
-
     res = None
 
     # Don't chunk for lambda with small CPU - just download and load to memory lazily
@@ -192,12 +201,8 @@ def lambda_handler(event, context):
             kdtree = construct_kdtree(ds)
 
             # get x_2 y_2 range from lat lon range
-            LOGGER.debug("lon: {}, lat: {}".format(
-                [np.min(ds.nav_lon.values), np.max(ds.nav_lon.values)],
-                [np.min(ds.nav_lat.values), np.max(ds.nav_lat.values)]
-            ))
             x2_range, y2_range = get_x_2_y_2_from_lat_lon(
-                ds, params['lon_range'], params['lat_range'])
+                ds, params['lon_range'].copy(), params['lat_range'].copy())
             LOGGER.info("{}, {}".format(x2_range, y2_range))
 
             # slice the required data
@@ -244,16 +249,24 @@ def get_result_obj_json_uri(params):
 
 
 @_benchmark
-def store_result_json(qm, height, width, params):
+def store_result_json(qm, da, height, width, params):
     out_json = {
         'height': height,
         'width': width,
         'lat': qm.nav_lat.values.astype(np.float16).tolist(),
         'lon': qm.nav_lon.values.astype(np.float16).tolist(),
-        'values': qm.values.ravel().astype(np.float16).tolist()
+        'values': qm.values.ravel().astype(np.float16).tolist(),
+        'time': str(da.time_counter.dt.strftime("%Y-%m-%d %H:%M:%S %Z").item()),
+        'lon_range': [int(np.amin(da.nav_lon)), int(np.amax(da.nav_lon))],
+        'lat_range': [int(np.amin(da.nav_lat)), int(np.amax(da.nav_lat))],
     }
 
     s3_obj_uri, uri_external = get_result_obj_json_uri(params)
+
+    # update params before saving html
+    params['dt'] = out_json['time']
+    params['lon_range'] = out_json['lon_range']
+    params['lat_range'] = out_json['lat_range']
 
     # dump data
     data_str = simplejson.dumps(out_json, ignore_nan=True)
@@ -272,7 +285,6 @@ def store_result_json(qm, height, width, params):
 
     return uri_external
     # ---
-
 
 
 @_benchmark
@@ -298,10 +310,9 @@ def rasterize(da, params):
         
     canvas = datashader.Canvas(plot_width=width, plot_height=height)
     qm = canvas.quadmesh(da, x='nav_lon', y='nav_lat')
-    data_uri = store_result_json(qm, height, width, params)
+    data_uri = store_result_json(qm, da, height, width, params)
 
     return data_uri
-
 
 
 @_benchmark
@@ -399,12 +410,23 @@ def construct_kdtree(ds):
 def get_x_2_y_2_from_lat_lon(ds, lon_range, lat_range):
     t = KD_TREE_CACHE
     if KD_TREE_CACHE is None:
-        t = construct_kdtree()
-        
+        t = construct_kdtree(ds)
+
+    lon_range_ds = [np.amin(ds.nav_lon), np.amax(ds.nav_lon)]
+    lat_range_ds = [np.amin(ds.nav_lat), np.amax(ds.nav_lat)]
+
+    # make sure lon/lat is within range
+    lon_range[0] = int(max(lon_range_ds[0], lon_range[0]))
+    lon_range[1] = int(min(lon_range_ds[1], lon_range[1]))
+    lat_range[0] = int(max(lat_range_ds[0], lat_range[0]))
+    lat_range[1] = int(min(lat_range_ds[1], lat_range[1]))
+
     # construct bounding box in terms of lat/lon
     # -- combining points to potentially improve query speed
     points = [ 
         [lat_range[0], lon_range[0]],
+        [lat_range[0], lon_range[1]],
+        [lat_range[1], lon_range[0]],
         [lat_range[1], lon_range[1]]
     ]
 
@@ -414,16 +436,21 @@ def get_x_2_y_2_from_lat_lon(ds, lon_range, lat_range):
     # y_2 = rows, x_2 = col, col_size = len(x_2)
 
     col_size = ds.nav_lon.shape[1]
-    dist, bbox_pt_1d = t.query(points)
+    dist, nn = t.query(points, k=5)
 
     # construct bounding box in the x_2/y_2 space
-    bbox_pt_2d = [
+    points_xy = [
         (int(p / col_size), int(p % col_size))
-        for p in bbox_pt_1d
+        for p in nn.ravel()
     ]
 
-    y_2_range = [bbox_pt_2d[0][0], bbox_pt_2d[1][0]]
-    x_2_range = [bbox_pt_2d[0][1], bbox_pt_2d[1][1]]
+    min_x_2 = min([k[1] for k in points_xy])
+    max_x_2 = max([k[1] for k in points_xy])
+    min_y_2 = min([k[0] for k in points_xy])
+    max_y_2 = max([k[0] for k in points_xy])
+
+    y_2_range = [min_y_2, max_y_2]
+    x_2_range = [min_x_2, max_x_2]
 
     return x_2_range, y_2_range
 

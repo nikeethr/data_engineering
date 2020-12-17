@@ -93,10 +93,10 @@ def test_lambda_handler(apigw_event, mocker, monkeypatch, caplog):
     ret = app.lambda_handler(apigw_event, "")
 
     # second handler to check if time taken is reduced from caching
-    apigw_event["queryStringParameters"]["lat_min"] = -60
-    apigw_event["queryStringParameters"]["lat_max"] = -40
-    apigw_event["queryStringParameters"]["lon_min"] = -90
-    apigw_event["queryStringParameters"]["lon_max"] = -50
+    apigw_event["queryStringParameters"]["lat_min"] = -90
+    apigw_event["queryStringParameters"]["lat_max"] = 90
+    apigw_event["queryStringParameters"]["lon_min"] = -50
+    apigw_event["queryStringParameters"]["lon_max"] = 50
 
     ret = app.lambda_handler(apigw_event, "")
     with open(app._HTML_OUT, 'w') as f:
