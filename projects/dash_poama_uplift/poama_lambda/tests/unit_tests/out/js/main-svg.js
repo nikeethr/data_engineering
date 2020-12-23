@@ -5,7 +5,7 @@ var svg = d3.select("#chart")
     .attr("width", width)
     .attr("height", height)
 //  .attr("viewport", [0, 0, width, height]);
-    .call(d3.zoom().scaleExtent([1, 8]).on('zoom', zoomed));
+//  .call(d3.zoom().scaleExtent([1, 8]).on('zoom', zoomed));
 var g_all = svg.append('g')
 
 var map = {
@@ -101,8 +101,8 @@ function plotMap(data) {
     map.heatmap.selectAll("path").data(ovtData.values)
         .enter().append("path")
         .attr('delay', function(d, i) { return i })
-        .attr('data-lat', function(d, i) { return ovtData.lon[i % ovtData.width] })
-        .attr('data-lon', function(d, i) { return ovtData.lat[Math.floor(i / ovtData.width)] })
+        .attr('data-lon', function(d, i) { return ovtData.lon[i % ovtData.width] })
+        .attr('data-lat', function(d, i) { return ovtData.lat[Math.floor(i / ovtData.width)] })
         .attr('d', function(d, i) {
             var r = Math.floor(i / ovtData.width)
             var c = i % ovtData.width
@@ -144,15 +144,16 @@ function plotMap(data) {
         })
 
         // adjust svg rect
-        bbox = g_all.node().getBoundingClientRect()
-        // g_all.attr("transform", "translate(" +  + "," + "" + ")")
-        // svg.attr("width")
+        bbox = map.heatmap.node().getBoundingClientRect()
+        g_all.attr("transform", "translate(" + -bbox.left + "," + -bbox.top + ")")
+        svg.attr("width", bbox.width)
+        svg.attr("height", bbox.height)
 }
 
 function setProj() {
+    // extent = d3.geoPath(map.projection).bounds(map.bbox);
+    // map.projection = map.projection.clipExtent(extent);
     map.projection = map.projection.fitExtent(
         [[10, 10], [width - 10, height - 10]], map.bbox
     );
-    // extent = d3.geoPath(map.projection).bounds(map.bbox);
-    // map.projection = map.projection.clipExtent(extent);
 }

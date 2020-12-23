@@ -1,6 +1,5 @@
 var width = 960;
 var height = 500;
-var g_lat0=-90, g_lat1=90, g_lon0=-180, g_lon1=180;
 
 var map = {
     projection: d3.geoEquirectangular(),
@@ -10,21 +9,17 @@ var map = {
         .attr("id", "main-canvas")
         .attr("width", width)
         .attr("height", height),
+    dummy_svg: d3.select("#chart").append("svg")
+        .attr("id", "dummy-svg")
+        .attr("width", width)
+        .attr("height", height),
     sketch: d3.select("body").append("custom:sketch")
         .attr("width", width)
         .attr("height", height),
     data: null,
     features: null,
-    custom: d3.select(document.createElement('custom')),  // dummy
-    canvas_hidden: d3.select("#chart").append("canvas")
-        .attr("id", "hidden-canvas")
-        .attr("width", width)
-        .attr("height", height)
-        .attr("style", "display: none")
 };
 map.context = map.canvas.node().getContext('2d');
-map.context_hidden = map.canvas_hidden.node().getContext('2d');
-
 
 function makeRectPolygon(x0, x1, y0, y1) {
     return {
@@ -72,8 +67,9 @@ function makeRangeBox() {
     }
 }
 
-function drawMap(map, features, hidden) {
-    context = hidden ? map.context_hidden : map.context;
+function drawMap() {
+    var context = map.context
+    var features = map.features
     var path = d3.geoPath(map.projection, context)
 
     features.forEach(function(d, i) {
@@ -83,8 +79,8 @@ function drawMap(map, features, hidden) {
         path(d)
         context.closePath()
 
-        context.fillStyle = hidden ? null : 'rgba(255,255,255,0.5)';
-        context.strokeStyle = hidden ? null : 'black';
+        context.fillStyle = 'rgba(255,255,255,0.5)';
+        context.strokeStyle = 'black';
         context.fill()
         context.stroke()
 
@@ -96,10 +92,8 @@ function zoomed(e) {
     var transform = e.transform
     map.context.save();
     map.context.clearRect(0, 0, width, height);
-    map.context.translate(transform.x, transform.y);
     map.context.scale(transform.k, transform.k);
-    drawMap(map, map.features)
-    drawHeatMap(map, map.data)
+    drawAll()
     map.context.restore();
 }
 
@@ -107,108 +101,90 @@ function setZoom(map) {
     map.canvas.call(d3.zoom().scaleExtent([1, 8]).on("zoom",  zoomed))
 }
 
-// map to track color the nodes.
-var colorToNode = {};
-// function to create new colors for picking
-var nextCol = 1;
-function genColor() {
-    var ret = [];
-    ret.push(nextCol & 0xff); //R
-    ret.push((nextCol & 0xff00) >> 8); //G
-    ret.push((nextCol & 0xff0000) >> 16); //B
 
-    nextCol += 200;
-    var col = "rgb(" + ret.join(',') + ")";
-    return col;
-}
-
-function drawHeatMap(map, hidden) {
-    // var path = d3.geoPath(map.projection, map.context)
-    context = hidden ? map.context_hidden : map.context;
-    var paths = map.custom.selectAll('path')
-    context.save();
-
-    paths.each(function(d, i) {
-        if (d === undefined) {
-            return
-        }
-        node = d3.select(this)
-        parent_ = d3.select(this.parentElement)
-        var p = new Path2D(d)
-        context.fillStyle = hidden ? parent_.attr("fillStyleHidden") : parent_.attr("fill")
-        context.strokeStyle = hidden ? parent_.attr("fillStyleHidden") : parent_.attr("fill")
-        context.fill(p)
-        if (!hidden) {
-            context.stroke(p)
-        }
+function registerMouseOver() {
+    
+    d3.select("#main-canvas").on('mousemove', function(e) {
+        drawAll(e)
     })
-
-    context.restore();
 }
 
-function computePaths(data) {
+
+function drawAll(e) {
+    map.context.clearRect(0, 0, width, height)
+    drawHeatMap(e)
+    drawMap()
+}
+
+
+function drawHeatMap(e) {
+    var path = d3.geoPath(map.projection, map.context)
     var minTemp = -6, maxTemp = 6;
     var cmap = d3.scaleSequential().domain([minTemp, maxTemp])
         .interpolator(d3.interpolateViridis); 
+    var data = map.data
+    var setTooltip = false
+    var tooltipX, tooltipY
 
-    var path = d3.geoPath(map.projection)
+    if (e) {
+        e.x_ = e.layerX || e.offsetX;
+        e.y_ = e.layerY || e.offsety;
+    }
 
-    g = map.custom.selectAll('custom')
-        .data(data.values)
-        .enter().append('custom')
-            .attr('fill', d => cmap(d))
-            .attr('stroke', d => cmap(d))
-            .attr('fillStyleHidden', function(d, i) {
-                c = genColor();
-                colorToNode[c] = {
-                    temp: d,
-                    lat: data.lat[Math.floor(i / data.width)],
-                    lon: data.lon[i % data.width],
-                }
-                return c
-            })
-    map.custom.selectAll('custom')
-        .datum(function(d, i) {
-            d = data.values[i]
-            map.context.beginPath()
-            var r = Math.floor(i / data.width)
-            var c = i % data.width
-            if (c >= data.width - 1 || r >= data.height - 1) {
-                return null
+    for (var i = 0; i < data.values.length; i++) {
+        d = data.values[i]
+
+        if (d === null)
+            continue
+
+        var r = Math.floor(i / data.width)
+        var c = i % data.width
+
+        if (c >= data.width - 1 || r >= data.height - 1)
+            continue
+
+        var lon0 = data.lon[c]
+        var lon1 = data.lon[c+1]
+        var lat0 = data.lat[r]
+        var lat1 = data.lat[r+1]
+
+        map.context.save()
+
+        map.context.beginPath()
+        path(makeRectPolygon(lon0, lon1, lat0, lat1))
+        map.context.closePath()
+
+        if (e && map.context.isPointInPath(e.x_, e.y_)) {
+            setTooltip = true
+            tooltipData = {
+                x: e.pageX + 5,
+                y: e.pageY + 5,
+                d: Number.parseFloat(d).toFixed(2),
+                lon: Number.parseFloat(((lon0 + lon1) / 2)).toFixed(1),
+                lat: Number.parseFloat(((lat0 + lat1) / 2).toFixed(1))
             }
-            var lon0 = data.lon[c]
-            var lon1 = data.lon[c+1]
-            var lat0 = data.lat[r]
-            var lat1 = data.lat[r+1]
-            return path(makeRectPolygon(lon0, lon1, lat0, lat1))
-        }).append('path')
-}
-
-function registerMouseOver() {
-    d3.select("#main-canvas").on('mousemove', function(e) {
-        var x = e.layerX || e.offsetX;
-		var y = e.layerY || e.offsety;
-        var c = map.context_hidden.getImageData(x, y, 1, 1).data;
-        var colKey = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
-		var nodeData = colorToNode[colKey];
-
-        console.log(e.x, e.y)
-
-        if (nodeData) {
-            d3.select('#tooltip')
-                .style('opacity', 0.8)
-                .style('top', e.pageY + 5 + 'px')
-                .style('left', e.pageX + 5 + 'px')
-                .html(
-                    'temp = ' + Number.parseFloat(nodeData.temp).toFixed(2)
-                    + '<br> lon = ' + Number.parseFloat(nodeData.lon).toFixed(1)
-                    + '<br> lat = ' + Number.parseFloat(nodeData.lat).toFixed(1)
-                )
-        } else {
-            d3.select('#tooltip')
-                .style('opacity', 0)
         }
-    })
+
+        map.context.fillStyle = cmap(d)
+        map.context.fill()
+
+        map.context.restore()
+    }
+
+    if (setTooltip) {
+        d3.select('#tooltip')
+            .style('opacity', 0.8)
+            .style('top', tooltipData.y + 'px')
+            .style('left', tooltipData.x + 'px')
+            .html(
+                'temp = ' + tooltipData.d
+                + '<br> lon = ' + tooltipData.lon
+                + '<br> lat = ' + tooltipData.lat
+            )
+    } else {
+        d3.select('#tooltip')
+            .style('opacity', 0)
+    }
 }
 
 const promises = [
@@ -223,17 +199,11 @@ function plotMap(data) {
 
     setProj();
 
-    // draw heatmap
     map.data = ovtData
-    computePaths(map.data)
-    drawHeatMap(map)
-    // drawHeatMap(map, true)
-
-    // draw basemap
     var features = topojson.feature(worldMap, worldMap.objects.countries).features;
     map.features = features
 
-    drawMap(map, features);
+    drawAll()
 
     // register mouseover tooltip
     registerMouseOver()
@@ -243,9 +213,19 @@ function plotMap(data) {
 }
 
 function setProj() {
-    // extent = d3.geoPath(map.projection).bounds(map.bbox);
-    // map.projection = map.projection.clipExtent(extent);
+    var path = d3.geoPath(map.projection)
+    map.dummy_svg.select('g').remove()
+    map.dummy_svg.append('g').append('path')
+        .attr('d', path(map.bbox))
+    bbox = map.dummy_svg.select('path').node().getBoundingClientRect()
+
+    width = (bbox.width + 20).toFixed(0)
+    height = (bbox.height + 20).toFixed(0)
+
     map.projection = map.projection.fitExtent(
         [[10, 10], [width - 10, height - 10]], map.bbox
     );
+    var extent = d3.geoPath(map.projection).bounds(map.bbox);
+    map.projection = map.projection.clipExtent(extent);
+
 }

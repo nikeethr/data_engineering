@@ -169,21 +169,10 @@ def lambda_handler(event, context):
     except (KeyError, ValueError) as e:
         return error_response(e)
 
-    _, data_uri = get_result_obj_json_uri(params)
-
-    r_exists = requests.get(data_uri, timeout=0.5)
-    if r_exists.ok:
-        LOGGER.info("data object already created for these params")
-        # update params from json
-        try:
-            data = r_exists.json()
-            params['dt'] = data['time']
-            params['lon_range'] = data['lon_range']
-            params['lat_range'] = data['lat_range']
-        except KeyError:
-            LOGGER.info("json param keys incorrect - forcing regen...")
-        else:
-            return make_html_response(params, data_uri)
+    res = get_cached_result_from_s3(params)
+    if res:
+        # cached result found no need to process
+        return res
 
     store = get_s3_zarr_store(params['zarr_path'])
     res = None
@@ -237,11 +226,43 @@ def get_s3_zarr_store(store_name):
     return store
 
 
+@_benchmark
+def get_cached_result_from_s3(params):
+    _, data_uri = get_result_obj_json_uri(params)
+    LOGGER.info("attempting to retrieve cache from: {}".format(data_uri))
+
+    timeout = False
+    res = None
+
+    try:
+        r_exists = requests.get(data_uri, timeout=0.5)
+    except requests.exceptions.RequestException:
+        LOGGER.info("request failed - generating data...")
+        timeout = True
+
+    if not timeout and r_exists.ok:
+        LOGGER.info("data object already created for these params")
+        # update params from json
+        try:
+            data = r_exists.json()
+            params['dt'] = data['time']
+            params['lon_range'] = data['lon_range']
+            params['lat_range'] = data['lat_range']
+        except KeyError:
+            LOGGER.info("json param keys incorrect - forcing regen...")
+        else:
+            res = make_html_response(params, data_uri)
+    else:
+        LOGGER.info("no cache result found - generating data...")
+
+    return res
+
+
 def get_result_obj_json_uri(params):
     # using NAMESPACE_URL arbitrarily...
     # but this will create a deterministic name for the json file
     obj_name = str(uuid.uuid3(
-        uuid.NAMESPACE_URL,simplejson.dumps(params, default=str)))
+        uuid.NAMESPACE_URL, simplejson.dumps(params, default=str)))
     s3_obj_uri = "temp_plot_data/{}.json".format(obj_name)
     s3_uri_external = 'https://s3.{}.amazonaws.com/{}/{}'.format(
         AWS_REGION, S3_OUTPUT_BUCKET, s3_obj_uri)
@@ -257,22 +278,27 @@ def store_result_json(qm, da, height, width, params):
         'lon': qm.nav_lon.values.astype(np.float16).tolist(),
         'values': qm.values.ravel().astype(np.float16).tolist(),
         'time': str(da.time_counter.dt.strftime("%Y-%m-%d %H:%M:%S %Z").item()),
-        'lon_range': [int(np.amin(da.nav_lon)), int(np.amax(da.nav_lon))],
-        'lat_range': [int(np.amin(da.nav_lat)), int(np.amax(da.nav_lat))],
+        'lon_range': params['lon_range'],
+        'lat_range': params['lat_range']
     }
 
+    # upload results to s3
+    uri_external = upload_results_to_s3(out_json)
+
+    # update params after generating uri but before saving html
+    params['dt'] = out_json['time']
+
+    return uri_external
+    # ---
+
+
+@_benchmark
+def upload_results_to_s3(out_json):
     s3_obj_uri, uri_external = get_result_obj_json_uri(params)
 
-    # update params before saving html
-    params['dt'] = out_json['time']
-    params['lon_range'] = out_json['lon_range']
-    params['lat_range'] = out_json['lat_range']
-
-    # dump data
     data_str = simplejson.dumps(out_json, ignore_nan=True)
     data_bytes = data_str.encode("utf-8")
 
-    # upload to s3
     session = boto3.Session(region_name=AWS_REGION)
     s3 = session.resource('s3')
     s3_obj = s3.Object(S3_OUTPUT_BUCKET, s3_obj_uri)
@@ -283,28 +309,26 @@ def store_result_json(qm, da, height, width, params):
         ContentType='application/json'
     )
 
-    return uri_external
-    # ---
-
 
 @_benchmark
 def rasterize(da, params):
     # approximate ratio of the dataframe
-    MAX_RES_X = 240
-    MAX_RES_Y = 180
+    MAX_RES = 90
 
-    ratio = (da.shape[1] / max(da.shape[0], 1)) * (MAX_RES_Y / MAX_RES_X)
+    lon_diff = np.abs(params['lon_range'][1] - params['lon_range'][0])
+    lat_diff = np.abs(params['lat_range'][1] - params['lat_range'][0])
+    ratio = lon_diff / max(lat_diff, 1)
 
     # to maintain proportional resolution/aspect ratio somewhat
     if ratio < 1:
-        width = max(int(MAX_RES_X * ratio), 1)
-        height = MAX_RES_Y
+        width = int(ratio * MAX_RES)
+        height = MAX_RES
     elif ratio > 1:
-        width = MAX_RES_X
-        height = max(int(MAX_RES_Y / ratio), 1)
+        width = MAX_RES
+        height = int(MAX_RES / ratio)
     else: # ratio == 1
-        width = MAX_RES_X
-        height = MAX_RES_Y
+        width = MAX_RES
+        height = MAX_RES
 
     LOGGER.info('datashader canvas - width: {}, height: {}'.format(width, height))
         
@@ -362,10 +386,10 @@ def extract_params(query_params):
     if var not in valid_vars:
         raise KeyError("Invalid var: {}, only accept {}".format(var, valid_vars))
 
-    lat_min = float(query_params.get("lat_min", -90))
-    lat_max = float(query_params.get("lat_max", 90))
-    lon_min = float(query_params.get("lon_min", -180))
-    lon_max = float(query_params.get("lon_max", 180))
+    lat_min = int(query_params.get("lat_min", -90))
+    lat_max = int(query_params.get("lat_max", 90))
+    lon_min = int(query_params.get("lon_min", -180))
+    lon_max = int(query_params.get("lon_max", 180))
 
     MIN_LATLON = 4
 

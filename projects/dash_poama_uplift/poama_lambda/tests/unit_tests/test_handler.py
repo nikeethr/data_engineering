@@ -1,5 +1,5 @@
 import os
-import json
+import simplejson
 import sys
 import pytest
 import logging
@@ -80,14 +80,58 @@ def apigw_event():
 
 def test_lambda_handler(apigw_event, mocker, monkeypatch, caplog):
     @app._benchmark
-    def mock_get_s3_zarr_store():
+    def mock_get_s3_zarr_store(store_name):
         store = DirectoryStore(TEST_ZARR_PATH)
         return store
 
+    @app._benchmark
+    def mock_upload_results_to_s3(out_json):
+        with open(os.path.join(app._DATA_OUT, 'ovt_data.json'), 'w') as f:
+            simplejson.dump(out_json, f, ignore_nan=True)
+
+    @app._benchmark
+    def mock_make_html_response(params, data_uri):
+        js_include = 'js/main-canvas.js'
+        css_include = 'css/style.css'
+        data_uri = 'data/ovt_data.json'
+
+        index_template = app.jinja_env.get_template('index-template.html')
+
+        html_str = index_template.render(
+            filename=params['zarr_store'],
+            variable=params['var'],
+            time=str(params['dt']),
+            lat_range=params['lat_range'],
+            lon_range=params['lon_range'],
+            js_include=js_include,
+            css_include=css_include,
+            plot_data_url=data_uri
+        )
+
+        return {
+            "statusCode": 200,
+            "body": html_str,
+            "headers": {
+                "Content-Type": "text/html"
+            }
+        }
+
+
+    @app._benchmark
+    def mock_prepare_lambda():
+        app.LOGGER.info("importing datashader...")
+        if not app.datashader:
+            app.datashader = app.import_module('datashader')
+        app.LOGGER.info("imports successful.")
+
+
     monkeypatch.setattr(app, "LOCAL_MODE", True)
-    # monkeypatch.setattr(app, "get_s3_zarr_store", mock_get_s3_zarr_store)
     monkeypatch.setattr(app, "_DATA_OUT", os.path.join(_DIR, 'out', 'data'))
     monkeypatch.setattr(app, "_HTML_OUT", os.path.join(_DIR, 'out', 'index.html'))
+    monkeypatch.setattr(app, "get_s3_zarr_store", mock_get_s3_zarr_store)
+    monkeypatch.setattr(app, "upload_results_to_s3", mock_upload_results_to_s3)
+    monkeypatch.setattr(app, "make_html_response", mock_make_html_response)
+    monkeypatch.setattr(app, "_prepare_lambda", mock_prepare_lambda)
 
     caplog.set_level(logging.DEBUG, app.LOGGER.name)
     ret = app.lambda_handler(apigw_event, "")

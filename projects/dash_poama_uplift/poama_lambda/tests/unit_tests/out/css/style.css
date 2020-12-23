@@ -1,8 +1,18 @@
+canvas#main-canvas {
+    position: absolute;
+}
+
+svg#dummy-svg {
+    position: relative;
+    visibility: hidden;
+}
+
+
 div#tooltip {
     position: absolute;        
     display: inline-block;
     padding: 5px;
-    font-family: courier new;
+    font-family: monospace;
     color: #fff;
     background-color: #000;
     border: 1px solid #999 white;
@@ -10,4 +20,16 @@ div#tooltip {
     pointer-events: none;
     opacity: 0;
     z-index: 1;
+}
+
+div#info {
+    font-family: monospace;
+}
+
+div#info table {
+  border-collapse: collapse;
+}
+
+div#info table, th, td {
+  border: 1px solid black;
 }
