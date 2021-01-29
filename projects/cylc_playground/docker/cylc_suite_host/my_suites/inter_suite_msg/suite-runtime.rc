@@ -1,0 +1,35 @@
+[runtime]
+    [[awral_sim]]
+        script = "sleep 5; echo running awral_sim..."
+    [[catchment_deciles]]
+        script = "sleep 5; echo running catchment_deciles..."
+    [[catchment_extraction]]
+        script = "sleep 5; echo running catchment_extraction..."
+    [[day_deciles]]
+        script = "sleep 5; echo running day_deciles..."
+    [[day_to_month]]
+        script = "sleep 5; echo running day_to_month..."
+    [[latest_multi_month]]
+        script = "sleep 5; echo running latest_multi_month..."
+    [[month_deciles]]
+        script = "sleep 5; echo running month_deciles..."
+    [[month_to_date_deciles]]
+        script = "sleep 5; echo running month_to_date_deciles..."
+    [[month_to_year]]
+        script = "sleep 5; echo running month_to_year..."
+    [[reg_user_products]]
+        script = "sleep 5; echo running reg_user_products..."
+    [[rootzone_soil_moisture]]
+        script = "sleep 5; echo running rootzone_soil_moisture..."
+    [[scale_soil_moisture]]
+        script = "sleep 5; echo running scale_soil_moisture..."
+    [[update_climate]]
+        script = "sleep 5; echo running update_climate..."
+    [[update_website_prod]]
+        script = "sleep 5; echo running update_website_prod..."
+    [[update_wind]]
+        script = "sleep 5; echo running update_wind..."
+    [[year_deciles]]
+        script = "sleep 5; echo running year_deciles..."
+    [[year_to_date_deciles]]
+        script = "sleep 5; echo running year_to_date_deciles..."

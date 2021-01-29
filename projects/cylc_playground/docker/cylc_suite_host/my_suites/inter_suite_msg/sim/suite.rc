@@ -1,0 +1,19 @@
+#!jinja2
+
+[meta]
+    title = "AWRAL Simulation Workflow"
+[scheduling]
+    [[xtriggers]]
+         pre_complete = suite_state(suite=test/pre, task=pre_success, \
+             point=%(point)s, message='preprocessing complete'):PT10S
+    [[dependencies]]
+        graph = """
+            @pre_complete => awral_sim => sim_success
+        """
+[runtime]
+    [[awral_sim]]
+        script = sleep 5; echo running awral_sim...
+    [[sim_success]]
+        script = sleep 5; cylc message "simulation complete"
+        [[[outputs]]]
+           x = "simulation complete"

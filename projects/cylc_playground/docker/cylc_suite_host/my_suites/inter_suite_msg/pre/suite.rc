@@ -1,0 +1,18 @@
+#!jinja2
+
+[meta]
+    title = "AWRAL Preprocessing Workflow"
+[scheduling]
+    [[dependencies]]
+        graph = """
+            update_wind & update_climate => pre_success
+        """
+[runtime]
+    [[update_wind]]
+        script = sleep 5; echo running update_wind...
+    [[update_climate]]
+        script = sleep 5; echo running update_climate...
+    [[pre_success]]
+        script = sleep 5; cylc message "preprocessing complete"
+        [[[outputs]]]
+           x = "preprocessing complete "

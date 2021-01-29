@@ -1,0 +1,60 @@
+#!jinja2
+
+[meta]
+    title = "AWRAL PostProcessing Workflow"
+[scheduling]
+    [[xtriggers]]
+         sim_complete = suite_state(suite=test/sim, task=sim_success, \
+             point=%(point)s, message='simulation complete'):PT10S
+    [[dependencies]]
+        graph = """
+            @sim_complete => scale_soil_moisture
+                         => day_deciles & \
+                            month_deciles & \
+                            year_deciles & \
+                            catchment_extraction & \
+                            month_to_date_deciles & \
+                            latest_multi_month
+
+            catchment_extraction => catchment_deciles
+
+            month_to_date_deciles => year_to_date_deciles
+                                  => update_website_prod
+
+            update_website_prod & \
+            catchment_deciles & \
+            day_deciles & \
+            month_deciles & \
+            year_deciles & \
+            update_website_prod & \
+            latest_multi_month => reg_user_products
+        """
+[runtime]
+    [[catchment_deciles]]
+        script = "sleep 5; echo running catchment_deciles..."
+    [[catchment_extraction]]
+        script = "sleep 5; echo running catchment_extraction..."
+    [[day_deciles]]
+        script = "sleep 5; echo running day_deciles..."
+    [[day_to_month]]
+        script = "sleep 5; echo running day_to_month..."
+    [[latest_multi_month]]
+        script = "sleep 5; echo running latest_multi_month..."
+    [[month_deciles]]
+        script = "sleep 5; echo running month_deciles..."
+    [[month_to_date_deciles]]
+        script = "sleep 5; echo running month_to_date_deciles..."
+    [[month_to_year]]
+        script = "sleep 5; echo running month_to_year..."
+    [[reg_user_products]]
+        script = "sleep 5; echo running reg_user_products..."
+    [[rootzone_soil_moisture]]
+        script = "sleep 5; echo running rootzone_soil_moisture..."
+    [[scale_soil_moisture]]
+        script = "sleep 5; echo running scale_soil_moisture..."
+    [[update_website_prod]]
+        script = "sleep 5; echo running update_website_prod..."
+    [[year_deciles]]
+        script = "sleep 5; echo running year_deciles..."
+    [[year_to_date_deciles]]
+        script = "sleep 5; echo running year_to_date_deciles..."
