@@ -23,9 +23,9 @@ RUN yum install -y \
     yum clean all
 
 # --- Install Cylc dependencies ---
-# enable PowerTools
+# enable PowerTools (changed to powertools centos8.3.2011)
 RUN dnf -y install dnf-plugins-core && \
-    dnf config-manager --set-enabled PowerTools && \
+    dnf config-manager --set-enabled powertools && \
     dnf clean all
 
 # install dependencies

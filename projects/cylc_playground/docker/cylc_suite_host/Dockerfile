@@ -23,9 +23,9 @@ RUN yum install -y \
     yum clean all
 
 # --- Install Cylc dependencies ---
-# enable PowerTools
+# enable PowerTools (changed to "powertools" centos8.3.2011)
 RUN dnf -y install dnf-plugins-core && \
-    dnf config-manager --set-enabled PowerTools && \
+    dnf config-manager --set-enabled powertools && \
     dnf clean all
 
 # install dependencies
@@ -48,7 +48,7 @@ RUN pip2 install -r /tmp/requirements.txt
 
 # --- Install SSH ---
 # install openssh-server
-RUN yum -y install --enablerepo=PowerTools \
+RUN yum -y install --enablerepo=powertools \
         openssh-server \
         openssh-clients \
         xorg-x11-server-Xorg \
@@ -125,6 +125,11 @@ RUN cylc get-global-config > /opt/cylc/etc/global.rc && \
     mkdir -p ~/.vim/syntax && \
     cp /opt/cylc/etc/syntax/cylc.vim ~/.vim/syntax/cylc.vim
 # ---
+
+RUN mkdir /home/$MYUSER/my_suites && \
+    sudo chown -R $MYUSER:$MYGROUP /home/$MYUSER/my_suites
+
+VOLUME /home/$MYUSER/my_suites
 
 USER root
 

@@ -1,0 +1,33 @@
+[meta]
+    title = "AWRAL Workflow"
+[scheduling]
+    [[dependencies]]
+        graph = """
+            update_wind & update_climate => awral_sim
+
+            awral_sim => rootzone_soil_moisture
+                      => day_to_month
+                      => month_to_year
+                      => scale_soil_moisture
+
+            scale_soil_moisture => day_deciles & \
+                                   month_deciles & \
+                                   year_deciles & \
+                                   catchment_extraction & \
+                                   month_to_date_deciles & \
+                                   latest_multi_month
+
+            catchment_extraction => catchment_deciles
+
+            month_to_date_deciles => year_to_date_deciles
+                                  => update_website_prod
+
+            update_website_prod & \
+            catchment_deciles & \
+            day_deciles & \
+            month_deciles & \
+            year_deciles & \
+            update_website_prod & \
+            latest_multi_month => reg_user_products
+        """
+[runtime]
