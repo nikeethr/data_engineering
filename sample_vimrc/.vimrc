@@ -1,3 +1,10 @@
+" Don't try to be vi compatible
+set nocompatible
+
+" Helps force plugins to load correctly when it is turned back on below
+filetype off
+
+" TODO: Load plugins here (pathogen or vundle)
 " Install vim-plug if not found
 if empty(glob('~/.vim/autoload/plug.vim'))
   silent !curl -fLo ~/.vim/autoload/plug.vim --create-dirs
@@ -22,14 +29,6 @@ Plug 'junegunn/fzf.vim'
 
 " List ends here. Plugins become visible to Vim after this call.
 call plug#end()
-
-" Don't try to be vi compatible
-set nocompatible
-
-" Helps force plugins to load correctly when it is turned back on below
-filetype off
-
-" TODO: Load plugins here (pathogen or vundle)
 
 " Turn on syntax highlighting
 syntax on
