@@ -114,3 +114,8 @@ map <leader>l :set list!<CR> " Toggle tabs and EOL
 " seoul plugin
 let g:seoul256_background = 234
 colo seoul256
+
+" For cylc
+augroup filetype
+  au! BufRead,BufnewFile *suite*.rc   set filetype=cylc
+augroup END
