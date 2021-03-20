@@ -5,6 +5,7 @@ from scipy.cluster.hierarchy import (
 )
 import json
 
+from .mongo import Mongo
 
 def mock_data():
     N = 1000
@@ -31,7 +32,6 @@ def mock_data():
     # rain_pct = 0 -> 100
     # uv = 0 -> 14
     temperature = np.random.normal(loc=22, scale=20, size=N)
-    print(np.percentile(temperature, q=[5,25,50,75,95]))
     rain_pct = (np.digitize(
         np.random.beta(a=1, b=3, size=N) * 100,
         bins=np.arange(0, 101, 10)
@@ -70,6 +70,7 @@ def mock_data():
         'uv': uv,
         'rating': ratings
     })
+    df['avatar_set'] = df['avatar_set'].str.split(',')
 
     return df
 
@@ -147,14 +148,26 @@ def cluster_dataset(df):
 
     return node_dict, links
 
-def ingest_to_mongodb(df, tree):
+def ingest_to_mongodb(df, node_dict, links):
     """
         grabs dataframe and puts elements in mongodb.
     """
-    pass
+    with Mongo() as m:
+        data_cln = m.get_collection(Mongo.MONGO_DATA_CLN)
+        node_cln = m.get_collection(Mongo.MONGO_NODE_CLN)
+        link_cln = m.get_collection(Mongo.MONGO_LINK_CLN)
+
+        data_cln.insert_many(df.to_dict('records'))
+        node_cln.insert_many(node_dict.values())
+        link_cln.insert_many(links)
+
+
+def generate_data():
+    df = mock_data()
+    node_dict, links = cluster_dataset(df)
+    ingest_to_mongodb(df, node_dict, links)
+
 
 if __name__ == '__main__':
-    df = mock_data()
-    tree = cluster_dataset(df)
-    print(json.dumps(tree, indent=4))
+    generate_data()
     
