@@ -40,7 +40,7 @@ services:
     #         - ./grafana/.env
     #     # restart: unless-stopped
 networks:
-    stf_net:
+    proj_net:
 volumes:
    # grafana_data:
     mongo-data:
