@@ -11,14 +11,18 @@ class Mongo(object):
     # TODO: configure non-root users:
     #     - one user for updating particular database
     CONNECTION_STR = 'mongodb://{user}:{pswd}@{host}:{port}/'.format(
-        user="root", pswd="1234", host="localhost", port="27017"
+        user="root", pswd="1234", host="mongo_db", port="27017"
     )
     MONGO_DB = 'avatar_db'
     MONGO_NODE_CLN = 'node_cln'
     MONGO_LINK_CLN = 'link_cln'
     MONGO_DATA_CLN = 'data_cln'
 
-    def __init__(self):
+    def __init__(self, local=False):
+        if local:
+            self.CONNECTION_STR = 'mongodb://{user}:{pswd}@{host}:{port}/'.format(
+                user="root", pswd="1234", host="localhost", port="27017"
+            )
         self.client = None
         self.setup_client()
 
@@ -34,7 +38,7 @@ class Mongo(object):
             # connect=False to make sure that connection only happens on first
             # operation this is done to ensure that the connection is created
             # on the forked process.
-            self.client = MongoClient(Mongo.CONNECTION_STR, connect=False)
+            self.client = MongoClient(self.CONNECTION_STR, connect=False)
 
     def close_client(self):
         if self.client is not None:

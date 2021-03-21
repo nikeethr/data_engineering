@@ -1,0 +1,18 @@
+[Unit]
+Description=RQ Worker
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/api
+Environment=LANG=en_US.UTF-8
+Environment=LC_ALL=en_US.UTF-8
+Environment=LC_LANG=en_US.UTF-8
+ExecStart=rq worker -c hack_api.worker.config
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s TERM $MAINPID
+PrivateTmp=true
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

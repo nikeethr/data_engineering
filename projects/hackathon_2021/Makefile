@@ -13,3 +13,13 @@ mongo-admin:
 
 run-app-local:
 	python api/run_hack_api.py
+
+redis-cli:
+	docker exec -it redis redis-cli
+
+start-worker-local:
+	rq worker hack_test_data
+
+test-sample-data:
+	python -m hack_api.test.sample_data
+

@@ -4,8 +4,11 @@ from scipy.cluster.hierarchy import (
     linkage, cut_tree, dendrogram, to_tree, leaders
 )
 import json
+from rq import Queue, Connection
+from redis import Redis
 
 from .mongo import Mongo
+
 
 def mock_data():
     N = 1000
@@ -148,26 +151,46 @@ def cluster_dataset(df):
 
     return node_dict, links
 
-def ingest_to_mongodb(df, node_dict, links):
+def ingest_to_mongodb(df, node_dict, links, local=False):
     """
         grabs dataframe and puts elements in mongodb.
     """
-    with Mongo() as m:
+    with Mongo(local) as m:
         data_cln = m.get_collection(Mongo.MONGO_DATA_CLN)
         node_cln = m.get_collection(Mongo.MONGO_NODE_CLN)
         link_cln = m.get_collection(Mongo.MONGO_LINK_CLN)
 
+        # clear data first
+        for cln in [data_cln, node_cln, link_cln]:
+            cln.remove({})
+
+        # then add the new data
         data_cln.insert_many(df.to_dict('records'))
         node_cln.insert_many(node_dict.values())
         link_cln.insert_many(links)
 
 
-def generate_data():
+def queue_task(local=False):
+    redis_host = 'redis'
+    if local:
+        redis_host = 'localhost'
+
+    with Connection(Redis(redis_host, 6379)):
+        q = Queue('hack_test_data')
+        q.enqueue(generate_data, kwargs={ 'local': local })
+
+
+def generate_data(local=False):
+    print(f'LOCAL_MODE: {local}')
+    print('creating mock data...')
     df = mock_data()
+    print('clustering dataset...')
     node_dict, links = cluster_dataset(df)
-    ingest_to_mongodb(df, node_dict, links)
+    print('ingesting to mongo db...')
+    ingest_to_mongodb(df, node_dict, links, local=local)
+    print('...done!')
 
 
 if __name__ == '__main__':
-    generate_data()
+    queue_task(local=True)
     

@@ -3,6 +3,7 @@ from flask import jsonify, make_response, request, json
 
 from hack_api.models.base import mongo_db
 from hack_api.models import model
+from hack_api.tasks import ingest_sample_data
 
 # import mongo here:
 # from stf_api.models.base import db
@@ -15,7 +16,10 @@ hack_bp = Blueprint('hack_api', __name__, url_prefix='/hack_api')
 def generate_test_data():
     # TODO:
     # adds task to RQ worker queue
-    pass
+    ingest_sample_data.queue_task()
+    return jsonify({
+        'msg': 'generating test data'
+    })
 
 @hack_bp.route('/test/get_data')
 def get_test_data():

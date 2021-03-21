@@ -24,8 +24,48 @@ services:
             - mongo-configdb:/data/configdb
         networks:
             - proj_net
-        mem_limit: 200m
+        mem_limit: 500m
         # restart: unless-stopped
+    redis:
+        image: redis
+        container_name: redis
+        hostname: redis
+        expose:
+            - "6379"
+        ports:
+            - "6379:6379"
+        networks:
+            - proj_net
+        mem_limit: 500m
+    hack_api:
+        container_name: hack_api
+        build: ./api
+        hostname: hack_api
+        expose:
+            - "8052"
+        privileged: true
+        environment:
+            - PORT_API=8052
+        networks:
+            - proj_net
+        depends_on:
+            mongo_db:
+                condition: service_started
+            redis:
+                condition: service_started
+    nginx:
+        container_name: hack_nginx
+        image: nginx:latest
+        ports:
+            - "8050:8050"
+        volumes:
+            - ./nginx/project.conf:/etc/nginx/conf.d/project.conf
+            - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+        networks:
+            - proj_net
+        depends_on:
+            hack_api:
+                condition: service_started
     # grafana:
     #     container_name: grafana
     #     hostname: grafana
