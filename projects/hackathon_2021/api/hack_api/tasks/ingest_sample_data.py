@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import itertools
 from scipy.cluster.hierarchy import (
     linkage, cut_tree, dendrogram, to_tree, leaders
 )
@@ -62,7 +63,18 @@ def mock_data():
         'sunscreen'
     ]
     num_parts = np.random.randint(low=0, high=len(avatar_parts), size=N)
-    choice_func = lambda x: ','.join(list(np.random.choice(avatar_parts, size=x, replace=False)))
+    p_rel_1 = np.array([0.3, 0.2, 0.2, 0.05, 0.1, 0.6, 0.2])
+    p_rel_1 = p_rel_1 / np.sum(p_rel_1)
+    p_rel_2 = np.array([0.3, 0.7, 0.5, 0.2, 0.5, 0.1, 0.2])
+    p_rel_2 = p_rel_2 / np.sum(p_rel_2)
+    choice_func = lambda x: ','.join(list(
+        np.random.choice(
+            avatar_parts,
+            size=x,
+            replace=False,
+            p=p_rel_1 if np.random.randint(0, 1) == 1 else p_rel_2
+        )
+    ))
     v_choice_func = np.vectorize(choice_func)
     avatar_set = v_choice_func(num_parts)
 
@@ -128,8 +140,16 @@ def construct_node_dict(ids, classes, tree, df):
     for i in node_dict:
         sel = df['group'].isin(node_dict[i]['groups'])
         df_node = df.loc[sel, :]
+
         for j in ['temperature', 'rain_pct', 'uv']:
             node_dict[i][j] = np.mean(df_node[j])
+
+        avatar_sets = list(itertools.chain(
+            *df_node['avatar_set'].values.tolist()
+        ))
+
+        key, count = np.unique(avatar_sets, return_counts=True)
+        node_dict[i]['avatar_count'] = dict(zip(key, count.tolist()))
 
     return node_dict, links
 

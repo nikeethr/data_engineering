@@ -29,6 +29,18 @@ def get_test_data():
     data = list(cln.find({}, {'_id': False}))
     return jsonify(data)
 
+@hack_bp.route('/test/get_data_groups')
+def get_test_data_group():
+    payload = request.get_json()
+    groups = payload['groups']
+    cln = model.get_mongo_collection(model.MONGO_DATA_CLN)
+    data = list(cln.find(
+        { 'group': { '$in': groups } }, 
+        { '_id': False }
+    ))
+    return jsonify(data)
+
+
 @hack_bp.route('/test/get_node_map')
 def get_test_node_map():
     # TODO:

@@ -11,7 +11,7 @@ mongo:
 mongo-admin:
 	docker exec -it mongo_db mongo admin -u root -p 1234
 
-run-app-local:
+run-api-local:
 	python api/run_hack_api.py
 
 redis-cli:
