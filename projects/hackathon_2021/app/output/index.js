@@ -4567,13 +4567,50 @@
       });
   });
 
+  function updateTableGroup(groups) {
+    fetch('http://192.168.56.101:8050/hack_api/test/get_data_groups', {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        method: 'POST',
+        body: JSON.stringify({
+          groups: groups
+        })
+    }).then(response => response.json())
+      .then(data => updateTable(data));
+  }
+
+  function updateTable(data) {
+    const keys = Object.keys(data[0]);
+
+    // --- remove existing table ---
+    $('#dtBasicExample').DataTable().destroy();
+
+    // --- body ---
+    const tbody = select('#dtBasicExample > tbody');
+    const updateBody = tbody.selectAll('tr').data(data);
+    const enterBody = updateBody.enter().append('tr');
+
+    updateBody.exit().remove();
+    const mergeBody = enterBody.merge(updateBody);
+
+    mergeBody.selectAll('td').remove();
+    keys.forEach( k => mergeBody.append('td').text(d => d[k]) );
+
+    // --- create bootstrap table ---
+    $('#dtBasicExample').DataTable({
+      'order': [[ 1, 'asc']]
+    });
+  }
+
   function createTable(data) {
     if (data.length === 0) {
       return
     }
 
-    // --- header ---
     const keys = Object.keys(data[0]);
+
+    // --- header ---
     const thead = select('#dtBasicExample').append('thead');
     const theadrow = thead.append('tr');
     const updateHead = theadrow.selectAll('th').data(keys);
@@ -4583,17 +4620,12 @@
       .attr('class', 'th-sm')
       .text(d => d);
 
+
     // --- body ---
-    const tbody = select('#dtBasicExample').append('tbody');
-    const updateBody = tbody.selectAll('tr').data(data);
-    const enterBody = updateBody.enter().append('tr');
-    updateBody.exit().remove();
-    const mergeBody = enterBody.merge(updateBody);
+    select('#dtBasicExample').append('tbody');
 
-    keys.forEach(k => mergeBody.append('td').text(d => d[k]));
+    updateTable(data);
 
-    // --- create bootstrap table ---
-    $('#dtBasicExample').DataTable();
     $('.dataTables_length').addClass('bs-select');
   }
 
@@ -4624,8 +4656,8 @@
     };
 
     const width = 600;
-    const height = 400;
-    const radius = 5;
+    const height = 300;
+    const radius = 10;
 
     const dataExtent = extent(data.nodes, d => +d.count);
     const dataScale = sqrt()
@@ -4640,7 +4672,7 @@
     const simulation$1 = simulation(nodes)
         .force("link", link(links).id(d => d.id).strength(0.4))
         .force("charge", manyBody())
-        .force("center", center(width / 2, height / 2))
+        .force("center", center(width / 2, height / 2).strength(0.3))
         .force("left", y(0).strength(0.01))
         .force("right", y(width).strength(0.01));
 
@@ -4679,6 +4711,8 @@
               }
           }
           updateSummaryTable(data.nodes[d.index]);
+          updateAvaCountTable(data.nodes[d.index]);
+          updateTableGroup(data.nodes[d.index].groups);
         })
         .call(drag$1(simulation$1));
 
@@ -4700,11 +4734,18 @@
     tableA.append('tbody');
     const summaryData = data.nodes[0];
     updateSummaryTable(summaryData);
+
+    const tableB = select('#dtSummaryB');
+    tableB.append('tbody');
+    const avaCount = data.nodes[0];
+    updateAvaCountTable(avaCount);
   }
 
   function updateSummaryTable(summaryData) {
+    var data = Object.assign({}, summaryData);
+    delete data['avatar_count'];
     const tbody = select("#dtSummaryA > tbody");
-    const keys = Object.keys(summaryData);
+    const keys = Object.keys(data);
     const updateBody = tbody.selectAll('tr').data(keys);
     const enterBody = updateBody.enter().append('tr');
     updateBody.exit().remove();
@@ -4712,7 +4753,21 @@
     mergeBody.selectAll('th').remove();
     mergeBody.selectAll('td').remove();
     mergeBody.append('th').text(d => d);
-    mergeBody.append('td').text(d => summaryData[d]);
+    mergeBody.append('td').text(d => data[d]);
+  }
+
+  function updateAvaCountTable(avaCount) {
+    var data = avaCount['avatar_count'];
+    const tbody = select("#dtSummaryB > tbody");
+    const keys = Object.keys(data);
+    const updateBody = tbody.selectAll('tr').data(keys);
+    const enterBody = updateBody.enter().append('tr');
+    updateBody.exit().remove();
+    const mergeBody = enterBody.merge(updateBody);
+    mergeBody.selectAll('th').remove();
+    mergeBody.selectAll('td').remove();
+    mergeBody.append('th').text(d => d);
+    mergeBody.append('td').text(d => data[d]);
   }
 
 }());

@@ -29,7 +29,7 @@ def get_test_data():
     data = list(cln.find({}, {'_id': False}))
     return jsonify(data)
 
-@hack_bp.route('/test/get_data_groups')
+@hack_bp.route('/test/get_data_groups', methods=['POST'])
 def get_test_data_group():
     payload = request.get_json()
     groups = payload['groups']
