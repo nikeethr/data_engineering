@@ -55,7 +55,7 @@ services:
                 condition: service_started
     nginx:
         container_name: hack_nginx
-        image: nginx:latest
+        build: ./nginx
         ports:
             - "8050:8050"
         volumes:

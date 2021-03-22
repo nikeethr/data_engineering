@@ -1,0 +1,30 @@
+.svg-container {
+    display: block;
+    max-height: 350px;
+}
+
+.svg-content {
+    max-height: 350px;
+}
+
+#main-container {
+  padding-top: 20px;
+  padding-left: 5%;
+  padding-right: 5%;
+}
+
+body {
+  background-color: #FAFAFA
+}
+
+#main-header {
+  color: steelblue;
+}
+
+.far.fa-star {
+  color: DarkOrange;
+}
+
+.fa-star.checked {
+  color: DarkOrange;
+}

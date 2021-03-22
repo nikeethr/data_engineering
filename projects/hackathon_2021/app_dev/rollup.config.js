@@ -6,10 +6,14 @@ export default {
   input: 'src/index.js',
   output: {
     dir: 'output',
-    format: 'iife'
+    format: 'esm'
   },
   plugins: [
     nodeResolve(),
-    // commonjs()
+    commonjs(),
+    babel({
+      exclude: 'node_modules/**',
+      babelHelpers: 'bundled'
+    })
   ]
 };
