@@ -9,10 +9,64 @@ $(document).ready(function() {
   fetch('http://192.168.56.101:8050/hack_api/test/get_node_map')
     .then(response => response.json())
     .then(data => {
-        createChart(data)
+        createChart(data, true)
         createSummaryTable(data)
     })
+
+    registerRegenerate()
 })
+
+
+function registerRegenerate() {
+  const handleTimeout = {
+    timer_id: null,
+    timer_start: null,
+    pollForResult: function(resp) {
+      var self = this
+      if (this.timer_id === null) {
+        this.timer_id = setInterval(this.fetchResult.bind(self, resp.job_id), 500)
+        this.timer_start = Date.now()
+      }
+    },
+    fetchResult: function(job_id) {
+      var self = this
+      fetch('http://192.168.56.101:8050/hack_api/test/generate_test_data_status/' + job_id)
+        .then(response => response.text())
+        .then(function(result) {
+          console.log(job_id, result)
+          if (result === 'finished') {
+            clearInterval(self.timer_id)
+            self.timer_id = null
+            self.timer_start = null
+            onRegenerateData()
+          } else if ((Date.now() - self.timer_start) / 1000 > 2000) {
+            clearInterval(self.timer_id)
+            self.timer_id = null
+            self.timer_start = null
+          }
+        })
+    }
+  }
+
+  $("#regen").click(function() {
+    fetch('http://192.168.56.101:8050/hack_api/test/generate_test_data')
+      .then(response => response.json())
+      .then(data => handleTimeout.pollForResult(data))
+  })
+}
+
+function onRegenerateData() {
+  fetch('http://192.168.56.101:8050/hack_api/test/get_data')
+    .then(response => response.json())
+    .then(data => updateTable(data))
+
+  fetch('http://192.168.56.101:8050/hack_api/test/get_node_map')
+    .then(response => response.json())
+    .then(data => {
+        createChart(data, false)
+        updateSummaryTable(data.nodes[0])
+    })
+}
 
 function updateTableGroup(groups) {
   fetch('http://192.168.56.101:8050/hack_api/test/get_data_groups', {
@@ -42,7 +96,23 @@ function updateTable(data) {
   const mergeBody = enterBody.merge(updateBody)
 
   mergeBody.selectAll('td').remove()
-  keys.forEach( k => mergeBody.append('td').text(d => d[k]) )
+  keys.forEach(function(k) {
+    if (k === 'rating') {
+      mergeBody.append('td').html(function(d) {
+        var res = ""
+        const rating = +d[k]
+        for (var i=0; i < rating; i++) {
+          res += '<span class="fa fa-star checked"></span>'
+        }
+        for (var i=rating; i < 5; i++) {
+          res += '<span class="far fa-star"></span>'
+        }
+        return res
+      })
+    } else {
+      mergeBody.append('td').text(d => d[k])
+    }
+  })
 
   // --- create bootstrap table ---
   $('#dtBasicExample').DataTable({
@@ -76,7 +146,7 @@ function createTable(data) {
   $('.dataTables_length').addClass('bs-select');
 }
 
-function createChart(data) {
+function createChart(data, first=false) {
   const drag = function(simulation) {
     
     function dragstarted(event) {
@@ -111,7 +181,6 @@ function createChart(data) {
     .domain([dataExtent[0], dataExtent[1]])
     .range([5, 20]);
 
-  console.log(dataExtent)
 
   const links = data.links.map(d => Object.create(d));
   const nodes = data.nodes.map(d => Object.create(d));
@@ -124,23 +193,29 @@ function createChart(data) {
       .force("right", d3.forceY(width).strength(0.01))
 
 
-  const svg = d3.select('#chart').append('svg')
-    .attr("preserveAspectRatio", "xMinYMin meet")
-    .attr('viewBox',  [0, 0, width, height])
-    .classed('svg-content', true)
+  if (first) {
+    const svg = d3.select('#chart').append('svg')
+      .attr("preserveAspectRatio", "xMinYMin meet")
+      .attr('viewBox',  [0, 0, width, height])
+      .classed('svg-content', true)
 
-  const link = svg.append("g")
+    const glink = svg.append("g")
       .attr("stroke", "#999")
       .attr("stroke-opacity", 0.6)
-    .selectAll("line")
+      .attr("class", "g-links")
+
+    const gnode = svg.append("g")
+      .attr("stroke", "#fff")
+      .attr("stroke-width", 1.5)
+      .attr("class", "g-nodes")
+  }
+
+  const link = d3.select(".g-links").selectAll("line")
     .data(links)
     .join("line")
       .attr("stroke-width", d => dataScale(d.value));
 
-  const node = svg.append("g")
-      .attr("stroke", "#fff")
-      .attr("stroke-width", 1.5)
-      .attr("class", "g-nodes")
+  const node = d3.select(".g-nodes")
     .selectAll("circle")
     .data(nodes)
     .join("circle")

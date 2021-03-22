@@ -6,6 +6,7 @@ from scipy.cluster.hierarchy import (
 )
 import json
 from rq import Queue, Connection
+from rq.job import Job
 from redis import Redis
 
 from .mongo import Mongo
@@ -35,7 +36,7 @@ def mock_data():
     # temperature = -2 -> 42
     # rain_pct = 0 -> 100
     # uv = 0 -> 14
-    temperature = np.random.normal(loc=22, scale=20, size=N)
+    temperature = np.random.normal(loc=22, scale=10, size=N)
     rain_pct = (np.digitize(
         np.random.beta(a=1, b=3, size=N) * 100,
         bins=np.arange(0, 101, 10)
@@ -60,12 +61,13 @@ def mock_data():
         'beanie',
         'hoodie',
         'jacket',
-        'sunscreen'
+        'sunscreen',
+        'umbrella'
     ]
-    num_parts = np.random.randint(low=0, high=len(avatar_parts), size=N)
-    p_rel_1 = np.array([0.3, 0.2, 0.2, 0.05, 0.1, 0.6, 0.2])
+    num_parts = np.random.randint(low=1, high=len(avatar_parts), size=N)
+    p_rel_1 = np.array([0.3, 0.2, 0.2, 0.05, 0.1, 0.6, 0.2, 0.1])
     p_rel_1 = p_rel_1 / np.sum(p_rel_1)
-    p_rel_2 = np.array([0.3, 0.7, 0.5, 0.2, 0.5, 0.1, 0.2])
+    p_rel_2 = np.array([0.3, 0.7, 0.5, 0.2, 0.5, 0.1, 0.2, 0.4])
     p_rel_2 = p_rel_2 / np.sum(p_rel_2)
     choice_func = lambda x: ','.join(list(
         np.random.choice(
@@ -197,7 +199,19 @@ def queue_task(local=False):
 
     with Connection(Redis(redis_host, 6379)):
         q = Queue('hack_test_data')
-        q.enqueue(generate_data, kwargs={ 'local': local })
+        job = q.enqueue(generate_data, kwargs={ 'local': local })
+
+    return job.id
+
+
+def fetch_job_status(job_id, local=False):
+    redis_host = 'redis'
+    if local:
+        redis_host = 'localhost'
+
+    with Connection(Redis(redis_host, 6379)):
+        job = Job.fetch(job_id)
+        return job.get_status()
 
 
 def generate_data(local=False):

@@ -16,10 +16,12 @@ hack_bp = Blueprint('hack_api', __name__, url_prefix='/hack_api')
 def generate_test_data():
     # TODO:
     # adds task to RQ worker queue
-    ingest_sample_data.queue_task()
-    return jsonify({
-        'msg': 'generating test data'
-    })
+    job_id = ingest_sample_data.queue_task()
+    return jsonify({ 'job_id': job_id })
+
+@hack_bp.route('/test/generate_test_data_status/<job_id>')
+def get_generate_test_data_status(job_id):
+    return ingest_sample_data.fetch_job_status(job_id)
 
 @hack_bp.route('/test/get_data')
 def get_test_data():

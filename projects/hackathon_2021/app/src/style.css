@@ -16,3 +16,15 @@
 body {
   background-color: #FAFAFA
 }
+
+#main-header {
+  color: steelblue;
+}
+
+.far.fa-star {
+  color: DarkOrange;
+}
+
+.fa-star.checked {
+  color: DarkOrange;
+}
