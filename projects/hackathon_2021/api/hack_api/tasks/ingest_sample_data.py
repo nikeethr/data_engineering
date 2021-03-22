@@ -36,7 +36,7 @@ def mock_data():
     # temperature = -2 -> 42
     # rain_pct = 0 -> 100
     # uv = 0 -> 14
-    temperature = np.random.normal(loc=22, scale=10, size=N)
+    temperature = np.random.normal(loc=22, scale=15, size=N)
     rain_pct = (np.digitize(
         np.random.beta(a=1, b=3, size=N) * 100,
         bins=np.arange(0, 101, 10)
