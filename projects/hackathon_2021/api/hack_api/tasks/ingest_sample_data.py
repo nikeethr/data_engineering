@@ -141,7 +141,7 @@ def construct_node_dict(ids, classes, tree, df):
         sel = df['group'].isin(node_dict[i]['groups'])
         df_node = df.loc[sel, :]
 
-        for j in ['temperature', 'rain_pct', 'uv']:
+        for j in ['temperature', 'rain_pct', 'uv', 'rating']:
             node_dict[i][j] = np.mean(df_node[j])
 
         avatar_sets = list(itertools.chain(
@@ -159,7 +159,7 @@ def cluster_dataset(df):
     # get the resultant tree structure after cutting at a particular depth
     # label each tree point based on average temp/rain/uv
     N_CLUSTERS = 20
-    weather_dims = ['rain_pct', 'uv', 'rating']
+    weather_dims = ['rain_pct', 'uv', 'temperature']
     z = linkage(df[weather_dims], 'ward')
     classification = np.int32(np.squeeze(cut_tree(z, N_CLUSTERS)))
     df['group'] = classification
