@@ -197,6 +197,7 @@ function createChart(data, first=false) {
     const svg = d3.select('#chart').append('svg')
       .attr("preserveAspectRatio", "xMinYMin meet")
       .attr('viewBox',  [0, 0, width, height])
+      .attr('xmlns', 'http://www.w3.org/2000/svg')
       .classed('svg-content', true)
 
     const glink = svg.append("g")
