@@ -144,7 +144,7 @@ def construct_node_dict(ids, classes, tree, df):
         df_node = df.loc[sel, :]
 
         for j in ['temperature', 'rain_pct', 'uv', 'rating']:
-            node_dict[i][j] = np.mean(df_node[j])
+            node_dict[i][j] = np.round(np.mean(df_node[j]), 1)
 
         avatar_sets = list(itertools.chain(
             *df_node['avatar_set'].values.tolist()
@@ -187,6 +187,7 @@ def ingest_to_mongodb(df, node_dict, links, local=False):
             cln.remove({})
 
         # then add the new data
+        df['temperature'] = df['temperature'].round(1)
         data_cln.insert_many(df.to_dict('records'))
         node_cln.insert_many(node_dict.values())
         link_cln.insert_many(links)
