@@ -165,3 +165,15 @@ zipExample1 = zip [1,2,3,4,5] [5,5,5,5,5]
 zipExample2 = zip [1,2,3,4,5] ["hello","world"]
 -- infinite list: similar to cycle
 zipExample3 = zip [1..] ["apple","orange","cherry","mango"]
+-- triangles example: A common pattern in haskell is you start with a set and
+-- filter down using predicates to get the right solution
+-- First get a set of different sizes for all sides
+triangles = [ (a,b,c) | c <- [1..10], b <- [1..10], a <- [1..10] ]
+-- Then filter such that one side (b) is less than the hypotunuse (c) and the
+-- remaining side (a) is the smallest such that a^2 + b^2 = c^2. This is
+-- a required rule for the sides of a right angled triangles. The restrictions
+-- on the size of a vs b vs c is to narrow down to a unique solution.
+rightTriangles = [ (a,b,c) | c <- [1..10], b <- [1..c], a <- [1..b], a^2 + b^2 == c^2 ]
+-- The remaining rule to get a unique solution is to choose one of the right
+-- angled triangles from the list by asserting the perimeter
+rightTriangles' = [ (a,b,c) | c <- [1..10], b <- [1..c], a <- [1..b], a^2 + b^2 == c^2, a+b+c == 24 ]
