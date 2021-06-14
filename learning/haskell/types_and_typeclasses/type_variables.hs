@@ -40,3 +40,12 @@
 
 -- Num: Numeric typeclass. Members can act like numbers e.g. as you would
 -- expect various arithmetic operations to be performed on them.
+-- You need two Nums of the same type to perform operations
+
+-- Integral: Subset of Num, whole numbers. Int and Integer are part of this.
+
+-- Floating: Also a subset of Num, but only deals with floating point numbers.
+-- Float & Double.
+
+-- fromIntegral is a nice way to convert from Integral to Floating as it
+-- converts to a generalized Num
