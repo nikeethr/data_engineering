@@ -37,3 +37,19 @@ factorial n = product [1..n]
 reallyLongInteger = factorial 50
 -- Note: Int -> Integer doesn't work even if the input can be an Int this is
 -- probably because some arithmetic operations will preserve type.
+
+-- Float: real floating point with single precision
+circumference :: Float -> Float
+circumference r = pi * r * 2
+
+-- Double: real floating point with double precision
+circumference' :: Double -> Double
+circumference' r = pi * r * 2
+
+-- Bool: True or False
+
+-- Char: character represented by single quotes
+
+-- Tuples: are types but dependent on length and types of their components. The
+-- empty tuple is also a specific type with a single value i.e. ()
+
