@@ -1,20 +1,7 @@
-import os
-import time
-import functools
-import s3fs
-import zarr
-import xarray as xr
-import numpy as np
-import matplotlib.pyplot as plt
-
-from zarr.storage import DirectoryStore
-from memory_profiler import profile
-
-
 """
     Notes:
-        - Two types of stores: `store` and `chunk_store`. The latter is if you
-          want the chunks to be stored in a different storage type.
+        - Zarr has two types of stores: `store` and `chunk_store`. The latter
+          is if you want the chunks to be stored in a different storage type.
         - Zarr auto chunks things, but we can use Dataset.chunk to do the
           chunking based on what we know. Note: requires `dask` and `toolz`
         - Zarr data loading is extremely lazy, and aggregation operations (with
@@ -42,6 +29,18 @@ from memory_profiler import profile
         - Using xarray directly is actually much slower than opendap but with
           consolidated metadata it's not too bad.
 """
+import os
+import time
+import functools
+import s3fs
+import zarr
+import xarray as xr
+import numpy as np
+import matplotlib.pyplot as plt
+
+from zarr.storage import DirectoryStore
+from memory_profiler import profile
+
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_DIR = os.path.join(_DIR, 'test_data')

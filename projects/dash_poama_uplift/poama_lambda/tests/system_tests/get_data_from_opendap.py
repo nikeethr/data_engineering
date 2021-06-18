@@ -2,8 +2,41 @@
 #-------------------------------------------------------------------------------
 # Here is a quick script that plots a GC2 Ocean file without artefacts
 # Credit and original Author: Griffith Young
+# Modified by Nikeeth Ramanathan to benchmark slicing data from opendap using
+# various methods.
 #-------------------------------------------------------------------------------
 
+"""
+Notes:
+    - using `where` using (lat, lon) loads entire data into memory and is slow
+      depending on which part of the data you choose.
+    - using slicing is a more memory efficient and also faster but is less
+      intuitive since you have to convert lat-lon to grid coordinates. Will
+      need a KDTree to do this efficiently.
+    - eitherway, we need to perform the `swap` otherwise we will have artefacts
+    - for opendap, swap will cause it to load the data ~14MB [30MB
+      uncompressed] for a particular datetime/depth. opendap download speeds
+      are slow, but not too bad for small slices:
+        - 100 x 100 slice 1-1.5s
+        - 300 x 300 slice 3-5s
+        - 600 x 1000 slice ~16s
+    - using `where` with opendap is always a bad idea, but it's the only way to
+      query using lat/lon directly
+    - KDTree is relatively quick after it is setup. Setup requires 3s to build
+      the tree. The tree itself takes up some memory space (~80MB) while it
+      exists. Query time is around 0.05s. Tested with leaf_size = 10 -> 5000.
+      leaf_size=1000 has the best initialisation/query time trade-off.
+    - The lambda function while warm has to cache the KDTree probably so may
+      not be able to use low-cost/free-tier lambdas. Not a huge deal if running
+      on EC2 t2.micro is 1GB RAM.
+    - I think KDTree to map lat/lon to x_2/y_2 is the best way forward if we
+      want to query lat/lon
+    - Plotting is another bottleneck - it takes quite a bit of time to plot
+      things using matplotlib. Things to try:
+        - do the plot using xarray itself
+        - hvplot (integrated with xarray + interactive)
+        - holoviews (for more custom plotting) 
+"""
 import os
 import time
 import functools
@@ -275,38 +308,6 @@ def main():
 #-------------------------------------------------------------------------------
 
 if __name__ == '__main__':
-    """
-    Notes:
-        - using `where` using (lat, lon) loads entire data into memory and is slow
-          depending on which part of the data you choose.
-        - using slicing is a more memory efficient and also faster but is less
-          intuitive since you have to convert lat-lon to grid coordinates. Will
-          need a KDTree to do this efficiently.
-        - eitherway, we need to perform the `swap` otherwise we will have artefacts
-        - for opendap, swap will cause it to load the data ~14MB [30MB
-          uncompressed] for a particular datetime/depth. opendap download speeds
-          are slow, but not too bad for small slices:
-            - 100 x 100 slice 1-1.5s
-            - 300 x 300 slice 3-5s
-            - 600 x 1000 slice ~16s
-        - using `where` with opendap is always a bad idea, but it's the only way to
-          query using lat/lon directly
-        - KDTree is relatively quick after it is setup. Setup requires 3s to build
-          the tree. The tree itself takes up some memory space (~80MB) while it
-          exists. Query time is around 0.05s. Tested with leaf_size = 10 -> 5000.
-          leaf_size=1000 has the best initialisation/query time trade-off.
-        - The lambda function while warm has to cache the KDTree probably so may
-          not be able to use low-cost/free-tier lambdas. Not a huge deal if running
-          on EC2 t2.micro is 1GB RAM.
-        - I think KDTree to map lat/lon to x_2/y_2 is the best way forward if we
-          want to query lat/lon
-        - Plotting is another bottleneck - it takes quite a bit of time to plot
-          things using matplotlib. Things to try:
-            - do the plot using xarray itself
-            - hvplot (integrated with xarray + interactive)
-            - holoviews (for more custom plotting) 
-    """
-
     # === local tests ===
 
     # run initial to prevent lazy loading
