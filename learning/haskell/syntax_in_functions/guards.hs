@@ -114,3 +114,38 @@ theQuestionToTheMeaningOfLife = 4 * (let a = 9 in a + 1) + 2
     You can also introduce functions with local scope
 -}
 aFunctionInTheWild = [let square x = x * x in (square 5, square 3, square 2)]
+
+{-
+    Binding several variables inline can be done using semi-colons
+-}
+
+letTuple =
+    (
+    let a = 100
+        b = 200
+        c = 300
+    in  a*b*c,
+    let foo = "Hey "
+        bar = "there!"
+    in  foo ++ bar
+    )
+letTupleInline = (let a = 100; b = 200; c = 300 in a*b*c, let foo = "Hey "; bar = "there!" in foo ++ bar)
+
+{-
+    We can also do this via pattern matching
+-}
+letTuplePattern = (let (a,b,c) = (1,2,3) in a+b+c) * 100
+
+{-
+    re-writing calcBmis using let instead of where. Note that we don't have
+    `in`, it's included like a predicate. So the scope is available to the
+    entire output function (the part before |). Note that because let is not
+    accessible in (w, h) <- xs.
+-}
+calcBmisLet :: (RealFloat a) => [(a, a)] -> [a]
+calcBmisLet xs = [ bmi | (w, h) <- xs, let bmi = w / h^2, bmi >= 25.0 ]
+
+{-
+    Note that in the ghci we use let without `in` so that the scope of the
+    variables is available to everything else
+-}
