@@ -149,3 +149,38 @@ calcBmisLet xs = [ bmi | (w, h) <- xs, let bmi = w / h^2, bmi >= 25.0 ]
     Note that in the ghci we use let without `in` so that the scope of the
     variables is available to everything else
 -}
+
+--- Case expressions ---
+{-
+    In most programming languages this is a variable and based on it's value
+    certain code blocks are executed. In Haskell, the case variable itself is
+    an expression, which if it matches a pattern will return the relevant
+    result.
+
+    Sound familiar to pattern matching in function definitions, well it's the
+    same thing. However, unlike pattern matching in functions, case statements
+    can be used anywhere.
+
+    case <expression> of pattern -> result
+                         pattern -> result
+                         pattern -> result
+                         ...
+-}
+
+{-
+    Describe list with case vs. where
+-}
+describeListCase :: (Show a) => [a] -> String
+describeListCase xs =
+    "This list is " ++
+    case xs of []  -> "empty."
+               [x] -> "singleton with elem: " ++ show x
+               xs  -> "long."
+{-
+    The same thing can be written as a where statement
+-}
+describeListWhere :: (Show a) => [a] -> String
+describeListWhere xs = "This list is " ++ desc xs
+    where desc []  = "empty."
+          desc [x] = "singleton with elem: " ++ show x
+          desc xs  = "long."
