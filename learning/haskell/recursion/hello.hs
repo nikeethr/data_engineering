@@ -11,7 +11,7 @@
 -}
 
 {-
-    Case study: maximum
+    Case study 1: maximum
 -}
 
 -- My answer
@@ -34,6 +34,7 @@ maximum''' []     = error "Empty list."
 maximum''' [x]    = x
 maximum''' (x:xs) = max x (maximum''' xs)
 {-
+    Case study 2: replicate
     Replicate: take one input and spit out out several times
     This time let's use guards
     My answer:
@@ -53,3 +54,63 @@ replicate'' :: (Ord i, Num i) => i -> a -> [a]
 replicate'' n x
     | n <= 0 = []
     | otherwise = x:replicate'' (n-1) x
+{-
+    Case study 3: take
+    Returns the first n elements of the list.
+    My answer:
+-}
+take' :: Int -> [a] -> [a]
+take' n xs
+    | length xs <= n = xs
+    | otherwise = take' n xsTail
+    where (x:xsTail) = xs
+{-
+    Second answer because I wasn't sure if we wanted to take from the front or the back...
+    This one returns the first n elements (I guess that's head though?)
+-}
+take'' :: Int -> [a] -> [a]
+take'' _ [] = []
+take'' n xs
+    | n <= 0 = []
+    | otherwise = x:(take'' (n-1) xsTail)
+    where (x:xsTail) = xs
+{-
+    Actual answer:
+    - Uses pattern matching instead of guards
+-}
+take''' :: (Num i, Ord i) => i -> [a] -> [a]
+take''' n _
+    | n <= 0   = []
+take''' _ []     = []
+take''' n (x:xs) = x : take''' (n-1) xs
+{-
+    Case study 4: reverse
+    Returns the list reversed.
+    My answer:
+    - Tried out something different by using let
+-}
+reverse' :: [a] -> [a]
+reverse' [x] = [x]
+reverse' xs = let (x:xs_) = xs in reverse xs_ ++ [x]
+{-
+    Actual answer:
+    - Uses pattern matching directly
+    - My answer the initial condition of empty list
+-}
+reverse'' :: [a] -> [a]  
+reverse'' [] = []  
+reverse'' (x:xs) = reverse'' xs ++ [x]
+{-
+    Case study 5: repeat
+    My answer:
+-}
+repeat' :: a -> Integer -> [a]
+repeat' x n
+    | n <= 0 = []
+    | otherwise = x:repeat' x (n-1)
+{-
+    Actual answer:
+    - wanted an infinite data structure e.g. to use with `take 5 $ repeat 'a'`
+-}
+repeat'' :: a -> [a]
+repeat'' x = x:repeat'' x
