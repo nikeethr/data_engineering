@@ -114,3 +114,25 @@ repeat' x n
 -}
 repeat'' :: a -> [a]
 repeat'' x = x:repeat'' x
+{-
+    Case study 6: zip
+    Takes two lists and joins them into a list of tuples
+    My answer:
+    - same as actual answer
+-}
+zip' :: [a] -> [b] -> [(a, b)]
+zip' [] _  = []
+zip' _ []  = []
+zip' (x:xs) (y:ys) = (x, y):zip' xs ys
+{-
+    Case study 7: elem
+    Checks if an element exists in the list
+    My answer:
+    - almost same as actual answer
+    - actual answer uses x `elem` ys for readibility
+-}
+elem' :: (Eq a) => a -> [a] -> Bool
+elem' x [] = False
+elem' x (y:ys)
+    | x == y = True
+    | otherwise = elem' x ys
