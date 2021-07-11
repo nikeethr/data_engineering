@@ -136,3 +136,29 @@ elem' x [] = False
 elem' x (y:ys)
     | x == y = True
     | otherwise = elem' x ys
+{-
+    Case study 8: quick sort
+    My answer:
+-}
+quicksort' :: (Ord a) => [a] -> [a]
+quicksort' []     = []
+quicksort' (x:xs) =  sortleft ++ x:sortright
+    where left _ [] = []
+          left y (x:xs)
+              | x < y     = x:(left y xs) 
+              | otherwise = left y xs
+          right _ [] = []
+          right y (x:xs)
+              | x > y     = x:(right y xs) 
+              | otherwise = right y xs
+          sortleft = quicksort' (left x xs)
+          sortright = quicksort' (right x xs)
+{-
+    Actual answer:
+    - use list comprehension dummy
+-}
+quicksort'' :: (Ord a) => [a] -> [a]
+quicksort'' []     = []
+quicksort'' (x:xs) =  sortleft ++ x:sortright
+    where sortleft  = quicksort'' [ a | a <- xs, a < x ]
+          sortright = quicksort'' [ a | a <- xs, a > x ]
