@@ -64,3 +64,39 @@ largestDivisible' x y = last [x,x*2..y]
 largestDivisible'' :: (Integral a) => a -> a -> a
 largestDivisible'' x y = head (filter (p x) [y,y-1..1])
     where p i j = j `mod` i == 0
+
+{-
+    takeWhile is a function that takes function that evalulates a predicate and
+    applies it to a list until the first ocurrance that predicate holds true.
+    
+    Basic example is extracting the first word of a sentence:
+-}
+elephants = takeWhile (/=' ') "elephants know how to party"
+
+{-
+    Another example: Sum of odd squares less than 10,000, used in conjunction with filter)
+-}
+sumOddSquares :: (Integral a) => a -> [a]
+sumOddSquares x = takeWhile (< x) (filter p (map k [1..]))
+    where p i = (i `mod` 2) /= 0
+          k i = i * i
+{-
+    Actual answer:
+    sum (takeWhile (<10000) (filter odd (map (^2) [1..])))
+
+    Note:
+      - `odd` is an actual function so you don't have to do `mod`
+      - ^2 takes a power without making it a floating point
+-}
+{-
+    In this case list comprehension might actually be easier to read
+-}
+sumOddSquares' :: (Integral a) => a -> [a]
+sumOddSquares' x = takeWhile (< x) [ i*i | i <- [1..], (i*i `mod` 2) /= 0 ]
+{-
+    Actual awnser:
+    sum (takeWhile (<10000) [n^2 | n <- [1..], odd (n^2)])  
+
+    Note:
+      - as above, note usage of `odd `and ``^
+-}
