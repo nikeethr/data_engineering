@@ -1,3 +1,6 @@
+module Chain
+( chain
+) where
 {-
     Chain creates a sequence based on certain conditions (Collatz sequences)
     It stops when the result is 1
