@@ -1,3 +1,5 @@
+import GHC.Float
+
 {-
     folds take in a function, a accumulator (same type as the values in the
     list) and some thing to be folded (usually a list of things). The function
@@ -65,3 +67,41 @@ mapr' f xs = foldr (\x acc -> f x : acc) [] xs
 -}
 mapl' :: (a -> b) -> [a] -> [b]
 mapl' f xs = foldl (\acc x -> acc ++ [f x]) [] xs
+
+{-
+    Common functions using fold:
+    maximum, reverse, last, head, filter, product
+
+    For some of these cases we can use the first element as the initializer for
+    the fold e.g. foldr1, foldl1
+-}
+maximum' :: (Ord a) => [a] -> a
+maximum' = foldr1 (\x acc -> if x > acc then x else acc)
+
+reverse' :: [a] -> [a]
+reverse' = foldl (\acc x -> x : acc) []
+
+product' :: (Num a) => [a] -> a
+product' = foldr1 (*)
+
+filter' :: (a -> Bool) -> [a] -> [a]
+filter' f = foldr (\x acc -> if f x then x : acc else acc) []
+
+head' :: [a] -> a
+head' = foldr1 (\x _ -> x)
+
+last' :: [a] -> a
+last' = foldl1 (\_ x -> x)
+
+{-
+    Scans can be used to debug folds - the return intermediate results of folds
+
+    They can also be used to answer some problems:
+    How many elements does it take for the sum of the roots of all natural numbers to exceed 1000?
+-}
+solutionUsual m = head [ n | n <- [1..], (sum $ map sqrt $ map int2Float [1..n]) > m ]
+{-
+    Now knowing that scan can do the same let's try with scan
+-}
+solutionScan m = (length . takeWhile (<m) . scanl1 (+)) (map sqrt [1..]) + 1
+
