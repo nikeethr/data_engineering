@@ -1,0 +1,16 @@
+[Unit]                                        
+Description=Airflow scheduler daemon          
+After=network.target airflow-webserver.service
+Wants=airflow-webserver.service               
+                                              
+[Service]                                     
+User=airflow                                  
+Group=airflow                                 
+Type=simple                                   
+ExecStart=/home/airflow/airflow.sh scheduler  
+Restart=always                                
+RestartSec=5s                                 
+PrivateTmp=True                               
+                                              
+[Install]                                     
+WantedBy=multi-user.target                    

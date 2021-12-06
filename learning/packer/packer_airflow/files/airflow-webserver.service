@@ -1,0 +1,16 @@
+[Unit]
+Description=Airflow webserver daemon
+After=network.target airflow-webserver.service
+Wants=airflow-webserver.service
+
+[Service]
+User=airflow
+Group=airflow
+Type=simple
+ExecStart=/home/airflow/airflow.sh webserver --workers 2
+Restart=always
+RestartSec=5s
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,16 @@
+---
+name: tpaws
+channels:
+  - defaults
+dependencies:
+  - boto3
+  - coverage
+  - libffi=3.3
+  - paramiko
+  - pandas
+  - pytest
+  - pytest-cov
+  - python=3.8
+  - pip
+  - moto
+
