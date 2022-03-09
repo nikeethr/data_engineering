@@ -4,7 +4,7 @@
 TOKEN=
 GUILD_ID=
 CHANNEL_ID=
-RAND=1
+RAND=0
 WAIT_TIME_ALL_MSGS=20
 declare -a MSG_TYPE=(
   "pm"
@@ -75,13 +75,14 @@ while :; do
     post_content "${MSG}"
     sleep $WAIT_TIME
   else
+    MIN_WAIT_TIME=5
+    WAIT_TIME_RAND=3
     for MSG in "${MSG_TYPE[@]}"; do
       post_content "${MSG}"
-      sleep 1
+      sleep $(($MIN_WAIT_TIME + $RANDOM % $WAIT_TIME_RAND))
     done
-    WAIT_TIME_TO_CHECK=$(( $WAIT_TIME_ALL_MSGS - ${#MSG_TYPE[@]} ))
-    WAIT_TIME=$(( WAIT_TIME_TO_CHECK > 0 ? WAIT_TIME_TO_CHECK : 1 ))
-    sleep $WAIT_TIME
+    WAIT_TIME_TO_CHECK=$(( $WAIT_TIME_ALL_MSGS - (${#MSG_TYPE[@]} * MIN_WAIT_TIME) ))
+    WAIT_TIME=$(( WAIT_TIME_TO_CHECK > 0 ? WAIT_TIME_TO_CHECK : MIN_WAIT_TIME ))
+    sleep $(($MIN_WAIT_TIME + $RANDOM % $WAIT_TIME_RAND))
   fi
-
 done
