@@ -4,7 +4,7 @@
 TOKEN=
 GUILD_ID=
 CHANNEL_ID=
-RAND=0
+RAND=1
 WAIT_TIME_ALL_MSGS=20
 declare -a MSG_TYPE=(
   "pm"
