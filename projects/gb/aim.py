@@ -122,7 +122,7 @@ def calculate_power_boomer(reverse):
         v_x_l = -math.tan((boom_ang / 180) * math.pi)  * v_y_l
     if x_1 > x_2:
         v_x_l *= -1
-        v_x_ref *= -1
+        v_x_l_ref *= -1
         
     # y_2 = y_max + vt + 1/2wt^2
     t_max = (v_y_l + math.sqrt(v_y_l**2 + 2*(y_2 - y_max)*(g_f + w_y))) / (g_f + w_y)
