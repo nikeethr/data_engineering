@@ -106,21 +106,33 @@ def calculate_power_boomer(reverse):
     # line segment
     # v = sqrt(2*y_max * (g-wy))
 
-    v_y_l = -math.sqrt((2*(y_2 - y_max)) * (g_f - w_f*w_p*math.sin(w_a)))
-    v_x_l = math.tan((BOOMER_ANG_FORWARD / 180) * math.pi)  * v_y_l
-    if reverse:
-        v_y_l = -math.sqrt((2*(y_2 - y_max)) * (g_f - w_f*w_p*math.sin(w_a)))
-        v_x_l = -math.tan((BOOMER_ANG_REV / 180) * math.pi)  * v_y_l
+    BOOMER_ACTION_TIME = 20
 
+
+    w_y = w_f*w_p*math.sin(w_a)
+    w_x = w_f*w_p*math.cos(w_a)
+    v_y_l = -math.sqrt((2*(y_2 - y_max)) * (g_f - w_y))
+    boom_ang = BOOMER_ANG_FORWARD + w_x + w_y
+    v_x_l_ref = math.tan((BOOMER_ANG_FORWARD / 180) * math.pi)  * v_y_l
+    v_x_l = math.tan((boom_ang / 180) * math.pi)  * v_y_l
+    if reverse:
+        boom_ang = BOOMER_ANG_REV - w_x + w_y
+        v_y_l = -math.sqrt((2*(y_2 - y_max)) * (g_f - w_y))
+        v_x_l_ref = -math.tan((BOOMER_ANG_REV / 180) * math.pi)  * v_y_l
+        v_x_l = -math.tan((boom_ang / 180) * math.pi)  * v_y_l
+    if x_1 > x_2:
+        v_x_l *= -1
+        v_x_ref *= -1
+        
     # y_2 = y_max + vt + 1/2wt^2
-    t_max = (v_y_l + math.sqrt(v_y_l**2 + 2*(y_2 - y_max)*(g_f - w_f*w_p*math.sin(w_a)))) / (g_f - w_f*w_p*math.sin(w_a))
-    x_max = x_2 + v_x_l*t_max - 0.5*w_f*w_p*math.cos(w_a)*(t_max ** 2)
+    t_max = (v_y_l + math.sqrt(v_y_l**2 + 2*(y_2 - y_max)*(g_f + w_y))) / (g_f + w_y)
+    x_max = x_2 + v_x_l*t_max - 0.5*w_x*(t_max ** 2)
 
     # quadratic segment
     y_w = y_max - y_1
     x_w = x_max - x_1
-    v_y = -math.sqrt((-2*y_w) * (g_f - w_f*w_p*math.sin(w_a)))
-    t_w = -v_y / (g_f - w_f*w_p*math.sin(w_a))
+    v_y = -math.sqrt((-2*y_w) * (g_f - w_y))
+    t_w = -v_y / (g_f - w_y)
     v_x = (x_w - 0.5*w_p*w_f*math.cos(w_a) * (t_w**2)) / t_w
 
     t_a = -v_y / g_f
@@ -130,7 +142,7 @@ def calculate_power_boomer(reverse):
     t_vec_max = np.linspace(0, t_max, num=100, endpoint=True)
 
     x_aim_vec = v_x * t_vec + x_1
-    x_aim_vec_max = -v_x_l * t_vec_max + x_aim_vec[-1]
+    x_aim_vec_max = -v_x_l_ref * t_vec_max + x_aim_vec[-1]
     y_aim_vec = v_y * t_vec + 0.5 * g_f * (t_vec ** 2) + y_1
     y_aim_vec_max = -v_y_l * t_vec_max + 0.5 * g_f * (t_vec_max ** 2) + y_aim_vec[-1]
 
@@ -148,13 +160,13 @@ def calculate_power_boomer(reverse):
     print(f"v_x_l={v_x_l},v_y_l={v_y_l},t_max={t_max},t_w={t_w},v_x={v_x},v_y={v_y},x_max={x_max},y_max={y_max}")
 
     # actual path
-    t_vec = np.linspace(0, t_w, num=100, endpoint=True)
-    t_vec_max = np.linspace(0, t_max, num=100, endpoint=True)
+    t_vec = np.linspace(0, t_w, num=300, endpoint=True)
+    t_vec_max = np.linspace(0, t_max, num=300, endpoint=True)
 
-    x_path_vec = v_x * t_vec + 0.5*w_f*w_p*math.cos(w_a)*(t_vec ** 2) + x_1
-    x_path_vec_max = -v_x_l * t_vec_max + 0.5*w_f*w_p*math.cos(w_a)*(t_vec_max ** 2) + x_max
-    y_path_vec = v_y * t_vec + 0.5*(g_f - w_f*w_p*math.sin(w_a))*(t_vec ** 2) + y_1
-    y_path_vec_max = -v_y_l * t_vec_max + 0.5*(g_f - w_f*w_p*math.sin(w_a))*(t_vec_max ** 2) + y_path_vec[-1]
+    x_path_vec = v_x * t_vec + 0.5*w_x*(t_vec ** 2) + x_1
+    x_path_vec_max = -v_x_l * t_vec_max + 0.5*w_x*(t_vec_max ** 2) + x_max
+    y_path_vec = v_y * t_vec + 0.5*(g_f - w_y)*(t_vec ** 2) + y_1
+    y_path_vec_max = -v_y_l * t_vec_max + 0.5*(g_f - w_y)*(t_vec_max ** 2) + y_path_vec[-1]
 
     path_vec = np.empty((x_path_vec.size + y_path_vec.size,), dtype=x_path_vec.dtype)
     path_vec_max = np.empty((x_path_vec_max.size + y_path_vec_max.size,), dtype=x_path_vec_max.dtype)
