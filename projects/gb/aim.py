@@ -113,10 +113,16 @@ def calculate_power_boomer(reverse):
     w_x = w_f*w_p*math.cos(w_a)
     v_y_l = -math.sqrt((2*(y_2 - y_max)) * (g_f - w_y))
     boom_ang = BOOMER_ANG_FORWARD + w_x + w_y
+    if x_1 > x_2:
+        boom_ang = BOOMER_ANG_FORWARD - w_x + w_y
+
     v_x_l_ref = math.tan((BOOMER_ANG_FORWARD / 180) * math.pi)  * v_y_l
     v_x_l = math.tan((boom_ang / 180) * math.pi)  * v_y_l
+
     if reverse:
         boom_ang = BOOMER_ANG_REV - w_x + w_y
+        if x_1 > x_2:
+            boom_ang = BOOMER_ANG_REV + w_x + w_y
         v_y_l = -math.sqrt((2*(y_2 - y_max)) * (g_f - w_y))
         v_x_l_ref = -math.tan((BOOMER_ANG_REV / 180) * math.pi)  * v_y_l
         v_x_l = -math.tan((boom_ang / 180) * math.pi)  * v_y_l
