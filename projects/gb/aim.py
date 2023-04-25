@@ -18,13 +18,14 @@ root.resizable(False,False)
 root.lift()
 root.wm_attributes("-topmost", True)
 root.attributes('-alpha', 0.75)
-root.geometry("+10+10")
+root.geometry("+400+300")
 root.wm_attributes('-transparentcolor', '#60b26c')
 
 MENU_HEIGHT = 100
 GB_WIDTH = 1280
 GB_HEIGHT = 800 #720
-BOOMER_ANG = 45
+BOOMER_ANG_REV = 35
+BOOMER_ANG_FORWARD = 45
 
 __SET_STATE=None
 __CANVAS = None
@@ -46,7 +47,7 @@ __var_y_1 = tk.DoubleVar()
 __var_x_2 = tk.DoubleVar()
 __var_y_2 = tk.DoubleVar()
 __var_y_max = tk.DoubleVar()
-__var_wf = tk.DoubleVar(value=2)
+__var_wf = tk.DoubleVar(value=1.33)
 __var_gf = tk.DoubleVar(value=98)
 __var_pf = tk.DoubleVar()
 __var_shot_type = tk.StringVar(value="normal")
@@ -104,15 +105,16 @@ def calculate_power_boomer(reverse):
 
     # line segment
     # v = sqrt(2*y_max * (g-wy))
-    v = -math.sqrt((2*(y_2 - y_max)) * (g_f - w_f*w_p*math.sin(w_a)))
+
+    v_y_l = -math.sqrt((2*(y_2 - y_max)) * (g_f - w_f*w_p*math.sin(w_a)))
+    v_x_l = math.tan((BOOMER_ANG_FORWARD / 180) * math.pi)  * v_y_l
+    if reverse:
+        v_y_l = -math.sqrt((2*(y_2 - y_max)) * (g_f - w_f*w_p*math.sin(w_a)))
+        v_x_l = -math.tan((BOOMER_ANG_REV / 180) * math.pi)  * v_y_l
 
     # y_2 = y_max + vt + 1/2wt^2
-    t_max = (-v + math.sqrt(v**2 + 2*(y_2 - y_max)*(g_f - w_f*w_p*math.sin(w_a)))) / (g_f - w_f*w_p*math.sin(w_a))
-    if reverse:
-        t_max = (-v - math.sqrt(v**2 + 2*(y_max - y_2) *(g_f - w_f*w_p*math.sin(w_a)))) / (g_f - w_f*w_p*math.sin(w_a))
-    x_max = x_2 + v*t_max - 0.5*w_f*w_p*math.cos(w_a)*(t_max ** 2)
-    if reverse:
-        x_max = x_2 - v*t_max - 0.5*w_f*w_p*math.cos(w_a)*(t_max ** 2)
+    t_max = (v_y_l + math.sqrt(v_y_l**2 + 2*(y_2 - y_max)*(g_f - w_f*w_p*math.sin(w_a)))) / (g_f - w_f*w_p*math.sin(w_a))
+    x_max = x_2 + v_x_l*t_max - 0.5*w_f*w_p*math.cos(w_a)*(t_max ** 2)
 
     # quadratic segment
     y_w = y_max - y_1
@@ -121,18 +123,16 @@ def calculate_power_boomer(reverse):
     t_w = -v_y / (g_f - w_f*w_p*math.sin(w_a))
     v_x = (x_w - 0.5*w_p*w_f*math.cos(w_a) * (t_w**2)) / t_w
 
+    t_a = -v_y / g_f
+
     # aim vec
-    t_vec = np.linspace(0, t_w, num=100, endpoint=True)
+    t_vec = np.linspace(0, t_a, num=100, endpoint=True)
     t_vec_max = np.linspace(0, t_max, num=100, endpoint=True)
 
     x_aim_vec = v_x * t_vec + x_1
-    x_aim_vec_max = -v * t_vec_max + x_aim_vec[-1]
-    if reverse:
-        x_aim_vec_max = v * t_vec_max + x_aim_vec[-1]
+    x_aim_vec_max = -v_x_l * t_vec_max + x_aim_vec[-1]
     y_aim_vec = v_y * t_vec + 0.5 * g_f * (t_vec ** 2) + y_1
-    y_aim_vec_max = -v * t_vec_max + 0.5 * g_f * (t_vec_max ** 2) + y_aim_vec[-1]
-    if reverse:
-        y_aim_vec_max = -v * t_vec_max + 0.5 * g_f * (t_vec_max ** 2) + y_aim_vec[-1]
+    y_aim_vec_max = -v_y_l * t_vec_max + 0.5 * g_f * (t_vec_max ** 2) + y_aim_vec[-1]
 
     line_vec = np.empty((x_aim_vec.size + y_aim_vec.size,), dtype=x_aim_vec.dtype)
     line_vec[0::2] = x_aim_vec
@@ -145,17 +145,16 @@ def calculate_power_boomer(reverse):
     __PARABOLA_AIM = __CANVAS.create_line(*line_vec, *line_vec_max, fill='green')
     __YMAX_AIM_LINE = __CANVAS.create_line(0, y_1 - 0.5 * v_y**2 / g_f, GB_WIDTH, y_1 - 0.5 * v_y**2 / g_f, fill='yellow')
 
-    print(f"v={v},t_max={t_max},t_w={t_w},v_x={v_x},v_y={v_y},x_max={x_max},y_max={y_max}")
+    print(f"v_x_l={v_x_l},v_y_l={v_y_l},t_max={t_max},t_w={t_w},v_x={v_x},v_y={v_y},x_max={x_max},y_max={y_max}")
 
     # actual path
+    t_vec = np.linspace(0, t_w, num=100, endpoint=True)
+    t_vec_max = np.linspace(0, t_max, num=100, endpoint=True)
+
     x_path_vec = v_x * t_vec + 0.5*w_f*w_p*math.cos(w_a)*(t_vec ** 2) + x_1
-    x_path_vec_max = -v * t_vec_max + 0.5*w_f*w_p*math.cos(w_a)*(t_vec_max ** 2) + x_max
-    if reverse:
-        x_path_vec_max = v * t_vec_max + 0.5*w_f*w_p*math.cos(w_a)*(t_vec_max ** 2) + x_max
+    x_path_vec_max = -v_x_l * t_vec_max + 0.5*w_f*w_p*math.cos(w_a)*(t_vec_max ** 2) + x_max
     y_path_vec = v_y * t_vec + 0.5*(g_f - w_f*w_p*math.sin(w_a))*(t_vec ** 2) + y_1
-    y_path_vec_max = -v * t_vec_max + 0.5*(g_f - w_f*w_p*math.sin(w_a))*(t_vec_max ** 2) + y_path_vec[-1]
-    if reverse:
-        y_path_vec_max = -v * t_vec_max + 0.5*(g_f - w_f*w_p*math.sin(w_a))*(t_vec_max ** 2) + y_path_vec[-1]
+    y_path_vec_max = -v_y_l * t_vec_max + 0.5*(g_f - w_f*w_p*math.sin(w_a))*(t_vec_max ** 2) + y_path_vec[-1]
 
     path_vec = np.empty((x_path_vec.size + y_path_vec.size,), dtype=x_path_vec.dtype)
     path_vec_max = np.empty((x_path_vec_max.size + y_path_vec_max.size,), dtype=x_path_vec_max.dtype)
@@ -168,6 +167,8 @@ def calculate_power_boomer(reverse):
     __CROSSHAIR_X = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill='green')
     __CROSSHAIR_Y = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill='green')
     __CROSSHAIR_CIRCLE = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline='green', width=2)
+
+    __CANVAS["background"] = "#60b26c"
 
     # 1: vy = vx
     # 1: y2 = vy t + 1/2 (g - w) t^2
@@ -255,6 +256,7 @@ def calculate_power_normal():
     __CROSSHAIR_Y = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill='green')
     __CROSSHAIR_CIRCLE = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline='green', width=2)
 
+    __CANVAS["background"] = "#60b26c"
     
 # 1: y_max = vy t + 1/2 (g - w) t^2 => t = vy / (g - w) ---> sqrt (2 y_max * (g - wy)) = vsin(theta)
 # 2: x_max = vx t + 1/2 w t^2
@@ -276,7 +278,7 @@ def calculate_wind_ang(x, y):
     if __WIND_LINE is not None:
         __CANVAS.delete(__WIND_LINE)
     x_mid = GB_WIDTH / 2
-    y_mid = 50
+    y_mid = 45
 
     w_a_rad = 0
 
@@ -298,7 +300,7 @@ def calculate_wind_ang(x, y):
 
     print(f"setting w_a to {w_a_rad * 180 / math.pi}")
     __var_w_a.set(float(w_a_rad * 180 / math.pi))
-    __WIND_LINE = __CANVAS.create_line(GB_WIDTH / 2, 50, GB_WIDTH/2 + 40 * math.cos(w_a_rad), 50 - 40 * math.sin(w_a_rad), fill='green', width=2)
+    __WIND_LINE = __CANVAS.create_line(GB_WIDTH / 2, y_mid, GB_WIDTH/2 + 40 * math.cos(w_a_rad), y_mid - 40 * math.sin(w_a_rad), fill='green', width=2)
     __CANVAS["background"] = "#60b26c"
 
 
@@ -358,7 +360,7 @@ def overlay():
 
     # --- menu ---
     menu = ttk.Frame(content, borderwidth=1, relief="solid", width=GB_WIDTH, height=MENU_HEIGHT)
-    menu.grid(column=0, row=0, sticky="nsew")
+    menu.grid(column=0, row=0, padx=50, pady=20)
 
     ## set wind angle
     w_a = ttk.Frame(menu, borderwidth=1, relief="solid", height=MENU_HEIGHT)
@@ -454,8 +456,8 @@ def overlay():
 
     ## wind circle overlay
     canvas = tk.Canvas(gunbound, width=GB_WIDTH, height=GB_HEIGHT, background='#60b26c', borderwidth=1, relief="solid")
-    canvas.create_oval(GB_WIDTH/2-40, 10, GB_WIDTH/2+40, 90, outline='blue', width=4)
-    canvas.create_line(0, 50, GB_WIDTH, 50, fill='red')
+    canvas.create_oval(GB_WIDTH/2-40, 5, GB_WIDTH/2+40, 85, outline='blue', width=4)
+    canvas.create_line(0, 45, GB_WIDTH, 45, fill='red')
     canvas.create_line(GB_WIDTH / 2, 0, GB_WIDTH/2, GB_HEIGHT, fill='red')
     canvas.grid(column=0, row=0, sticky="nsew")
     canvas.bind("<Button-1>", canvas_on_click)
