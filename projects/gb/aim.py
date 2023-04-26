@@ -142,6 +142,8 @@ def reset():
     __var_shot_type.set("normal")
     __var_shot_type_2.set("normal")
 
+    __CANVAS.delete("aim_lines")
+
 
 def set_state(state):
     global __SET_STATE
