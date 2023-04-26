@@ -164,17 +164,28 @@ def calculate_power(tank, show_multiple=False):
     else: 
         shot_type = __var_shot_type_2.get()
         y_base = __var_y_2.get()
+    colors = ["#223C20", "#4C8D26", "#DE60CA", "#882380", "#D5FB00"]
+    i = 0
     if show_multiple:
-        for y in np.linspace(y_base - 100, y_base - 800, num=8, endpoint=True):
-            match shot_type:
-                case "normal":
-                    calculate_power_normal(tank, y, multiple=True)
-                case "boomer_s1":
-                    calculate_power_boomer(reverse=False, tank=tank, y_max=y, multiple=True)
-                case "boomer_s2":
-                    calculate_power_boomer(reverse=True, tank=tank, y_max=y, multiple=True)
-                case _:
-                    calculate_power_normal(tank, y_max=y, multiple=True)
+        for y in np.linspace(y_base - 100, y_base - 600, num=5, endpoint=True):
+            c = colors[i]
+            try:
+                match shot_type:
+                    case "normal":
+                        calculate_power_normal(tank, y, multiple=True, color=c)
+                    case "boomer_s1":
+                        calculate_power_boomer(reverse=False, tank=tank, y_max=y, multiple=True, color=c)
+                    case "boomer_s2":
+                        calculate_power_boomer(reverse=True, tank=tank, y_max=y, multiple=True, color=c)
+                    case _:
+                        calculate_power_normal(tank, y_max=y, multiple=True, color=c)
+            except ValueError as e:
+                print(e)
+                continue
+            i += 1
+        if shot_type == "boomer_s2":
+            calculate_power_boomer(reverse=True, tank=tank, y_max=y_base-800, multiple=True, color="blue")
+
     else:
         match shot_type:
             case "normal":
@@ -187,7 +198,7 @@ def calculate_power(tank, show_multiple=False):
                 calculate_power_normal(tank)
 
 
-def calculate_power_boomer(reverse, tank=1, y_max=None, multiple=False):
+def calculate_power_boomer(reverse, tank=1, y_max=None, multiple=False, color="green"):
     global __CANVAS
 
     global __PARABOLA_AIM
@@ -303,9 +314,9 @@ def calculate_power_boomer(reverse, tank=1, y_max=None, multiple=False):
     line_vec_max[1::2] = y_aim_vec_max
 
     if tank == 1:
-        __PARABOLA_AIM = __CANVAS.create_line(*line_vec, *line_vec_max, fill='green', tags=("aim_lines"))
+        __PARABOLA_AIM = __CANVAS.create_line(*line_vec, *line_vec_max, fill=color, tags=("aim_lines"), width=2)
     else:
-        __PARABOLA_AIM_2 = __CANVAS.create_line(*line_vec, *line_vec_max, fill='blue', tags=("aim_lines"))
+        __PARABOLA_AIM_2 = __CANVAS.create_line(*line_vec, *line_vec_max, fill='blue', tags=("aim_lines"), width=2)
 
     print(f"v_x_l={v_x_l},v_y_l={v_y_l},t_max={t_max},t_w={t_w},v_x={v_x},v_y={v_y},x_max={x_max},y_max={y_max}")
 
@@ -327,8 +338,8 @@ def calculate_power_boomer(reverse, tank=1, y_max=None, multiple=False):
 
     if tank == 1:
         __PARABOLA_WIND = __CANVAS.create_line(*path_vec, *path_vec_max, fill='yellow', dash=(4,2), tags=("aim_lines"))
-        __CROSSHAIR_X = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill='green', tags=("aim_lines"))
-        __CROSSHAIR_Y = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill='green', tags=("aim_lines"))
+        __CROSSHAIR_X = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill=color, tags=("aim_lines"))
+        __CROSSHAIR_Y = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill=color, tags=("aim_lines"))
         __CROSSHAIR_CIRCLE = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline='green', width=2, tags=("aim_lines"))
     else:
         __PARABOLA_WIND_2 = __CANVAS.create_line(*path_vec, *path_vec_max, fill='magenta', dash=(4,2), tags=("aim_lines"))
@@ -355,7 +366,7 @@ def calculate_power_boomer(reverse, tank=1, y_max=None, multiple=False):
     # (x_w - 1/2 w t^2) / t = vx
 
 
-def calculate_power_normal(tank, y_max=None, multiple=False):
+def calculate_power_normal(tank, y_max=None, multiple=False, color="green"):
     global __CANVAS
     global __PARABOLA_AIM
     global __PARABOLA_WIND
@@ -415,9 +426,9 @@ def calculate_power_normal(tank, y_max=None, multiple=False):
     line_vec[1::2] = y_aim_vec
 
     if tank == 1:
-        __PARABOLA_AIM = __CANVAS.create_line(*line_vec, fill='green', tags=("aim_lines"))
+        __PARABOLA_AIM = __CANVAS.create_line(*line_vec, fill=color, tags=("aim_lines"), width=2)
     else: # tank = 2
-        __PARABOLA_AIM_2 = __CANVAS.create_line(*line_vec, fill='blue')
+        __PARABOLA_AIM_2 = __CANVAS.create_line(*line_vec, fill='blue', width=2)
 
     # actual path
     x_path_vec = v_x * t_vec + 0.5*w_f*w_p*math.cos(w_a)*(t_vec ** 2) + x_1
@@ -429,9 +440,9 @@ def calculate_power_normal(tank, y_max=None, multiple=False):
 
     if tank == 1:
         __PARABOLA_WIND = __CANVAS.create_line(*line_vec, fill='yellow', dash=(4,2), tags=("aim_lines"))
-        __CROSSHAIR_X = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill='green', tags=("aim_lines"))
-        __CROSSHAIR_Y = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill='green', tags=("aim_lines"))
-        __CROSSHAIR_CIRCLE = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline='green', width=2, tags=("aim_lines"))
+        __CROSSHAIR_X = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill=color, tags=("aim_lines"))
+        __CROSSHAIR_Y = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill=color, tags=("aim_lines"))
+        __CROSSHAIR_CIRCLE = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline=color, width=2, tags=("aim_lines"))
     else:
         __PARABOLA_WIND_2 = __CANVAS.create_line(*line_vec, fill='magenta', dash=(4,2), tags=("aim_lines"))
         __CROSSHAIR_X_2 = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill='blue', tags=("aim_lines"))
@@ -542,14 +553,19 @@ def canvas_on_click(event):
     match __SET_STATE:
         case "w_a":
             calculate_wind_ang(event.x, event.y)
+            calculate_power(tank=1)
         case "base_1":
             draw_base(event.x, event.y, tank=1)
+            calculate_power(tank=1)
         case "target_1":
             draw_target(event.x, event.y, tank=1)
+            calculate_power(tank=1)
         case "base_2":
             draw_base(event.x, event.y, tank=2)
+            calculate_power(tank=1)
         case "target_2":
             draw_target(event.x, event.y, tank=2)
+            calculate_power(tank=1)
         case "y_max":
             draw_ymax(event.x, event.y)
         case _:
@@ -671,6 +687,7 @@ def overlay():
     canvas.create_oval(GB_WIDTH/2-40, 5, GB_WIDTH/2+40, 85, outline='blue', width=4)
     canvas.create_line(0, 45, GB_WIDTH, 45, fill='red')
     canvas.create_line(GB_WIDTH / 2, 0, GB_WIDTH/2, GB_HEIGHT, fill='red')
+    canvas.create_rectangle(GB_WIDTH/2-20, GB_HEIGHT/2-20, GB_WIDTH/2+20, GB_HEIGHT/2+20, fill='green')
     canvas.grid(column=0, row=0, sticky="nsew")
     canvas.bind("<Button-1>", canvas_on_click)
 
@@ -698,25 +715,30 @@ def on_key_release(event):
     if event.char == 'C':
         calculate_power(2)
     if event.char == 'n':
-        __cbox_shot_type.current((__cbox_shot_type.current() + 1) % 3)
-    if event.char == 'N':
-        __cbox_shot_type_2.current((__cbox_shot_type_2.current() + 1) % 3)
+        __var_shot_type.set("normal")
+        calculate_power(1)
+    if event.char == 'm':
+        __var_shot_type.set("boomer_s1")
+        calculate_power(1)
+    if event.char == 'M':
+        __var_shot_type.set("boomer_s2")
+        calculate_power(1)
 
     global __SET_STATE
     global __var_w_p
     if __SET_STATE == 'w_p' and event.char != 's':
-        if event.char == "+":
-            __var_w_p.set(float(__var_w_p.get() + 1))
-        elif event.char == "-":
-            __var_w_p.set(float(__var_w_p.get() - 1))
-        elif event.char == "!":
+        if event.char == "!":
             __var_w_p.set(10.0)
+            calculate_power(1)
         elif event.char == "@":
             __var_w_p.set(11.0)
+            calculate_power(1)
         elif event.char == "#":
             __var_w_p.set(12.0)
+            calculate_power(1)
         elif int(event.char) >= 0 and int(event.char) <=9:
             __var_w_p.set(event.char)
+            calculate_power(1)
 
         __CANVAS["background"] = "#60b26c"
         __SET_STATE = None
