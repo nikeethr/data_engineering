@@ -22,10 +22,10 @@ root.geometry("+400+300")
 root.wm_attributes('-transparentcolor', '#60b26c')
 
 MENU_HEIGHT = 100
-GB_WIDTH = 1280
-GB_HEIGHT = 800 #720
+GB_WIDTH = 1440 # 1280
+GB_HEIGHT = 900 #720 # 900
 BOOMER_ANG_REV = 35
-BOOMER_ANG_FORWARD = 47
+BOOMER_ANG_FORWARD = 45
 
 __CANVAS = None
 __SET_STATE=None
@@ -66,6 +66,10 @@ __var_gf = tk.DoubleVar(value=98)
 __var_pf = tk.DoubleVar()
 __var_shot_type = tk.StringVar(value="normal")
 __var_shot_type_2 = tk.StringVar(value="boomer_s2")
+
+__cbox_shot_type = None
+__cbox_shot_type_2 = None
+__dummy_button = None
 
  
 def reset():
@@ -148,23 +152,40 @@ def set_state(state):
 
 # TODO: boomer
 
-def calculate_power(tank):
+def calculate_power(tank, show_multiple=False):
+    show_multiple=True
+    global __CANVAS
+    __CANVAS.delete("aim_lines")
     if tank == 1:
         shot_type = __var_shot_type.get()
+        y_base = __var_y_1.get()
     else: 
         shot_type = __var_shot_type_2.get()
-    match shot_type:
-        case "normal":
-            calculate_power_normal(tank)
-        case "boomer_s1":
-            calculate_power_boomer(reverse=False, tank=tank)
-        case "boomer_s2":
-            calculate_power_boomer(reverse=True, tank=tank)
-        case _:
-            calculate_power_normal(tank)
+        y_base = __var_y_2.get()
+    if show_multiple:
+        for y in np.linspace(y_base - 100, y_base - 800, num=8, endpoint=True):
+            match shot_type:
+                case "normal":
+                    calculate_power_normal(tank, y, multiple=True)
+                case "boomer_s1":
+                    calculate_power_boomer(reverse=False, tank=tank, y_max=y, multiple=True)
+                case "boomer_s2":
+                    calculate_power_boomer(reverse=True, tank=tank, y_max=y, multiple=True)
+                case _:
+                    calculate_power_normal(tank, y_max=y, multiple=True)
+    else:
+        match shot_type:
+            case "normal":
+                calculate_power_normal(tank)
+            case "boomer_s1":
+                calculate_power_boomer(reverse=False, tank=tank)
+            case "boomer_s2":
+                calculate_power_boomer(reverse=True, tank=tank)
+            case _:
+                calculate_power_normal(tank)
 
 
-def calculate_power_boomer(reverse, tank=1):
+def calculate_power_boomer(reverse, tank=1, y_max=None, multiple=False):
     global __CANVAS
 
     global __PARABOLA_AIM
@@ -197,25 +218,8 @@ def calculate_power_boomer(reverse, tank=1):
         x_2 = float(__var_x_2_2.get())
         y_2 = float(__var_y_2_2.get())
 
-    y_max = float(__var_y_max.get())
-    y_max += 0.25 * (y_max - y_1) # extra weight because boomer needs high angle
-
-    if tank == 1:
-        if __PARABOLA_AIM is not None:
-            __CANVAS.delete(__PARABOLA_AIM)
-            __CANVAS.delete(__PARABOLA_WIND)
-            __CANVAS.delete(__YMAX_AIM_LINE)
-            __CANVAS.delete(__CROSSHAIR_Y)
-            __CANVAS.delete(__CROSSHAIR_X)
-            __CANVAS.delete(__CROSSHAIR_CIRCLE)
-    else: # tank == 2
-        if __PARABOLA_AIM_2 is not None:
-            __CANVAS.delete(__PARABOLA_AIM_2)
-            __CANVAS.delete(__PARABOLA_WIND_2)
-            __CANVAS.delete(__YMAX_AIM_LINE_2)
-            __CANVAS.delete(__CROSSHAIR_Y_2)
-            __CANVAS.delete(__CROSSHAIR_X_2)
-            __CANVAS.delete(__CROSSHAIR_CIRCLE_2)
+    if y_max is None:
+        y_max = float(__var_y_max.get())
 
     print(f"gf={g_f},wf={w_f},wa={w_a},wp={w_p},x1={x_1},y1={y_1},x2={x_2},y2={y_2},ymax={y_max}")
 
@@ -225,23 +229,46 @@ def calculate_power_boomer(reverse, tank=1):
     w_y = w_f*w_p*math.sin(w_a)
     w_x = w_f*w_p*math.cos(w_a)
     v_y_l = -math.sqrt((2*(y_2 - y_max)) * (g_f - w_y))
-    boom_ang = BOOMER_ANG_FORWARD + w_x + w_y
-    if x_1 > x_2:
-        boom_ang = BOOMER_ANG_FORWARD - w_x / w_f + w_y / w_f
+    v_y_l_ref = -math.sqrt((2*(y_2 - y_max)) * (g_f))
 
-    v_x_l_ref = math.tan((BOOMER_ANG_FORWARD / 180) * math.pi)  * v_y_l
-    v_x_l = math.tan((boom_ang / 180) * math.pi)  * v_y_l
+    SLAP_FACTOR = 2
+
+    boom_ang_x = math.sin((BOOMER_ANG_FORWARD / 180) * math.pi)
+    boom_ang_y = math.cos((BOOMER_ANG_FORWARD / 180) * math.pi)
+    boom_ang_x += SLAP_FACTOR * w_x / g_f
+    boom_ang_y -= SLAP_FACTOR * w_y / g_f
+    boom_ang = math.atan(boom_ang_x / boom_ang_y)
+    if x_1 > x_2:
+        boom_ang_x = math.sin((BOOMER_ANG_FORWARD / 180) * math.pi)
+        boom_ang_y = math.cos((BOOMER_ANG_FORWARD / 180) * math.pi)
+        boom_ang_x -= SLAP_FACTOR * w_x / g_f
+        boom_ang_y -= SLAP_FACTOR * w_y / g_f 
+        boom_ang = math.atan(boom_ang_x / boom_ang_y)
+
+    v_x_l_ref = math.tan((BOOMER_ANG_FORWARD / 180) * math.pi)  * v_y_l_ref
+    v_x_l = math.tan(boom_ang)  * v_y_l
 
     if reverse:
-        boom_ang = BOOMER_ANG_REV - w_x / w_f + w_y / w_f
+        boom_ang_x = math.sin((BOOMER_ANG_REV / 180) * math.pi)
+        boom_ang_y = math.cos((BOOMER_ANG_REV / 180) * math.pi)
+        boom_ang_x -= SLAP_FACTOR * w_x / g_f
+        boom_ang_y -= SLAP_FACTOR * w_y / g_f
+        boom_ang = math.atan(boom_ang_x / boom_ang_y)
         if x_1 > x_2:
-            boom_ang = BOOMER_ANG_REV + w_x + w_y
+            boom_ang_x = math.sin((BOOMER_ANG_REV / 180) * math.pi)
+            boom_ang_y = math.cos((BOOMER_ANG_REV / 180) * math.pi)
+            boom_ang_x += SLAP_FACTOR * w_x / g_f
+            boom_ang_y -= SLAP_FACTOR * w_y / g_f
+            boom_ang = math.atan(boom_ang_x / boom_ang_y)
         v_y_l = -math.sqrt((2*(y_2 - y_max)) * (g_f - w_y))
-        v_x_l_ref = -math.tan((BOOMER_ANG_REV / 180) * math.pi)  * v_y_l
-        v_x_l = -math.tan((boom_ang / 180) * math.pi)  * v_y_l
+        v_y_l_ref = -math.sqrt((2*(y_2 - y_max)) * (g_f))
+        v_x_l_ref = -math.tan((BOOMER_ANG_REV / 180) * math.pi)  * v_y_l_ref
+        v_x_l = -math.tan(boom_ang)  * v_y_l
     if x_1 > x_2:
         v_x_l *= -1
         v_x_l_ref *= -1
+
+    print(f"boom_ang={180*boom_ang/math.pi}")
         
     # y_2 = y_max + vt + 1/2wt^2
     t_max = (v_y_l + math.sqrt(v_y_l**2 + 2*(y_2 - y_max)*(g_f + w_y))) / (g_f + w_y)
@@ -263,7 +290,7 @@ def calculate_power_boomer(reverse, tank=1):
     x_aim_vec = v_x * t_vec + x_1
     x_aim_vec_max = -v_x_l_ref * t_vec_max + x_aim_vec[-1]
     y_aim_vec = v_y * t_vec + 0.5 * g_f * (t_vec ** 2) + y_1
-    y_aim_vec_max = -v_y_l * t_vec_max + 0.5 * g_f * (t_vec_max ** 2) + y_aim_vec[-1]
+    y_aim_vec_max = -v_y_l_ref * t_vec_max + 0.5 * g_f * (t_vec_max ** 2) + y_aim_vec[-1]
 
     line_vec = np.empty((x_aim_vec.size + y_aim_vec.size,), dtype=x_aim_vec.dtype)
     line_vec[0::2] = x_aim_vec
@@ -274,11 +301,9 @@ def calculate_power_boomer(reverse, tank=1):
     line_vec_max[1::2] = y_aim_vec_max
 
     if tank == 1:
-        __PARABOLA_AIM = __CANVAS.create_line(*line_vec, *line_vec_max, fill='green')
-        __YMAX_AIM_LINE = __CANVAS.create_line(0, y_1 - 0.5 * v_y**2 / g_f, GB_WIDTH, y_1 - 0.5 * v_y**2 / g_f, fill='yellow')
+        __PARABOLA_AIM = __CANVAS.create_line(*line_vec, *line_vec_max, fill='green', tags=("aim_lines"))
     else:
-        __PARABOLA_AIM_2 = __CANVAS.create_line(*line_vec, *line_vec_max, fill='blue')
-        __YMAX_AIM_LINE_2 = __CANVAS.create_line(0, y_1 - 0.5 * v_y**2 / g_f, GB_WIDTH, y_1 - 0.5 * v_y**2 / g_f, fill='magenta')
+        __PARABOLA_AIM_2 = __CANVAS.create_line(*line_vec, *line_vec_max, fill='blue', tags=("aim_lines"))
 
     print(f"v_x_l={v_x_l},v_y_l={v_y_l},t_max={t_max},t_w={t_w},v_x={v_x},v_y={v_y},x_max={x_max},y_max={y_max}")
 
@@ -299,15 +324,15 @@ def calculate_power_boomer(reverse, tank=1):
     path_vec_max[1::2] = y_path_vec_max
 
     if tank == 1:
-        __PARABOLA_WIND = __CANVAS.create_line(*path_vec, *path_vec_max, fill='yellow', dash=(4,2))
-        __CROSSHAIR_X = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill='green')
-        __CROSSHAIR_Y = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill='green')
-        __CROSSHAIR_CIRCLE = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline='green', width=2)
+        __PARABOLA_WIND = __CANVAS.create_line(*path_vec, *path_vec_max, fill='yellow', dash=(4,2), tags=("aim_lines"))
+        __CROSSHAIR_X = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill='green', tags=("aim_lines"))
+        __CROSSHAIR_Y = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill='green', tags=("aim_lines"))
+        __CROSSHAIR_CIRCLE = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline='green', width=2, tags=("aim_lines"))
     else:
-        __PARABOLA_WIND_2 = __CANVAS.create_line(*path_vec, *path_vec_max, fill='magenta', dash=(4,2))
-        __CROSSHAIR_X_2 = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill='blue')
-        __CROSSHAIR_Y_2 = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill='blue')
-        __CROSSHAIR_CIRCLE_2 = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline='blue', width=2)
+        __PARABOLA_WIND_2 = __CANVAS.create_line(*path_vec, *path_vec_max, fill='magenta', dash=(4,2), tags=("aim_lines"))
+        __CROSSHAIR_X_2 = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill='blue', tags=("aim_lines"))
+        __CROSSHAIR_Y_2 = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill='blue', tags=("aim_lines"))
+        __CROSSHAIR_CIRCLE_2 = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline='blue', width=2, tags=("aim_lines"))
 
     __CANVAS["background"] = "#60b26c"
 
@@ -328,7 +353,7 @@ def calculate_power_boomer(reverse, tank=1):
     # (x_w - 1/2 w t^2) / t = vx
 
 
-def calculate_power_normal(tank):
+def calculate_power_normal(tank, y_max=None, multiple=False):
     global __CANVAS
     global __PARABOLA_AIM
     global __PARABOLA_WIND
@@ -349,24 +374,9 @@ def calculate_power_normal(tank):
     w_f = float(__var_wf.get())
     w_a = (float(__var_w_a.get()) / 180) * math.pi
     w_p = float(__var_w_p.get())
-    y_max = float(__var_y_max.get())
 
-    if tank == 1:
-        if __PARABOLA_AIM is not None:
-            __CANVAS.delete(__PARABOLA_AIM)
-            __CANVAS.delete(__PARABOLA_WIND)
-            __CANVAS.delete(__YMAX_AIM_LINE)
-            __CANVAS.delete(__CROSSHAIR_Y)
-            __CANVAS.delete(__CROSSHAIR_X)
-            __CANVAS.delete(__CROSSHAIR_CIRCLE)
-    else: # tank == 2
-        if __PARABOLA_AIM_2 is not None:
-            __CANVAS.delete(__PARABOLA_AIM_2)
-            __CANVAS.delete(__PARABOLA_WIND_2)
-            __CANVAS.delete(__YMAX_AIM_LINE_2)
-            __CANVAS.delete(__CROSSHAIR_Y_2)
-            __CANVAS.delete(__CROSSHAIR_X_2)
-            __CANVAS.delete(__CROSSHAIR_CIRCLE_2)
+    if y_max is None:
+        y_max = float(__var_y_max.get())
 
     if tank == 1:
         x_1 = float(__var_x_1.get())
@@ -403,11 +413,9 @@ def calculate_power_normal(tank):
     line_vec[1::2] = y_aim_vec
 
     if tank == 1:
-        __PARABOLA_AIM = __CANVAS.create_line(*line_vec, fill='green')
-        __YMAX_AIM_LINE = __CANVAS.create_line(0, y_1 - 0.5 * v_y**2 / g_f, GB_WIDTH, y_1 - 0.5 * v_y**2 / g_f, fill='yellow')
+        __PARABOLA_AIM = __CANVAS.create_line(*line_vec, fill='green', tags=("aim_lines"))
     else: # tank = 2
         __PARABOLA_AIM_2 = __CANVAS.create_line(*line_vec, fill='blue')
-        __YMAX_AIM_LINE_2 = __CANVAS.create_line(0, y_1 - 0.5 * v_y**2 / g_f, GB_WIDTH, y_1 - 0.5 * v_y**2 / g_f, fill='magenta')
 
     # actual path
     x_path_vec = v_x * t_vec + 0.5*w_f*w_p*math.cos(w_a)*(t_vec ** 2) + x_1
@@ -418,15 +426,15 @@ def calculate_power_normal(tank):
     line_vec[1::2] = y_path_vec
 
     if tank == 1:
-        __PARABOLA_WIND = __CANVAS.create_line(*line_vec, fill='yellow', dash=(4,2))
-        __CROSSHAIR_X = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill='green')
-        __CROSSHAIR_Y = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill='green')
-        __CROSSHAIR_CIRCLE = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline='green', width=2)
+        __PARABOLA_WIND = __CANVAS.create_line(*line_vec, fill='yellow', dash=(4,2), tags=("aim_lines"))
+        __CROSSHAIR_X = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill='green', tags=("aim_lines"))
+        __CROSSHAIR_Y = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill='green', tags=("aim_lines"))
+        __CROSSHAIR_CIRCLE = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline='green', width=2, tags=("aim_lines"))
     else:
-        __PARABOLA_WIND_2 = __CANVAS.create_line(*line_vec, fill='magenta', dash=(4,2))
-        __CROSSHAIR_X_2 = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill='blue')
-        __CROSSHAIR_Y_2 = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill='blue')
-        __CROSSHAIR_CIRCLE_2 = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline='blue', width=2)
+        __PARABOLA_WIND_2 = __CANVAS.create_line(*line_vec, fill='magenta', dash=(4,2), tags=("aim_lines"))
+        __CROSSHAIR_X_2 = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill='blue', tags=("aim_lines"))
+        __CROSSHAIR_Y_2 = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill='blue', tags=("aim_lines"))
+        __CROSSHAIR_CIRCLE_2 = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline='blue', width=2, tags=("aim_lines"))
 
     __CANVAS["background"] = "#60b26c"
     
@@ -545,13 +553,14 @@ def canvas_on_click(event):
         case _:
             __CANVAS["background"] = "#60b26c"
     __SET_STATE = None
+    __dummy_button.focus()
 
 def overlay():
     global __SET_STATE
     global __CANVAS
 
     content = ttk.Frame(root, borderwidth=1, relief="solid", width=GB_WIDTH, height=(GB_HEIGHT+MENU_HEIGHT))
-    content.grid(column=0, row=0)
+    content.grid(column=0, row=0, padx=50, pady=20)
 
     # --- menu ---
     menu = ttk.Frame(content, borderwidth=1, relief="solid", width=GB_WIDTH, height=MENU_HEIGHT)
@@ -601,12 +610,14 @@ def overlay():
     ## select shot_type
     shot_type = ttk.Frame(menu, borderwidth=1, relief="solid", height=MENU_HEIGHT)
     shot_type.grid(column=5, row=0, rowspan=2, sticky="nsew")
-    shot_type_list = ttk.Combobox(shot_type, textvariable=__var_shot_type)
-    shot_type_list_2 = ttk.Combobox(shot_type, textvariable=__var_shot_type_2)
-    shot_type_list["values"] = ["normal", "boomer_s1", "boomer_s2"]
-    shot_type_list_2["values"] = ["normal", "boomer_s1", "boomer_s2"]
-    shot_type_list.grid(column=0, row=0, sticky="nsew")
-    shot_type_list_2.grid(column=0, row=1, sticky="nsew")
+    global __cbox_shot_type
+    __cbox_shot_type = ttk.Combobox(shot_type, textvariable=__var_shot_type)
+    global __cbox_shot_type_2
+    __cbox_shot_type_2 = ttk.Combobox(shot_type, textvariable=__var_shot_type_2)
+    __cbox_shot_type["values"] = ["normal", "boomer_s1", "boomer_s2"]
+    __cbox_shot_type_2["values"] = ["normal", "boomer_s1", "boomer_s2"]
+    __cbox_shot_type.grid(column=0, row=0, sticky="nsew")
+    __cbox_shot_type_2.grid(column=0, row=1, sticky="nsew")
 
     ## calculate
     calculate = ttk.Frame(menu, borderwidth=1, relief="solid", height=MENU_HEIGHT)
@@ -638,7 +649,12 @@ def overlay():
     gravity_factor_lab = ttk.Label(gravity_factor, text="gf", borderwidth=1, relief="solid")
     gravity_factor_lab.grid(column=0, row=0, sticky="nsew")
 
-
+    ## dummy button to take off focus
+    dummy = ttk.Frame(menu, borderwidth=1, relief="solid", height=MENU_HEIGHT)
+    dummy.grid(column=10, row=0, rowspan=2, sticky="nsew")
+    global __dummy_button
+    __dummy_button = ttk.Button(dummy, text='dummy')
+    __dummy_button.grid(sticky="nsew")
 
     ## ... TODO
 
@@ -679,6 +695,10 @@ def on_key_release(event):
         calculate_power(1)
     if event.char == 'C':
         calculate_power(2)
+    if event.char == 'n':
+        __cbox_shot_type.current((__cbox_shot_type.current() + 1) % 3)
+    if event.char == 'N':
+        __cbox_shot_type_2.current((__cbox_shot_type_2.current() + 1) % 3)
 
     global __SET_STATE
     global __var_w_p
@@ -698,6 +718,8 @@ def on_key_release(event):
 
         __CANVAS["background"] = "#60b26c"
         __SET_STATE = None
+
+    __dummy_button.focus()
 
 def main():
     root.title("gunbound_aim")
