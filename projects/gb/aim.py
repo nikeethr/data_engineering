@@ -76,9 +76,9 @@ __var_g_purple = tk.DoubleVar(value=1)
 __var_t_blue = tk.DoubleVar(value=0.9) # t_blue = 0.25 # trajectory continues and then flips
 __var_t_purple = tk.DoubleVar(value=3.8) # t_purple = 1 # trajectory is flipped (rather gravity is flipped (2 * g_f)
 __var_v_blue = tk.DoubleVar(value=98) # t_blue = 0.25 # trajectory continues and then flips
-__var_v_purple = tk.DoubleVar(value=102) # t_purple = 1 # trajectory is flipped (rather gravity is flipped (2 * g_f)
+__var_v_purple = tk.DoubleVar(value=98) # t_purple = 1 # trajectory is flipped (rather gravity is flipped (2 * g_f)
 __var_v_red = tk.DoubleVar(value=25)
-__var_ugwf = tk.DoubleVar(value=0.2) 
+__var_ugwf = tk.DoubleVar(value=0) 
 
  
 def reset():
@@ -221,7 +221,7 @@ def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
     # when trajectory is flipped backed again, v_y and v_x is always the same
     # and gravity is set back to normal
     v_x_red = -float(__var_v_red.get()) * 1
-    v_y_red = -float(__var_v_red.get()) * 4.35
+    v_y_red = -float(__var_v_red.get()) * 4.5
     # ---
 
     g_blue_factor = float(__var_g_blue.get())
@@ -261,10 +261,10 @@ def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
         # v_x is flipped
         v_x = -v_x
 
-    x_blue = v_x*t_vec_blue + 0.5*ugwf*w_x*(t_vec_blue**2) + x
-    y_blue = v_y*t_vec_blue + 0.5*(g_under_blue-w_y*ugwf)*(t_vec_blue**2) + y
+    x_blue = v_x*t_vec_blue + 0.5*0*w_x*(t_vec_blue**2) + x
+    y_blue = v_y*t_vec_blue + 0.5*(g_under_blue+w_y*ugwf)*(t_vec_blue**2) + y
 
-    v_x_purple = v_x + w_x*ugwf*t_vec_blue[-1]
+    v_x_purple = v_x + 0*w_x*ugwf*t_vec_blue[-1]
     v_y_purple = v_y + (g_under_blue-w_y*ugwf)*t_vec_blue[-1]
 
     mag_purple = math.sqrt(v_x_purple**2 + v_y_purple**2)
@@ -272,7 +272,7 @@ def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
     v_y_purple = (v_y_purple / mag_purple) * v_purple_factor
 
     # TODO add inertia on x when going under
-    x_purple = v_x_purple*t_vec_purple + 0.5*w_x*ugwf*(t_vec_purple**2) + x_blue[-1]
+    x_purple = v_x_purple*t_vec_purple + 0.5*w_x*0*(t_vec_purple**2) + x_blue[-1]
     y_purple = v_y_purple*t_vec_purple + 0.5*(g_under_purple-w_y*ugwf)*(t_vec_purple**2) + y_blue[-1]
 
     if reverse:
@@ -281,8 +281,9 @@ def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
     x2 = __var_x_2.get() 
     if x1 > x2:
         v_x_red = -v_x_red
-    x_red = v_x_red*t_vec_red + 0.5*w_x*(t_vec_red**2) + x_purple[-1]
-    y_red = v_y_red*t_vec_red + 0.5*(g_f-w_y)*(t_vec_red**2) + y_purple[-1]
+    RED_FUDGE = 1.1
+    x_red = v_x_red*t_vec_red + RED_FUDGE*0.5*w_x*(t_vec_red**2) + x_purple[-1]
+    y_red = v_y_red*t_vec_red + RED_FUDGE*0.5*(g_f-w_y)*(t_vec_red**2) + y_purple[-1]
 
     path_vec_blue = np.empty((x_blue.size + y_blue.size,), dtype=x_blue.dtype)
     path_vec_blue[0::2] = x_blue
