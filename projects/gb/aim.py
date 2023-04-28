@@ -18,7 +18,7 @@ root.overrideredirect(True)
 root.lift()
 root.wm_attributes("-topmost", True)
 root.attributes('-alpha', 0.75)
-root.geometry("+505+150")
+root.geometry("+507+150")
 root.wm_attributes('-transparentcolor', '#60b26c')
 
 MENU_HEIGHT = 100
@@ -77,8 +77,8 @@ __var_t_blue = tk.DoubleVar(value=0.9) # t_blue = 0.25 # trajectory continues an
 __var_t_purple = tk.DoubleVar(value=3.8) # t_purple = 1 # trajectory is flipped (rather gravity is flipped (2 * g_f)
 __var_v_blue = tk.DoubleVar(value=98) # t_blue = 0.25 # trajectory continues and then flips
 __var_v_purple = tk.DoubleVar(value=102) # t_purple = 1 # trajectory is flipped (rather gravity is flipped (2 * g_f)
-__var_v_red = tk.DoubleVar(value=25) 
-__var_ugwf = tk.DoubleVar(value=0) 
+__var_v_red = tk.DoubleVar(value=27.5) 
+__var_ugwf = tk.DoubleVar(value=0.5) 
 
  
 def reset():
@@ -221,7 +221,7 @@ def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
     # when trajectory is flipped backed again, v_y and v_x is always the same
     # and gravity is set back to normal
     v_x_red = -float(__var_v_red.get()) * 1
-    v_y_red = -float(__var_v_red.get()) * 4.6
+    v_y_red = -float(__var_v_red.get()) * 4.25
     # ---
 
     g_blue_factor = float(__var_g_blue.get())
@@ -276,8 +276,12 @@ def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
 
     if reverse:
         v_x_red = -v_x_red
-    x_red = v_x_red*t_vec_red + 0.5*w_x*(t_vec_red**2) + x_purple[-1]
-    y_red = v_y_red*t_vec_red + 0.5*(g_f-w_y)*(t_vec_red**2) + y_purple[-1]
+    x1 = __var_x_1.get() 
+    x2 = __var_x_2.get() 
+    if x1 > x2:
+        v_x_red = -v_x_red
+    x_red = v_x_red*t_vec_red + 0.5*w_x*(t_vec_red**2)/ugwf + x_purple[-1]
+    y_red = v_y_red*t_vec_red + 0.5*(g_f-w_y)*(t_vec_red**2)/ugwf + y_purple[-1]
 
     path_vec_blue = np.empty((x_blue.size + y_blue.size,), dtype=x_blue.dtype)
     path_vec_blue[0::2] = x_blue
