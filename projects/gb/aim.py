@@ -74,10 +74,10 @@ __dummy_button = None
 __var_g_blue = tk.DoubleVar(value=1)
 __var_g_purple = tk.DoubleVar(value=1)
 __var_t_blue = tk.DoubleVar(value=0.9) # t_blue = 0.25 # trajectory continues and then flips
-__var_t_purple = tk.DoubleVar(value=3.8) # t_purple = 1 # trajectory is flipped (rather gravity is flipped (2 * g_f)
-__var_v_blue = tk.DoubleVar(value=98) # t_blue = 0.25 # trajectory continues and then flips
+__var_t_purple = tk.DoubleVar(value=3.7) # t_purple = 1 # trajectory is flipped (rather gravity is flipped (2 * g_f)
+__var_v_blue = tk.DoubleVar(value=101) # t_blue = 0.25 # trajectory continues and then flips
 __var_v_purple = tk.DoubleVar(value=98) # t_purple = 1 # trajectory is flipped (rather gravity is flipped (2 * g_f)
-__var_v_red = tk.DoubleVar(value=25)
+__var_v_red = tk.DoubleVar(value=24)
 __var_ugwf = tk.DoubleVar(value=0) 
 
  
@@ -221,7 +221,7 @@ def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
     # when trajectory is flipped backed again, v_y and v_x is always the same
     # and gravity is set back to normal
     v_x_red = -float(__var_v_red.get()) * 1
-    v_y_red = -float(__var_v_red.get()) * 4.5
+    v_y_red = -float(__var_v_red.get()) * 4.6
     # ---
 
     g_blue_factor = float(__var_g_blue.get())
@@ -281,7 +281,7 @@ def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
     x2 = __var_x_2.get() 
     if x1 > x2:
         v_x_red = -v_x_red
-    RED_FUDGE = 1.1
+    RED_FUDGE = 1
     x_red = v_x_red*t_vec_red + RED_FUDGE*0.5*w_x*(t_vec_red**2) + x_purple[-1]
     y_red = v_y_red*t_vec_red + RED_FUDGE*0.5*(g_f-w_y)*(t_vec_red**2) + y_purple[-1]
 
