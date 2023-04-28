@@ -77,8 +77,8 @@ __var_t_blue = tk.DoubleVar(value=0.9) # t_blue = 0.25 # trajectory continues an
 __var_t_purple = tk.DoubleVar(value=3.8) # t_purple = 1 # trajectory is flipped (rather gravity is flipped (2 * g_f)
 __var_v_blue = tk.DoubleVar(value=98) # t_blue = 0.25 # trajectory continues and then flips
 __var_v_purple = tk.DoubleVar(value=102) # t_purple = 1 # trajectory is flipped (rather gravity is flipped (2 * g_f)
-__var_v_red = tk.DoubleVar(value=27.5) 
-__var_ugwf = tk.DoubleVar(value=0.5) 
+__var_v_red = tk.DoubleVar(value=25)
+__var_ugwf = tk.DoubleVar(value=0.2) 
 
  
 def reset():
@@ -221,7 +221,7 @@ def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
     # when trajectory is flipped backed again, v_y and v_x is always the same
     # and gravity is set back to normal
     v_x_red = -float(__var_v_red.get()) * 1
-    v_y_red = -float(__var_v_red.get()) * 4.25
+    v_y_red = -float(__var_v_red.get()) * 4.35
     # ---
 
     g_blue_factor = float(__var_g_blue.get())
@@ -271,6 +271,7 @@ def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
     v_x_purple = (v_x_purple / mag_purple) * v_purple_factor
     v_y_purple = (v_y_purple / mag_purple) * v_purple_factor
 
+    # TODO add inertia on x when going under
     x_purple = v_x_purple*t_vec_purple + 0.5*w_x*ugwf*(t_vec_purple**2) + x_blue[-1]
     y_purple = v_y_purple*t_vec_purple + 0.5*(g_under_purple-w_y*ugwf)*(t_vec_purple**2) + y_blue[-1]
 
@@ -280,8 +281,8 @@ def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
     x2 = __var_x_2.get() 
     if x1 > x2:
         v_x_red = -v_x_red
-    x_red = v_x_red*t_vec_red + 0.5*w_x*(t_vec_red**2)/ugwf + x_purple[-1]
-    y_red = v_y_red*t_vec_red + 0.5*(g_f-w_y)*(t_vec_red**2)/ugwf + y_purple[-1]
+    x_red = v_x_red*t_vec_red + 0.5*w_x*(t_vec_red**2) + x_purple[-1]
+    y_red = v_y_red*t_vec_red + 0.5*(g_f-w_y)*(t_vec_red**2) + y_purple[-1]
 
     path_vec_blue = np.empty((x_blue.size + y_blue.size,), dtype=x_blue.dtype)
     path_vec_blue[0::2] = x_blue
@@ -295,9 +296,36 @@ def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
     path_vec_red[0::2] = x_red
     path_vec_red[1::2] = y_red
 
-    __PARABOLA_WIND = __CANVAS.create_line(*path_vec_blue, fill='blue', dash=(4,2), tags=("aim_lines"))
-    __PARABOLA_WIND = __CANVAS.create_line(*path_vec_purple, fill='purple', dash=(4,2), tags=("aim_lines"))
-    __PARABOLA_WIND = __CANVAS.create_line(*path_vec_red, fill='red', dash=(4,2), tags=("aim_lines"))
+    __PARABOLA_WIND = __CANVAS.create_line(*path_vec_blue, fill='cyan', dash=(4,2), tags=("aim_lines"), width=2)
+    __PARABOLA_WIND = __CANVAS.create_line(*path_vec_purple, fill='magenta', dash=(4,2), tags=("aim_lines"), width=2)
+    __PARABOLA_WIND = __CANVAS.create_line(*path_vec_red, fill='red', dash=(4,2), tags=("aim_lines"), width=2)
+
+    # --- rest of this part is for SS
+
+    v_x *= 1.2
+    v_y *= 1.2
+    t_vec_blue_ss = t_vec_blue
+    x_blue_ss = v_x*t_vec_blue_ss + 0.5*ugwf*w_x*(t_vec_blue_ss**2) + x
+    y_blue_ss = v_y*t_vec_blue_ss + 0.5*(g_under_blue+w_y*ugwf)*(t_vec_blue_ss**2) + y
+    path_vec_blue_ss = np.empty((x_blue_ss.size + y_blue_ss.size,), dtype=x_blue.dtype)
+    path_vec_blue_ss[0::2] = x_blue_ss
+    path_vec_blue_ss[1::2] = y_blue_ss
+
+    v_x_purple_ss = v_x + w_x*ugwf*t_vec_blue_ss[-1]
+    v_y_purple_ss = v_y + (g_under_blue+w_y*ugwf)*t_vec_blue_ss[-1]
+    mag_purple_ss = math.sqrt(v_x_purple_ss**2 + v_y_purple_ss**2)
+    v_x_purple_ss = (v_x_purple / mag_purple) * v_purple_factor
+    v_y_purple_ss = (v_y_purple / mag_purple) * v_purple_factor
+
+    t_vec_purple_ss = t_vec_purple * 1.2
+    x_purple_ss = v_x_purple*t_vec_purple_ss + 0.5*w_x*ugwf*(t_vec_purple_ss**2) + x_blue_ss[-1]
+    y_purple_ss = v_y_purple*t_vec_purple_ss + 0.5*(g_under_purple+w_y*ugwf)*(t_vec_purple_ss**2) + y_blue_ss[-1]
+    path_vec_purple_ss = np.empty((x_purple_ss.size + y_purple_ss.size,), dtype=x_purple.dtype)
+    path_vec_purple_ss[0::2] = x_purple_ss
+    path_vec_purple_ss[1::2] = y_purple_ss
+
+    parabola_ss = __CANVAS.create_line(*path_vec_blue_ss, fill='orange', dash=(4,2), tags=("aim_lines"), width=2)
+    parabola_ss = __CANVAS.create_line(*path_vec_purple_ss, fill='darkorange', dash=(4,2), tags=("aim_lines"), width=2)
 
 
 def calculate_power_boomer(reverse, tank=1, y_max=None, multiple=False, color="green"):
