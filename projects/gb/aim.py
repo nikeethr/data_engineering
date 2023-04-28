@@ -14,11 +14,11 @@ from tkinter import ttk
 
 root = tk.Tk()
 root.resizable(False,False)
-# root.overrideredirect(True)
+root.overrideredirect(True)
 root.lift()
 root.wm_attributes("-topmost", True)
 root.attributes('-alpha', 0.75)
-root.geometry("+400+300")
+root.geometry("+505+150")
 root.wm_attributes('-transparentcolor', '#60b26c')
 
 MENU_HEIGHT = 100
@@ -49,7 +49,7 @@ __BASE_CIRCLE_2 = None
 __TARGET_CIRCLE_2 = None
 
 __var_w_a = tk.DoubleVar(value=0)
-__var_w_p = tk.DoubleVar()
+__var_w_p = tk.DoubleVar(value=0)
 __var_x_1 = tk.DoubleVar()
 __var_y_1 = tk.DoubleVar()
 __var_x_2 = tk.DoubleVar()
@@ -70,6 +70,15 @@ __var_shot_type_2 = tk.StringVar(value="boomer_s2")
 __cbox_shot_type = None
 __cbox_shot_type_2 = None
 __dummy_button = None
+
+__var_g_blue = tk.DoubleVar(value=1)
+__var_g_purple = tk.DoubleVar(value=1)
+__var_t_blue = tk.DoubleVar(value=0.9) # t_blue = 0.25 # trajectory continues and then flips
+__var_t_purple = tk.DoubleVar(value=3.8) # t_purple = 1 # trajectory is flipped (rather gravity is flipped (2 * g_f)
+__var_v_blue = tk.DoubleVar(value=98) # t_blue = 0.25 # trajectory continues and then flips
+__var_v_purple = tk.DoubleVar(value=102) # t_purple = 1 # trajectory is flipped (rather gravity is flipped (2 * g_f)
+__var_v_red = tk.DoubleVar(value=25) 
+__var_ugwf = tk.DoubleVar(value=0) 
 
  
 def reset():
@@ -134,7 +143,7 @@ def reset():
             __CANVAS.delete(i)
 
     __var_w_a.set(0)
-    __var_w_p.set(0)
+    __var_w_p.set(value=6)
 
     __var_y_max.set(150)
     __var_wf.set(1.2)
@@ -165,6 +174,8 @@ def calculate_power(tank, show_multiple=False):
         shot_type = __var_shot_type_2.get()
         y_base = __var_y_2.get()
     colors = ["#223C20", "#4C8D26", "#DE60CA", "#882380", "#D5FB00"]
+    if shot_type.startswith("dnak"):
+        show_multiple = False
     i = 0
     if show_multiple:
         for y in np.linspace(y_base - 100, y_base - 600, num=5, endpoint=True):
@@ -194,8 +205,95 @@ def calculate_power(tank, show_multiple=False):
                 calculate_power_boomer(reverse=False, tank=tank)
             case "boomer_s2":
                 calculate_power_boomer(reverse=True, tank=tank)
+            case "dnak_s2":
+                vx, vy, x, y = calculate_power_normal(tank=tank)
+                calculate_dnak_trajectory(vx, vy, x, y)
+            case "dnak_s2_flip":
+                vx, vy, x, y = calculate_power_normal(tank=tank)
+                calculate_dnak_trajectory(vx, vy, x, y, reverse=True)
             case _:
                 calculate_power_normal(tank)
+
+def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
+    # ---
+    # parameters to tune -- todo: add temporary inputs for these
+    t_red = 5 # make this long so it shows the path
+    # when trajectory is flipped backed again, v_y and v_x is always the same
+    # and gravity is set back to normal
+    v_x_red = -float(__var_v_red.get()) * 1
+    v_y_red = -float(__var_v_red.get()) * 4.6
+    # ---
+
+    g_blue_factor = float(__var_g_blue.get())
+    g_purple_factor = float(__var_g_purple.get())
+    v_blue_factor = float(__var_v_blue.get())
+    v_purple_factor = float(__var_v_purple.get())
+
+    t_blue = float(__var_t_blue.get()) # t_blue = 0.25 # trajectory continues and then flips
+    t_purple = float(__var_t_purple.get()) # t_purple = 1 # trajectory is flipped (rather gravity is flipped (2 * g_f)
+
+    g_f = float(__var_gf.get())
+    g_under_blue = g_blue_factor*g_f
+    g_under_purple = -g_purple_factor*g_f
+    w_f = float(__var_wf.get())
+    w_a = (float(__var_w_a.get()) / 180) * math.pi
+    w_p = float(__var_w_p.get())
+    w_y = w_f*w_p*math.sin(w_a)
+    w_x = w_f*w_p*math.cos(w_a)
+    ugwf = float(__var_ugwf.get()) # under ground wind factor
+
+    # reset v_y after hitting the ground
+    # v_y = 400
+    # proportionally adjust v_x
+    # v_x = vx / vy * 400
+
+    t_all = t_blue + t_purple + t_red
+    t_vec_blue = np.linspace(0, t_blue, num=10, endpoint=True)
+    t_vec_purple = np.linspace(0, t_purple, num=int((100/t_all)*t_purple), endpoint=True)
+    t_vec_red = np.linspace(0, t_red, num=int((100/t_all)*t_red), endpoint=True)
+
+    w_y = w_f*w_p*math.sin(w_a)
+    w_x = w_f*w_p*math.cos(w_a)
+
+    v_x = (vx / math.sqrt(vx**2 + vy**2)) * v_blue_factor
+    v_y = (vy / math.sqrt(vx**2 + vy**2)) * v_blue_factor
+    if reverse:
+        # v_x is flipped
+        v_x = -v_x
+
+    x_blue = v_x*t_vec_blue + 0.5*ugwf*w_x*(t_vec_blue**2) + x
+    y_blue = v_y*t_vec_blue + 0.5*(g_under_blue-w_y*ugwf)*(t_vec_blue**2) + y
+
+    v_x_purple = v_x + w_x*ugwf*t_vec_blue[-1]
+    v_y_purple = v_y + (g_under_blue-w_y*ugwf)*t_vec_blue[-1]
+
+    mag_purple = math.sqrt(v_x_purple**2 + v_y_purple**2)
+    v_x_purple = (v_x_purple / mag_purple) * v_purple_factor
+    v_y_purple = (v_y_purple / mag_purple) * v_purple_factor
+
+    x_purple = v_x_purple*t_vec_purple + 0.5*w_x*ugwf*(t_vec_purple**2) + x_blue[-1]
+    y_purple = v_y_purple*t_vec_purple + 0.5*(g_under_purple-w_y*ugwf)*(t_vec_purple**2) + y_blue[-1]
+
+    if reverse:
+        v_x_red = -v_x_red
+    x_red = v_x_red*t_vec_red + 0.5*w_x*(t_vec_red**2) + x_purple[-1]
+    y_red = v_y_red*t_vec_red + 0.5*(g_f-w_y)*(t_vec_red**2) + y_purple[-1]
+
+    path_vec_blue = np.empty((x_blue.size + y_blue.size,), dtype=x_blue.dtype)
+    path_vec_blue[0::2] = x_blue
+    path_vec_blue[1::2] = y_blue
+
+    path_vec_purple = np.empty((x_purple.size + y_purple.size,), dtype=x_purple.dtype)
+    path_vec_purple[0::2] = x_purple
+    path_vec_purple[1::2] = y_purple
+
+    path_vec_red = np.empty((x_red.size + y_red.size,), dtype=x_red.dtype)
+    path_vec_red[0::2] = x_red
+    path_vec_red[1::2] = y_red
+
+    __PARABOLA_WIND = __CANVAS.create_line(*path_vec_blue, fill='blue', dash=(4,2), tags=("aim_lines"))
+    __PARABOLA_WIND = __CANVAS.create_line(*path_vec_purple, fill='purple', dash=(4,2), tags=("aim_lines"))
+    __PARABOLA_WIND = __CANVAS.create_line(*path_vec_red, fill='red', dash=(4,2), tags=("aim_lines"))
 
 
 def calculate_power_boomer(reverse, tank=1, y_max=None, multiple=False, color="green"):
@@ -338,14 +436,14 @@ def calculate_power_boomer(reverse, tank=1, y_max=None, multiple=False, color="g
 
     if tank == 1:
         __PARABOLA_WIND = __CANVAS.create_line(*path_vec, *path_vec_max, fill='yellow', dash=(4,2), tags=("aim_lines"))
-        __CROSSHAIR_X = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill=color, tags=("aim_lines"))
-        __CROSSHAIR_Y = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill=color, tags=("aim_lines"))
-        __CROSSHAIR_CIRCLE = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline='green', width=2, tags=("aim_lines"))
+        __CROSSHAIR_X = __CANVAS.create_line(x_aim_vec_max[-1] - 5, y_aim_vec_max[-1], x_aim_vec_max[-1] + 5, y_aim_vec_max[-1], fill=color, tags=("aim_lines"))
+        __CROSSHAIR_Y = __CANVAS.create_line(x_aim_vec_max[-1], y_aim_vec_max[-1] - 5, x_aim_vec_max[-1], y_aim_vec_max[-1] + 5, fill=color, tags=("aim_lines"))
+        __CROSSHAIR_CIRCLE = __CANVAS.create_oval(x_aim_vec_max[-1]-5, y_aim_vec_max[-1]-5, x_aim_vec_max[-1]+5, y_aim_vec_max[-1]+5, outline=color, width=2, tags=("aim_lines"))
     else:
         __PARABOLA_WIND_2 = __CANVAS.create_line(*path_vec, *path_vec_max, fill='magenta', dash=(4,2), tags=("aim_lines"))
-        __CROSSHAIR_X_2 = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill='blue', tags=("aim_lines"))
-        __CROSSHAIR_Y_2 = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill='blue', tags=("aim_lines"))
-        __CROSSHAIR_CIRCLE_2 = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline='blue', width=2, tags=("aim_lines"))
+        __CROSSHAIR_X_2 = __CANVAS.create_line(x_aim_vec_max[-1] - 5, y_aim_vec_max[-1], x_aim_vec_max[-1] + 5, y_aim_vec_max[-1], fill='blue', tags=("aim_lines"))
+        __CROSSHAIR_Y_2 = __CANVAS.create_line(x_aim_vec_max[-1], y_aim_vec_max[-1] - 5, x_aim_vec_max[-1], y_aim_vec_max[-1] + 5, fill='blue', tags=("aim_lines"))
+        __CROSSHAIR_CIRCLE_2 = __CANVAS.create_oval(x_aim_vec_max[-1]-5, y_aim_vec_max[-1]-5, x_aim_vec_max[-1]+5, y_aim_vec_max[-1]+5, outline='blue', width=2, tags=("aim_lines"))
 
     __CANVAS["background"] = "#60b26c"
 
@@ -450,6 +548,12 @@ def calculate_power_normal(tank, y_max=None, multiple=False, color="green"):
         __CROSSHAIR_CIRCLE_2 = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline='blue', width=2, tags=("aim_lines"))
 
     __CANVAS["background"] = "#60b26c"
+
+    # return for dnak
+    vx_end = v_x + w_f*w_p*math.cos(w_a)*t_w
+    vy_end = v_y + (g_f - w_f*w_p*math.cos(w_a))*t_w
+
+    return vx_end, vy_end, x_path_vec[-1], y_path_vec[-1]
     
 # 1: y_max = vy t + 1/2 (g - w) t^2 => t = vy / (g - w) ---> sqrt (2 y_max * (g - wy)) = vsin(theta)
 # 2: x_max = vx t + 1/2 w t^2
@@ -568,6 +672,7 @@ def canvas_on_click(event):
             calculate_power(tank=1)
         case "y_max":
             draw_ymax(event.x, event.y)
+            calculate_power(tank=1)
         case _:
             __CANVAS["background"] = "#60b26c"
     __SET_STATE = None
@@ -632,8 +737,8 @@ def overlay():
     __cbox_shot_type = ttk.Combobox(shot_type, textvariable=__var_shot_type)
     global __cbox_shot_type_2
     __cbox_shot_type_2 = ttk.Combobox(shot_type, textvariable=__var_shot_type_2)
-    __cbox_shot_type["values"] = ["normal", "boomer_s1", "boomer_s2"]
-    __cbox_shot_type_2["values"] = ["normal", "boomer_s1", "boomer_s2"]
+    __cbox_shot_type["values"] = ["normal", "boomer_s1", "boomer_s2", "dnak_s2", "dnak_s2_flip"]
+    __cbox_shot_type_2["values"] = ["normal", "boomer_s1", "boomer_s2", "dnak_s2", "dnak_s2_flip"]
     __cbox_shot_type.grid(column=0, row=0, sticky="nsew")
     __cbox_shot_type_2.grid(column=0, row=1, sticky="nsew")
 
@@ -667,9 +772,27 @@ def overlay():
     gravity_factor_lab = ttk.Label(gravity_factor, text="gf", borderwidth=1, relief="solid")
     gravity_factor_lab.grid(column=0, row=0, sticky="nsew")
 
+    ## set dnak factors
+    dnak_factor = ttk.Frame(menu, borderwidth=1, relief="solid", height=MENU_HEIGHT)
+    dnak_factor.grid(column=10, row=0, columnspan=1, sticky="nsew")
+    dnak_t_blue = ttk.Entry(dnak_factor, textvariable=__var_t_blue)
+    dnak_t_purple = ttk.Entry(dnak_factor, textvariable=__var_t_purple)
+    dnak_v_blue = ttk.Entry(dnak_factor, textvariable=__var_v_blue)
+    dnak_v_purple = ttk.Entry(dnak_factor, textvariable=__var_v_purple)
+    dnak_v_red = ttk.Entry(dnak_factor, textvariable=__var_v_red)
+    dnak_ugwf = ttk.Entry(dnak_factor, textvariable=__var_ugwf)
+
+    dnak_t_blue.grid(column=1, row=0)
+    dnak_t_purple.grid(column=1, row=1)
+    dnak_v_blue.grid(column=2, row=0)
+    dnak_v_purple.grid(column=2, row=1)
+    dnak_v_red.grid(column=3, row=1)
+    dnak_ugwf.grid(column=3, row=0)
+
+
     ## dummy button to take off focus
     dummy = ttk.Frame(menu, borderwidth=1, relief="solid", height=MENU_HEIGHT)
-    dummy.grid(column=10, row=0, rowspan=2, sticky="nsew")
+    dummy.grid(column=11, row=0, rowspan=2, sticky="nsew")
     global __dummy_button
     __dummy_button = ttk.Button(dummy, text='dummy')
     __dummy_button.grid(sticky="nsew")
@@ -723,6 +846,13 @@ def on_key_release(event):
     if event.char == 'M':
         __var_shot_type.set("boomer_s2")
         calculate_power(1)
+    if event.char == 'd':
+        __var_shot_type.set("dnak_s2")
+        calculate_power(1)
+    if event.char == 'D':
+        __var_shot_type.set("dnak_s2_flip")
+        calculate_power(1)
+
 
     global __SET_STATE
     global __var_w_p
