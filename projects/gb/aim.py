@@ -146,7 +146,7 @@ def reset():
     __var_w_p.set(value=6)
 
     __var_y_max.set(150)
-    __var_wf.set(1.23)
+    __var_wf.set(1.175)
     __var_gf.set(98)
     __var_shot_type.set("normal")
     __var_shot_type_2.set("normal")
