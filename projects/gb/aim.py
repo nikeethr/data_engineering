@@ -61,7 +61,7 @@ __var_x_2_2 = tk.DoubleVar()
 __var_y_2_2 = tk.DoubleVar()
 
 __var_y_max = tk.DoubleVar(value=150)
-__var_wf = tk.DoubleVar(value=1.2)
+__var_wf = tk.DoubleVar(value=1.275)
 __var_gf = tk.DoubleVar(value=98)
 __var_pf = tk.DoubleVar()
 __var_shot_type = tk.StringVar(value="normal")
@@ -261,11 +261,14 @@ def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
         # v_x is flipped
         v_x = -v_x
 
-    x_blue = v_x*t_vec_blue + 0.5*0*w_x*(t_vec_blue**2) + x
-    y_blue = v_y*t_vec_blue + 0.5*(g_under_blue+w_y*ugwf)*(t_vec_blue**2) + y
 
-    v_x_purple = v_x + 0*w_x*ugwf*t_vec_blue[-1]
-    v_y_purple = v_y + (g_under_blue-w_y*ugwf)*t_vec_blue[-1]
+    # blue still affected by wind?
+
+    x_blue = v_x*t_vec_blue + 0.5*w_x*(t_vec_blue**2) + x
+    y_blue = v_y*t_vec_blue + 0.5*(g_under_blue+w_y)*(t_vec_blue**2) + y
+
+    v_x_purple = v_x + w_x*t_vec_blue[-1]
+    v_y_purple = v_y + (g_under_blue-w_y)*t_vec_blue[-1]
 
     mag_purple = math.sqrt(v_x_purple**2 + v_y_purple**2)
     v_x_purple = (v_x_purple / mag_purple) * v_purple_factor
@@ -273,7 +276,7 @@ def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
 
     # TODO add inertia on x when going under
     x_purple = v_x_purple*t_vec_purple + 0.5*w_x*0*(t_vec_purple**2) + x_blue[-1]
-    y_purple = v_y_purple*t_vec_purple + 0.5*(g_under_purple-w_y*ugwf)*(t_vec_purple**2) + y_blue[-1]
+    y_purple = v_y_purple*t_vec_purple + 0.5*(g_under_purple-w_y*ugwf*0)*(t_vec_purple**2) + y_blue[-1]
 
     if reverse:
         v_x_red = -v_x_red
