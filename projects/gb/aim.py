@@ -61,7 +61,7 @@ __var_x_2_2 = tk.DoubleVar()
 __var_y_2_2 = tk.DoubleVar()
 
 __var_y_max = tk.DoubleVar(value=150)
-__var_wf = tk.DoubleVar(value=1.275)
+__var_wf = tk.DoubleVar(value=1.23)
 __var_gf = tk.DoubleVar(value=98)
 __var_pf = tk.DoubleVar()
 __var_shot_type = tk.StringVar(value="normal")
@@ -146,7 +146,7 @@ def reset():
     __var_w_p.set(value=6)
 
     __var_y_max.set(150)
-    __var_wf.set(1.275)
+    __var_wf.set(1.23)
     __var_gf.set(98)
     __var_shot_type.set("normal")
     __var_shot_type_2.set("normal")
