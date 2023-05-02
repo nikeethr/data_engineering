@@ -18,12 +18,12 @@ root.overrideredirect(True)
 root.lift()
 root.wm_attributes("-topmost", True)
 root.attributes('-alpha', 0.75)
-root.geometry("+507+150")
+root.geometry("+507+38")
 root.wm_attributes('-transparentcolor', '#60b26c')
 
 MENU_HEIGHT = 100
 GB_WIDTH = 1440 # 1280
-GB_HEIGHT = 900 #720 # 900
+GB_HEIGHT = 1000 #720 # 900
 BOOMER_ANG_REV = 35
 BOOMER_ANG_FORWARD = 45
 
@@ -61,7 +61,7 @@ __var_x_2_2 = tk.DoubleVar()
 __var_y_2_2 = tk.DoubleVar()
 
 __var_y_max = tk.DoubleVar(value=150)
-__var_wf = tk.DoubleVar(value=1.205)
+__var_wf = tk.DoubleVar(value=1.17)
 __var_gf = tk.DoubleVar(value=98)
 __var_pf = tk.DoubleVar()
 __var_shot_type = tk.StringVar(value="normal")
@@ -80,6 +80,16 @@ __var_v_purple = tk.DoubleVar(value=98) # t_purple = 1 # trajectory is flipped (
 __var_v_red = tk.DoubleVar(value=24)
 __var_ugwf = tk.DoubleVar(value=0) 
 
+__target_oval = None
+__base_oval = None
+__target_base_x = 0
+__target_base_y = 0
+
+__wind_drag_oval = None
+__wind_drag_x = 0
+__wind_drag_y = 0
+__wind_center = (GB_WIDTH/2, 160)
+__wind_text = None
  
 def reset():
     global __CANVAS
@@ -143,28 +153,45 @@ def reset():
             __CANVAS.delete(i)
 
     __var_w_a.set(0)
-    __var_w_p.set(value=6)
+    __var_w_p.set(value=0)
 
     __var_y_max.set(150)
-    __var_wf.set(1.205)
+    __var_wf.set(1.17)
     __var_gf.set(98)
     __var_shot_type.set("normal")
     __var_shot_type_2.set("normal")
 
     __CANVAS.delete("aim_lines")
 
+    global __wind_drag_oval, __wind_text
+    __CANVAS.delete(__wind_drag_oval)
+    __wind_drag_oval = __CANVAS.create_oval(
+        __wind_center[0]-8,
+        __wind_center[1]-8, 
+        __wind_center[0]+8,
+        __wind_center[1]+8,
+        fill='green',
+        tags=("wind_token",),
+    )
+    __CANVAS.delete(__wind_text)
+    __wind_text = __CANVAS.create_text(
+        __wind_center[0]+40,
+        __wind_center[1],
+        text="0,0",
+        fill="green",
+        font=(12),
+    )
+
 
 def set_state(state):
     global __SET_STATE
     global __CANVAS
-    print(f"setting state to {state}")
     __SET_STATE = state
     __CANVAS["background"] = "gray25"
 
 # TODO: boomer
 
 def calculate_power(tank, show_multiple=False):
-    show_multiple=True
     global __CANVAS
     __CANVAS.delete("aim_lines")
     if tank == 1:
@@ -213,6 +240,7 @@ def calculate_power(tank, show_multiple=False):
                 calculate_dnak_trajectory(vx, vy, x, y, reverse=True)
             case _:
                 calculate_power_normal(tank)
+    __CANVAS.tag_lower("aim_lines")
 
 def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
     # ---
@@ -368,7 +396,6 @@ def calculate_power_boomer(reverse, tank=1, y_max=None, multiple=False, color="g
     if y_max is None:
         y_max = float(__var_y_max.get())
 
-    print(f"gf={g_f},wf={w_f},wa={w_a},wp={w_p},x1={x_1},y1={y_1},x2={x_2},y2={y_2},ymax={y_max}")
 
     # line segment
     # v = sqrt(2*y_max * (g-wy))
@@ -415,7 +442,6 @@ def calculate_power_boomer(reverse, tank=1, y_max=None, multiple=False, color="g
         v_x_l *= -1
         v_x_l_ref *= -1
 
-    print(f"boom_ang={180*boom_ang/math.pi}")
         
     # y_2 = y_max + vt + 1/2wt^2
     t_max = (v_y_l + math.sqrt(v_y_l**2 + 2*(y_2 - y_max)*(g_f + w_y))) / (g_f + w_y)
@@ -452,7 +478,6 @@ def calculate_power_boomer(reverse, tank=1, y_max=None, multiple=False, color="g
     else:
         __PARABOLA_AIM_2 = __CANVAS.create_line(*line_vec, *line_vec_max, fill='blue', tags=("aim_lines"), width=2)
 
-    print(f"v_x_l={v_x_l},v_y_l={v_y_l},t_max={t_max},t_w={t_w},v_x={v_x},v_y={v_y},x_max={x_max},y_max={y_max}")
 
     # actual path
     t_vec = np.linspace(0, t_w, num=300, endpoint=True)
@@ -537,7 +562,6 @@ def calculate_power_normal(tank, y_max=None, multiple=False, color="green"):
         y_2 = float(__var_y_2_2.get())
 
 
-    print(f"gf={g_f},wf={w_f},wa={w_a},wp={w_p},x1={x_1},y1={y_1},x2={x_2},y2={y_2},ymax={y_max}")
 
     y_w_max = y_max - y_1
     y_w = y_2 - y_1
@@ -547,7 +571,6 @@ def calculate_power_normal(tank, y_max=None, multiple=False, color="green"):
     t_w = (-v_y + math.sqrt(v_y**2 + 2*y_w*(g_f - w_f*w_p*math.sin(w_a)))) / (g_f - w_f*w_p*math.sin(w_a))
     v_x = (x_w - 0.5*w_p*w_f*math.cos(w_a) * (t_w**2)) / t_w
 
-    print(f"v_y={v_y},v_x={v_x},t_w={t_w}")
 
     # aim vec
     t_vec = np.linspace(0, t_w, num=100, endpoint=True)
@@ -611,7 +634,7 @@ def calculate_wind_ang(x, y):
     if __WIND_LINE is not None:
         __CANVAS.delete(__WIND_LINE)
     x_mid = GB_WIDTH / 2
-    y_mid = 45
+    y_mid = __wind_center[1]
 
     w_a_rad = 0
 
@@ -631,9 +654,8 @@ def calculate_wind_ang(x, y):
         elif y > y_mid and x > x_mid:
             w_a_rad = 2 * math.pi - w_a_rad
 
-    print(f"setting w_a to {w_a_rad * 180 / math.pi}")
     __var_w_a.set(float(w_a_rad * 180 / math.pi))
-    __WIND_LINE = __CANVAS.create_line(GB_WIDTH / 2, y_mid, GB_WIDTH/2 + 40 * math.cos(w_a_rad), y_mid - 40 * math.sin(w_a_rad), fill='green', width=2)
+    __WIND_LINE = __CANVAS.create_line(__wind_center[0], y_mid, __wind_center[0] + 40 * math.cos(w_a_rad), y_mid - 40 * math.sin(w_a_rad), fill='green', width=2)
     __CANVAS["background"] = "#60b26c"
 
 
@@ -645,7 +667,12 @@ def draw_base(x, y, tank):
         if __BASE_CIRCLE is not None:
             __CANVAS.delete(__BASE_CIRCLE)
 
-        __BASE_CIRCLE = __CANVAS.create_oval(x-5, y-5, x+5, y+5, outline='yellow', width=2)
+        __BASE_CIRCLE = __CANVAS.create_oval(x-8, y-8, x+8, y+8, fill='yellow', tags=("base", "drag_xy"))
+        __CANVAS.tag_bind(__BASE_CIRCLE, "<ButtonPress-1>", functools.partial(drag_xy_start, state="drag_base"))
+        __CANVAS.tag_bind(__BASE_CIRCLE, "<B1-Motion>", drag_xy)
+        __CANVAS.tag_bind(__BASE_CIRCLE, "<ButtonRelease-1>", drag_xy_stop)
+        __CANVAS.tag_raise(__BASE_CIRCLE)
+
         __var_x_1.set(x)
         __var_y_1.set(y)
     else:
@@ -665,7 +692,12 @@ def draw_target(x, y, tank):
         if __TARGET_CIRCLE is not None:
             __CANVAS.delete(__TARGET_CIRCLE)
 
-        __TARGET_CIRCLE = __CANVAS.create_oval(x-5, y-5, x+5, y+5, outline='green', width=2)
+        __TARGET_CIRCLE = __CANVAS.create_oval(x-8, y-8, x+8, y+8, fill='green', tags=("target", "drag_xy"))
+        __CANVAS.tag_bind(__TARGET_CIRCLE, "<ButtonPress-1>", functools.partial(drag_xy_start, state="drag_target"))
+        __CANVAS.tag_bind(__TARGET_CIRCLE, "<B1-Motion>", drag_xy)
+        __CANVAS.tag_bind(__TARGET_CIRCLE, "<ButtonRelease-1>", drag_xy_stop)
+        __CANVAS.tag_raise(__TARGET_CIRCLE)
+
         __var_x_2.set(x)
         __var_y_2.set(y)
     else:
@@ -689,30 +721,120 @@ def draw_ymax(x, y):
 
 def canvas_on_click(event):
     global __SET_STATE
-    print(f"clicked {event.x}, {event.y}")
     match __SET_STATE:
         case "w_a":
             calculate_wind_ang(event.x, event.y)
             calculate_power(tank=1)
+            __SET_STATE = None
         case "base_1":
             draw_base(event.x, event.y, tank=1)
             calculate_power(tank=1)
+            __SET_STATE = None
         case "target_1":
             draw_target(event.x, event.y, tank=1)
             calculate_power(tank=1)
+            __SET_STATE = None
         case "base_2":
             draw_base(event.x, event.y, tank=2)
             calculate_power(tank=1)
+            __SET_STATE = None
         case "target_2":
             draw_target(event.x, event.y, tank=2)
             calculate_power(tank=1)
+            __SET_STATE = None
         case "y_max":
             draw_ymax(event.x, event.y)
             calculate_power(tank=1)
+            __SET_STATE = None
         case _:
             __CANVAS["background"] = "#60b26c"
-    __SET_STATE = None
     __dummy_button.focus()
+
+
+#########################################################
+
+def drag_xy_start(event, state):
+    global __SET_STATE
+    global __target_base_x, __target_base_y
+    __target_base_x = event.x
+    __target_base_y = event.y
+    __SET_STATE = state
+    
+    
+def drag_xy_stop(event):
+    global __target_base_x, __target_base_y
+    global __CANVAS
+    global __SET_STATE
+    global __var_x_1, __var_y_1, __var_x_2, __var_y_2
+    __target_base_x = 0
+    __target_base_y = 0
+    if __SET_STATE == "drag_target":
+        __var_x_2.set(event.x)
+        __var_y_2.set(event.y)
+    if __SET_STATE == "drag_base":
+        __var_x_1.set(event.x)
+        __var_y_1.set(event.y)
+    calculate_power(1)
+    __CANVAS["background"] = "#60b26c"
+    __SET_STATE = None
+
+def drag_xy(event):
+    global __target_base_x, __target_base_y
+    global __CANVAS
+    global __SET_STATE
+    global __BASE_CIRCLE, __TARGET_CIRCLE
+    delta_x = event.x - __target_base_x
+    delta_y = event.y - __target_base_y
+    if __SET_STATE == "drag_target":
+        __CANVAS.move(__TARGET_CIRCLE, delta_x, delta_y)
+    if __SET_STATE == "drag_base":
+        __CANVAS.move(__BASE_CIRCLE, delta_x, delta_y)
+    __target_base_x = event.x
+    __target_base_y = event.y
+
+
+
+#########################################################
+
+def wind_drag_start(event):
+    global __CANVAS
+    global __wind_drag_x, __wind_drag_y
+    __SET_STATE = "wind_drag"
+    __wind_drag_x = event.x
+    __wind_drag_y = event.y
+    
+def wind_drag_stop(event):
+    global __CANVAS
+    global __SET_STATE
+    __wind_drag_x = 0
+    __wind_drag_y = 0
+    calculate_power(1)
+    __CANVAS["background"] = "#60b26c"
+    __SET_STATE = None
+
+def wind_drag(event):
+    global __CANVAS
+    global __wind_drag_oval
+    global __wind_drag_x, __wind_drag_y, __wind_center, __wind_text
+    delta_x = event.x - __wind_drag_x
+    delta_y = event.y - __wind_drag_y
+    __CANVAS.move(__wind_drag_oval, delta_x, delta_y)
+    __CANVAS.move(__wind_text, delta_x, delta_y)
+    __wind_drag_x = event.x
+    __wind_drag_y = event.y
+
+    calculate_wind_ang(event.x, event.y)
+
+    # wind power
+    w_x = event.x - __wind_center[0]
+    w_y = event.y - __wind_center[1]
+    power_px = math.sqrt(w_x**2 + w_y**2)
+    power = 0
+    if power_px > 40:
+        power = min(int((power_px - 40) / 10), 12)
+        __var_w_p.set(power)
+
+    __CANVAS.itemconfig(__wind_text, text=f"{power}, {int(__var_w_a.get())}",)
 
 def overlay():
     global __SET_STATE
@@ -843,12 +965,44 @@ def overlay():
 
     ## wind circle overlay
     canvas = tk.Canvas(gunbound, width=GB_WIDTH, height=GB_HEIGHT, background='#60b26c', borderwidth=1, relief="solid")
-    canvas.create_oval(GB_WIDTH/2-40, 5, GB_WIDTH/2+40, 85, outline='blue', width=4)
-    canvas.create_line(0, 45, GB_WIDTH, 45, fill='red')
-    canvas.create_line(GB_WIDTH / 2, 0, GB_WIDTH/2, GB_HEIGHT, fill='red')
+    canvas.create_oval(
+        __wind_center[0]-40,
+        __wind_center[1]-40, 
+        __wind_center[0]+40,
+        __wind_center[1]+40,
+        outline='blue',
+        width=4,
+    )
+    canvas.create_line(0, __wind_center[1], GB_WIDTH, __wind_center[1], fill='red')
+    canvas.create_line(__wind_center[0], 0, __wind_center[0], GB_HEIGHT, fill='red')
     canvas.create_rectangle(GB_WIDTH/2-20, GB_HEIGHT/2-20, GB_WIDTH/2+20, GB_HEIGHT/2+20, fill='green')
+    canvas.create_rectangle(0, 0, GB_WIDTH+100, 100, fill='lightgray')
     canvas.grid(column=0, row=0, sticky="nsew")
     canvas.bind("<Button-1>", canvas_on_click)
+
+    # wind token
+    global __wind_drag_oval
+    __wind_drag_oval = canvas.create_oval(
+        __wind_center[0]-8,
+        __wind_center[1]-8, 
+        __wind_center[0]+8,
+        __wind_center[1]+8,
+        fill='green',
+        tags=("wind_token",),
+        width=0
+    )
+    wind_drag_outline = canvas.create_oval(
+        __wind_center[0]-8,
+        __wind_center[1]-8, 
+        __wind_center[0]+8,
+        __wind_center[1]+8,
+        outline='green',
+        width=2,
+    )
+
+    canvas.tag_bind("wind_token", "<ButtonPress-1>", wind_drag_start)
+    canvas.tag_bind("wind_token", "<B1-Motion>", wind_drag)
+    canvas.tag_bind("wind_token", "<ButtonRelease-1>", wind_drag_stop)
 
     __CANVAS = canvas
 
