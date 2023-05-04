@@ -61,7 +61,7 @@ __var_x_2_2 = tk.DoubleVar()
 __var_y_2_2 = tk.DoubleVar()
 
 __var_y_max = tk.DoubleVar(value=150)
-__var_wf = tk.DoubleVar(value=1.17)
+__var_wf = tk.DoubleVar(value=1.185)
 __var_gf = tk.DoubleVar(value=98)
 __var_pf = tk.DoubleVar()
 __var_shot_type = tk.StringVar(value="normal")
@@ -156,7 +156,7 @@ def reset():
     __var_w_p.set(value=0)
 
     __var_y_max.set(150)
-    __var_wf.set(1.17)
+    __var_wf.set(1.185)
     __var_gf.set(98)
     __var_shot_type.set("normal")
     __var_shot_type_2.set("normal")
@@ -191,7 +191,7 @@ def set_state(state):
 
 # TODO: boomer
 
-def calculate_power(tank, show_multiple=False):
+def calculate_power(tank, show_multiple=True):
     global __CANVAS
     __CANVAS.delete("aim_lines")
     if tank == 1:
@@ -201,8 +201,6 @@ def calculate_power(tank, show_multiple=False):
         shot_type = __var_shot_type_2.get()
         y_base = __var_y_2.get()
     colors = ["#223C20", "#4C8D26", "#DE60CA", "#882380", "#D5FB00"]
-    if shot_type.startswith("dnak"):
-        show_multiple = False
     i = 0
     if show_multiple:
         for y in np.linspace(y_base - 100, y_base - 600, num=5, endpoint=True):
@@ -215,6 +213,12 @@ def calculate_power(tank, show_multiple=False):
                         calculate_power_boomer(reverse=False, tank=tank, y_max=y, multiple=True, color=c)
                     case "boomer_s2":
                         calculate_power_boomer(reverse=True, tank=tank, y_max=y, multiple=True, color=c)
+                    case "dnak_s2":
+                        vx, vy, x, y = calculate_power_normal(tank=tank, y_max=y, multiple=True, color=c)
+                        calculate_dnak_trajectory(vx, vy, x, y, color=c)
+                    case "dnak_s2_flip":
+                        vx, vy, x, y = calculate_power_normal(tank=tank, y_max=y, multiple=True, color=c)
+                        calculate_dnak_trajectory(vx, vy, x, y, reverse=True, color=c)
                     case _:
                         calculate_power_normal(tank, y_max=y, multiple=True, color=c)
             except ValueError as e:
@@ -242,7 +246,7 @@ def calculate_power(tank, show_multiple=False):
                 calculate_power_normal(tank)
     __CANVAS.tag_lower("aim_lines")
 
-def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
+def calculate_dnak_trajectory(vx, vy, x, y, reverse=False, color=None):
     # ---
     # parameters to tune -- todo: add temporary inputs for these
     t_red = 5 # make this long so it shows the path
@@ -328,36 +332,39 @@ def calculate_dnak_trajectory(vx, vy, x, y, reverse=False):
     path_vec_red[0::2] = x_red
     path_vec_red[1::2] = y_red
 
-    __PARABOLA_WIND = __CANVAS.create_line(*path_vec_blue, fill='cyan', dash=(4,2), tags=("aim_lines"), width=2)
-    __PARABOLA_WIND = __CANVAS.create_line(*path_vec_purple, fill='magenta', dash=(4,2), tags=("aim_lines"), width=2)
-    __PARABOLA_WIND = __CANVAS.create_line(*path_vec_red, fill='red', dash=(4,2), tags=("aim_lines"), width=2)
+    color_with_default = lambda x: x if color is None else color
+    __PARABOLA_WIND = __CANVAS.create_line(*path_vec_blue, fill=color_with_default('cyan'), dash=(4,2), tags=("aim_lines"), width=2)
+    __PARABOLA_WIND = __CANVAS.create_line(*path_vec_purple, fill=color_with_default('magenta'), dash=(4,2), tags=("aim_lines"), width=2)
+    __PARABOLA_WIND = __CANVAS.create_line(*path_vec_red, fill=color_with_default('red'), dash=(4,2), tags=("aim_lines"), width=2)
 
     # --- rest of this part is for SS
 
-    v_x *= 1.2
-    v_y *= 1.2
-    t_vec_blue_ss = t_vec_blue
-    x_blue_ss = v_x*t_vec_blue_ss + 0.5*ugwf*w_x*(t_vec_blue_ss**2) + x
-    y_blue_ss = v_y*t_vec_blue_ss + 0.5*(g_under_blue+w_y*ugwf)*(t_vec_blue_ss**2) + y
-    path_vec_blue_ss = np.empty((x_blue_ss.size + y_blue_ss.size,), dtype=x_blue.dtype)
-    path_vec_blue_ss[0::2] = x_blue_ss
-    path_vec_blue_ss[1::2] = y_blue_ss
+    if color is None:
+        # otherwise it gets too confusing
+        v_x *= 1.2
+        v_y *= 1.2
+        t_vec_blue_ss = t_vec_blue
+        x_blue_ss = v_x*t_vec_blue_ss + 0.5*ugwf*w_x*(t_vec_blue_ss**2) + x
+        y_blue_ss = v_y*t_vec_blue_ss + 0.5*(g_under_blue+w_y*ugwf)*(t_vec_blue_ss**2) + y
+        path_vec_blue_ss = np.empty((x_blue_ss.size + y_blue_ss.size,), dtype=x_blue.dtype)
+        path_vec_blue_ss[0::2] = x_blue_ss
+        path_vec_blue_ss[1::2] = y_blue_ss
 
-    v_x_purple_ss = v_x + w_x*ugwf*t_vec_blue_ss[-1]
-    v_y_purple_ss = v_y + (g_under_blue+w_y*ugwf)*t_vec_blue_ss[-1]
-    mag_purple_ss = math.sqrt(v_x_purple_ss**2 + v_y_purple_ss**2)
-    v_x_purple_ss = (v_x_purple / mag_purple) * v_purple_factor
-    v_y_purple_ss = (v_y_purple / mag_purple) * v_purple_factor
+        v_x_purple_ss = v_x + w_x*ugwf*t_vec_blue_ss[-1]
+        v_y_purple_ss = v_y + (g_under_blue+w_y*ugwf)*t_vec_blue_ss[-1]
+        mag_purple_ss = math.sqrt(v_x_purple_ss**2 + v_y_purple_ss**2)
+        v_x_purple_ss = (v_x_purple / mag_purple) * v_purple_factor
+        v_y_purple_ss = (v_y_purple / mag_purple) * v_purple_factor
 
-    t_vec_purple_ss = t_vec_purple * 1.2
-    x_purple_ss = v_x_purple*t_vec_purple_ss + 0.5*w_x*ugwf*(t_vec_purple_ss**2) + x_blue_ss[-1]
-    y_purple_ss = v_y_purple*t_vec_purple_ss + 0.5*(g_under_purple+w_y*ugwf)*(t_vec_purple_ss**2) + y_blue_ss[-1]
-    path_vec_purple_ss = np.empty((x_purple_ss.size + y_purple_ss.size,), dtype=x_purple.dtype)
-    path_vec_purple_ss[0::2] = x_purple_ss
-    path_vec_purple_ss[1::2] = y_purple_ss
+        t_vec_purple_ss = t_vec_purple * 1.2
+        x_purple_ss = v_x_purple*t_vec_purple_ss + 0.5*w_x*ugwf*(t_vec_purple_ss**2) + x_blue_ss[-1]
+        y_purple_ss = v_y_purple*t_vec_purple_ss + 0.5*(g_under_purple+w_y*ugwf)*(t_vec_purple_ss**2) + y_blue_ss[-1]
+        path_vec_purple_ss = np.empty((x_purple_ss.size + y_purple_ss.size,), dtype=x_purple.dtype)
+        path_vec_purple_ss[0::2] = x_purple_ss
+        path_vec_purple_ss[1::2] = y_purple_ss
 
-    parabola_ss = __CANVAS.create_line(*path_vec_blue_ss, fill='orange', dash=(4,2), tags=("aim_lines"), width=2)
-    parabola_ss = __CANVAS.create_line(*path_vec_purple_ss, fill='darkorange', dash=(4,2), tags=("aim_lines"), width=2)
+        parabola_ss = __CANVAS.create_line(*path_vec_blue_ss, fill='orange', dash=(4,2), tags=("aim_lines"), width=2)
+        parabola_ss = __CANVAS.create_line(*path_vec_purple_ss, fill='darkorange', dash=(4,2), tags=("aim_lines"), width=2)
 
 
 def calculate_power_boomer(reverse, tank=1, y_max=None, multiple=False, color="green"):
@@ -496,7 +503,7 @@ def calculate_power_boomer(reverse, tank=1, y_max=None, multiple=False, color="g
     path_vec_max[1::2] = y_path_vec_max
 
     if tank == 1:
-        __PARABOLA_WIND = __CANVAS.create_line(*path_vec, *path_vec_max, fill='yellow', dash=(4,2), tags=("aim_lines"))
+        __PARABOLA_WIND = __CANVAS.create_line(*path_vec, *path_vec_max, fill=color, dash=(4,2), tags=("aim_lines"), width=2)
         __CROSSHAIR_X = __CANVAS.create_line(x_aim_vec_max[-1] - 5, y_aim_vec_max[-1], x_aim_vec_max[-1] + 5, y_aim_vec_max[-1], fill=color, tags=("aim_lines"))
         __CROSSHAIR_Y = __CANVAS.create_line(x_aim_vec_max[-1], y_aim_vec_max[-1] - 5, x_aim_vec_max[-1], y_aim_vec_max[-1] + 5, fill=color, tags=("aim_lines"))
         __CROSSHAIR_CIRCLE = __CANVAS.create_oval(x_aim_vec_max[-1]-5, y_aim_vec_max[-1]-5, x_aim_vec_max[-1]+5, y_aim_vec_max[-1]+5, outline=color, width=2, tags=("aim_lines"))
@@ -596,7 +603,7 @@ def calculate_power_normal(tank, y_max=None, multiple=False, color="green"):
     line_vec[1::2] = y_path_vec
 
     if tank == 1:
-        __PARABOLA_WIND = __CANVAS.create_line(*line_vec, fill='yellow', dash=(4,2), tags=("aim_lines"))
+        __PARABOLA_WIND = __CANVAS.create_line(*line_vec, fill=color, dash=(4,2), tags=("aim_lines"), width=2)
         __CROSSHAIR_X = __CANVAS.create_line(x_aim_vec[-1] - 5, y_aim_vec[-1], x_aim_vec[-1] + 5, y_aim_vec[-1], fill=color, tags=("aim_lines"))
         __CROSSHAIR_Y = __CANVAS.create_line(x_aim_vec[-1], y_aim_vec[-1] - 5, x_aim_vec[-1], y_aim_vec[-1] + 5, fill=color, tags=("aim_lines"))
         __CROSSHAIR_CIRCLE = __CANVAS.create_oval(x_aim_vec[-1]-5, y_aim_vec[-1]-5, x_aim_vec[-1]+5, y_aim_vec[-1]+5, outline=color, width=2, tags=("aim_lines"))
