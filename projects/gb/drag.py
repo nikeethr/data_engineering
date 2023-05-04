@@ -6,7 +6,8 @@ import threading
 import tkinter as tk
 import time
 
-from pynput.mouse import Listener
+from pynput import mouse
+from pynput import keyboard
 from tkinter import ttk
 
 root = tk.Tk()
@@ -15,14 +16,14 @@ root.overrideredirect(True)
 root.lift()
 root.wm_attributes("-topmost", True)
 root.attributes('-alpha', 0.5)
-root.geometry("+507+150")
+root.geometry("+507+133")
 root.wm_attributes('-transparentcolor', '#60b26c')
 
 MENU_HEIGHT = 100
 GB_WIDTH = 1440 # 1280
-GB_HEIGHT = 900 #720 # 900
-BOOMER_ANG_REV = 35
-BOOMER_ANG_FORWARD = 45
+GB_HEIGHT = 1100 #720 # 900
+BOOMER_ANG_REV = 30
+BOOMER_ANG_FORWARD = 40
 
 __lock = threading.Lock()
 __STATE = None
@@ -82,10 +83,10 @@ def task_compute_path():
                     compute_path_normal()
                     __draw_queue.put("redraw_aim_lines")
                 case "boomer_s1":
-                    compute_path_boomer_s1()
+                    compute_path_boomer(reverse=False)
                     __draw_queue.put("redraw_aim_lines")
                 case "boomer_s2":
-                    compute_path_boomer_s2()
+                    compute_path_boomer(reverse=True)
                     __draw_queue.put("redraw_aim_lines")
                 case _:
                     pass
@@ -94,8 +95,24 @@ def task_compute_path():
 
 def compute_path_normal():
     global __mouse_drag
+
     v_x = __mouse_drag["x_delta"]
     v_y = __mouse_drag["y_delta"]
+    # TODO: add a calibration function
+    initial_drag = 130
+    drag_factor = 1.04
+
+    if v_x == 0:
+        power = 0
+        angle = 0
+    else:
+        angle = math.atan(v_y/v_x)
+        power = math.sqrt(v_y**2 + v_x**2)
+        power = max(drag_factor*power - initial_drag, 0)
+        power = min(power, 320)
+
+    v_x = np.sign(v_x) * np.abs(power * math.cos(angle))
+    v_y = np.sign(v_y) * np.abs(power * math.sin(angle))
 
     g_f = float(__var_g_f.get())
     w_f = float(__var_w_f.get())
@@ -105,7 +122,7 @@ def compute_path_normal():
     y_1 = float(__var_y_1.get())
 
     # 0 wind aim guide (should match up with GB aim line - for sanity check)
-    t_vec = np.linspace(0, 10, num=200, endpoint=True)
+    t_vec = np.linspace(0.1, 10, num=200, endpoint=True)
     x_aim_vec = v_x * t_vec + x_1
     y_aim_vec = v_y * t_vec + 0.5 * g_f * (t_vec ** 2) + y_1
     line_vec = np.empty((x_aim_vec.size + y_aim_vec.size,), dtype=x_aim_vec.dtype)
@@ -126,11 +143,117 @@ def compute_path_normal():
     __aim_lines["wind_parabola"] = line_vec_wind
     __lock.release()
 
-def compute_path_boomer_s1():
-    pass
 
-def compute_path_boomer_s2():
-    pass
+def compute_path_boomer(reverse):
+    global __mouse_drag
+
+    g_f = float(__var_g_f.get())
+    w_f = float(__var_w_f.get())
+    w_a = (float(__var_w_a.get()) / 180) * math.pi
+    w_p = float(__var_w_p.get())
+    x_1 = float(__var_x_1.get())
+    y_1 = float(__var_y_1.get())
+
+    v_x = __mouse_drag["x_delta"]
+    v_y = __mouse_drag["y_delta"]
+
+    # TODO: add a calibration function
+    initial_drag = 120
+    drag_factor = 1.08
+
+    if v_x == 0:
+        power = 0
+        angle = 0
+    else:
+        angle = math.atan(v_y/v_x)
+        power = math.sqrt(v_y**2 + v_x**2)
+        power = max(drag_factor*power - initial_drag, 0)
+
+    w_y = w_f*w_p*math.sin(w_a)
+    w_x = w_f*w_p*math.cos(w_a)
+
+    SLAP_FACTOR = 2
+    VX_SLAP = 500
+
+    v_x = np.sign(v_x) * np.abs(power * math.cos(angle))
+    v_y = np.sign(v_y) * np.abs(power * math.sin(angle))
+
+    t_wind_max = max(math.fabs(v_y) / (g_f - w_y), 0)
+    t_aim_max = max(math.fabs(v_y) / g_f, 0)
+
+    # ACTUAL AIM
+
+    # this part is the same as normal
+    t_vec_aim = np.linspace(0.1, t_aim_max, num=200, endpoint=True)
+    x_aim_vec = v_x * t_vec_aim + x_1
+    y_aim_vec = v_y * t_vec_aim + 0.5 * g_f * (t_vec_aim ** 2) + y_1
+    line_vec = np.empty((x_aim_vec.size + y_aim_vec.size,), dtype=x_aim_vec.dtype)
+    line_vec[0::2] = x_aim_vec
+    line_vec[1::2] = y_aim_vec
+
+    t_vec_slap = np.linspace(0.1, 5, num=200, endpoint=True)
+
+    # slap part
+    if reverse:
+        v_x_slap = -VX_SLAP
+        v_y_slap = math.fabs(v_x_slap / math.tan((BOOMER_ANG_REV / 180) * math.pi))
+        x_aim_vec_slap = v_x_slap * t_vec_slap + x_aim_vec[-1]
+        y_aim_vec_slap = v_y_slap * t_vec_slap + y_aim_vec[-1]
+    else:
+        v_x_slap = VX_SLAP
+        v_y_slap = math.fabs(v_x_slap / math.tan((BOOMER_ANG_FORWARD / 180) * math.pi))
+        x_aim_vec_slap = v_x_slap * t_vec_slap + x_aim_vec[-1]
+        y_aim_vec_slap = v_y_slap * t_vec_slap + y_aim_vec[-1]
+
+    line_vec_slap = np.empty((x_aim_vec_slap.size + y_aim_vec_slap.size,), dtype=x_aim_vec.dtype)
+    line_vec_slap[0::2] = x_aim_vec_slap
+    line_vec_slap[1::2] = y_aim_vec_slap
+
+    # WIND PATH
+
+    # this part is as usual
+    t_vec_wind = np.linspace(0.1, t_wind_max, num=200, endpoint=True)
+    x_path_vec = v_x * t_vec_wind + 0.5*w_f*w_p*math.cos(w_a)*(t_vec_wind ** 2) + x_1
+    y_path_vec = v_y * t_vec_wind + 0.5*(g_f - w_f*w_p*math.sin(w_a))*(t_vec_wind ** 2) + y_1
+    line_vec_wind = np.empty((x_path_vec.size + y_path_vec.size,), dtype=x_path_vec.dtype)
+    line_vec_wind[0::2] = x_path_vec
+    line_vec_wind[1::2] = y_path_vec
+
+    if reverse:
+        boom_ang_x = math.sin((BOOMER_ANG_REV / 180) * math.pi)
+        boom_ang_y = math.cos((BOOMER_ANG_REV / 180) * math.pi)
+        boom_ang_x -= SLAP_FACTOR * w_x / g_f
+        if v_x <= 0:
+            boom_ang_x *= -1
+        boom_ang_y -= SLAP_FACTOR * w_y / g_f
+        boom_ang = math.atan(boom_ang_x / boom_ang_y)
+        v_x_slap = -VX_SLAP
+        v_y_slap = math.fabs(v_x_slap / math.tan(boom_ang))
+        x_path_vec_slap = v_x_slap*t_vec_slap + 0.5*w_x*(t_vec_slap**2) + x_path_vec[-1]
+        y_path_vec_slap = v_y_slap*t_vec_slap - 0.5*w_y*(t_vec_slap**2) + y_path_vec[-1]
+    else:
+        boom_ang_x = math.sin((BOOMER_ANG_FORWARD / 180) * math.pi)
+        boom_ang_y = math.cos((BOOMER_ANG_FORWARD / 180) * math.pi)
+        boom_ang_x += SLAP_FACTOR * w_x / g_f
+        if v_x <= 0:
+            boom_ang_x *= -1
+        boom_ang_y -= SLAP_FACTOR * w_y / g_f
+        boom_ang = math.atan(boom_ang_x / boom_ang_y)
+        v_x_slap = VX_SLAP
+        v_y_slap = math.fabs(v_x_slap / math.tan(boom_ang))
+        x_path_vec_slap = v_x_slap*t_vec_slap + 0.5*w_x*(t_vec_slap**2) + x_path_vec[-1]
+        y_path_vec_slap = v_y_slap*t_vec_slap - 0.5*w_y*(t_vec_slap**2) + y_path_vec[-1]
+
+    line_vec_wind_slap = np.empty((x_path_vec_slap.size + y_path_vec_slap.size,), dtype=x_path_vec_slap.dtype)
+    line_vec_wind_slap[0::2] = x_path_vec_slap
+    line_vec_wind_slap[1::2] = y_path_vec_slap
+
+    global __lock
+    __lock.acquire()
+    global __aim_lines
+    __aim_lines["aim_parabola"] = np.concatenate((line_vec, line_vec_slap))
+    __aim_lines["wind_parabola"] = np.concatenate((line_vec_wind, line_vec_wind_slap))
+    __lock.release()
 
 def on_mouse_click_general(x, y, button, pressed):
     # TODO: should probably use button to test for mouse button
@@ -314,31 +437,34 @@ def canvas_on_click(event):
 def draw_base(x, y):
     global __CANVAS, __var_x_1, __var_y_1
     __CANVAS.delete("base")
-    __CANVAS.create_oval(x-8, y-8, x+8, y+8, fill='green', tags=("base",))
+    __CANVAS.create_oval(x-10, y-10, x+10, y+10, outline='green', tags=("base",))
     __var_x_1.set(x)
     __var_y_1.set(y)
     __CANVAS["background"] = "#60b26c"
 
 def on_key_release(event):
     global __STATE
-    match event.char:
-        case 'd':
-            set_state("base_drag_start")
-        case 'D':
-            set_state("base_drag_stop")
-        case 'b':
-            set_state("base")
-            __CANVAS["background"] = "gray25"
-        case 'n':
-            __var_shot_type.set("normal")
-        case 'm':
-            __var_shot_type.set("boomer_s1")
-        case 'r':
-            reset()
-        case 'M':
-            __var_shot_type.set("boomer_s2")
-        case _:
-            pass
+    try:
+        match event.char:
+            case 'd':
+                set_state("base_drag_start")
+            case 'D':
+                set_state("base_drag_stop")
+            case 'b':
+                set_state("base")
+                __CANVAS["background"] = "gray25"
+            case 'n':
+                __var_shot_type.set("normal")
+            case 'm':
+                __var_shot_type.set("boomer_s1")
+            case 'r':
+                reset()
+            case 'M':
+                __var_shot_type.set("boomer_s2")
+            case _:
+                pass
+    except AttributeError:
+        pass
 
 def reset():
     global __CANVAS
@@ -409,22 +535,23 @@ def main():
     root.title("gunbound_aim")
     overlay()
     reset()
-    root.bind('<KeyRelease>', on_key_release)
     # --- create threads here ---
     # daemon compute thread
     t_compute = threading.Thread(target=task_compute_path, daemon=True)
     t_compute.start()
 
-    t_clicks = Listener(on_move=on_mouse_move_general, on_click=on_mouse_click_general, daemon=True)
+    t_clicks = mouse.Listener(on_move=on_mouse_move_general, on_click=on_mouse_click_general, daemon=True)
     t_clicks.start()
+
+    # root.bind('<KeyRelease>', on_key_release)
+    t_keys = keyboard.Listener(on_release=on_key_release, daemon=True)
+    t_keys.start()
 
     # this runs in the main thread i.e. where tkinter lives
     poll_queue()
 
     # --- start root ---
     root.mainloop()
-
-
 
 if __name__ == "__main__":
     main()
