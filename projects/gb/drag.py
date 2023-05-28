@@ -16,12 +16,12 @@ root.overrideredirect(True)
 root.lift()
 root.wm_attributes("-topmost", True)
 root.attributes('-alpha', 0.5)
-root.geometry("+507+133")
+root.geometry("+507+50")
 root.wm_attributes('-transparentcolor', '#60b26c')
 
 MENU_HEIGHT = 100
 GB_WIDTH = 1440 # 1280
-GB_HEIGHT = 1100 #720 # 900
+GB_HEIGHT = 1000 #720 # 900
 BOOMER_ANG_REV = 30
 BOOMER_ANG_FORWARD = 40
 
@@ -38,6 +38,8 @@ __wind_text = None
 __wp_prev = 0
 __wa_prev = 0
 
+__mouse_drag_calib_1 = None
+__mouse_drag_calib_2 = None
 __mouse_drag = dict(
     x_base = 0,
     y_base = 0,
@@ -56,7 +58,12 @@ __var_w_a = tk.DoubleVar(value=0)
 __var_w_p = tk.DoubleVar(value=0)
 __var_x_1 = tk.DoubleVar(value=0)
 __var_y_1 = tk.DoubleVar(value=0)
-
+__var_y_max_1 = tk.DoubleVar(value=500)
+__var_y_max_2 = tk.DoubleVar(value=400)
+__initial_drag_prev = -140
+__drag_factor_prev = 1.0
+__initial_drag = -140
+__drag_factor = 1.0
 
 # - wind --> copy from other file
 # - keypress to set place base 'b' => set state
@@ -68,15 +75,17 @@ __var_y_1 = tk.DoubleVar(value=0)
 # - main loop after => get from queue => if update parabola => redraw
 # - keypress to set drag mode 'd' => exit drag mode
 
-
 # --- threads ---
 
 def task_compute_path():
     global __draw_queue, __aim_lines, __mouse_drag, __mouse_prev_state, __var_shot_type
+    global __initial_drag_prev, __initial_drag, __drag_factor, __drag_factor_prev
     while(True):
         if ((__mouse_drag["x_delta"], __mouse_drag["y_delta"]) != __mouse_prev_state 
             or __wp_prev != __var_w_p.get() 
             or __wa_prev != __var_w_a.get()
+            or __drag_factor_prev != __drag_factor
+            or __initial_drag_prev != __initial_drag
         ):
             match __var_shot_type.get():
                 case "normal":
@@ -91,25 +100,30 @@ def task_compute_path():
                 case _:
                     pass
             __mouse_prev_state = (__mouse_drag["x_delta"], __mouse_drag["y_delta"])
+            __drag_factor_prev = __drag_factor
+            __initial_drag_prev = __initial_drag
         time.sleep(0.1)
 
 def compute_path_normal():
     global __mouse_drag
+    global __lock
 
     v_x = __mouse_drag["x_delta"]
     v_y = __mouse_drag["y_delta"]
-    # TODO: add a calibration function
-    initial_drag = 130
-    drag_factor = 1.04
 
+    __lock.acquire()
+    global __drag_factor, __initial_drag
+    # TODO: add a calibration function
+    
     if v_x == 0:
         power = 0
         angle = 0
     else:
         angle = math.atan(v_y/v_x)
         power = math.sqrt(v_y**2 + v_x**2)
-        power = max(drag_factor*power - initial_drag, 0)
-        power = min(power, 320)
+        power = max(__drag_factor*power+__initial_drag, 0)
+        power = min(power, 400)
+    __lock.release()
 
     v_x = np.sign(v_x) * np.abs(power * math.cos(angle))
     v_y = np.sign(v_y) * np.abs(power * math.sin(angle))
@@ -136,7 +150,6 @@ def compute_path_normal():
     line_vec_wind[0::2] = x_path_vec
     line_vec_wind[1::2] = y_path_vec
 
-    global __lock
     __lock.acquire()
     global __aim_lines
     __aim_lines["aim_parabola"] = line_vec
@@ -144,30 +157,75 @@ def compute_path_normal():
     __lock.release()
 
 
+def calibrate():
+    global __var_y_max_1, __var_y_max_2, __mouse_drag_calib_1, __mouse_drag_calib_2
+    global __var_g_f
+    g_f = __var_g_f.get()
+
+    #ang_1 = math.atan(__mouse_drag_calib_1["y_delta"] / __mouse_drag_calib_1["x_delta"])
+    #ang_2 = math.atan(__mouse_drag_calib_2["y_delta"] / __mouse_drag_calib_2["x_delta"])
+    #power_px_1 = math.sqrt(__mouse_drag_calib_1["y_delta"]**2 + __mouse_drag_calib_1["x_delta"]**2)
+    #power_px_2 = math.sqrt(__mouse_drag_calib_2["y_delta"]**2 + __mouse_drag_calib_2["x_delta"]**2)
+
+    y_max_1 = float(__var_y_max_1.get()) - float(__var_y_1.get())
+    y_max_2 = float(__var_y_max_2.get()) - float(__var_y_1.get())
+
+    print(y_max_1, flush=True)
+    print(y_max_2, flush=True)
+
+    v_y_1 = -math.sqrt(2*g_f*math.fabs(y_max_1))
+    v_y_2 = -math.sqrt(2*g_f*math.fabs(y_max_2))
+    print(f"{v_y_1}, {v_y_2}", flush=True)
+    #power_target_1 = math.fabs(v_y_1 / math.sin(ang_1))
+    #power_target_2 = math.fabs(v_y_2 / math.sin(ang_2))
+    # print(f"{power_px_1}, {power_px_2}, {power_target_1}, {power_target_2}", flush=True)
+
+    #power_factor = (power_target_1 - power_target_2) / (power_px_1 - power_px_2)
+    #power_base = power_target_1 - power_factor*power_px_1
+    power_factor = (v_y_1 - v_y_2) / (__mouse_drag_calib_1["y_delta"] - __mouse_drag_calib_2["y_delta"])
+    power_base = v_y_1 - power_factor * __mouse_drag_calib_1["y_delta"]
+    print(power_factor, power_base, flush=True)
+
+    global __lock
+    __lock.acquire()
+    global __drag_factor, __initial_drag
+    __drag_factor = power_factor
+    __initial_drag = -power_base
+    __lock.release()
+
+    # print(f"power_factor={power_factor},power_base={power_base}", flush=True)
+
+    # t = v_y / g_y
+    # y = v_y*t + 0.5*g_y*t^2 = v_y^2/g_y - 0.5v_y^2/g_y
+    # y1 - y2 = m(x1 - x2)
+    # y - y2 = m(x - x2)
+    # y = mx + (y2 - mx2)
+
 def compute_path_boomer(reverse):
     global __mouse_drag
+    global __lock
 
     g_f = float(__var_g_f.get())
     w_f = float(__var_w_f.get())
     w_a = (float(__var_w_a.get()) / 180) * math.pi
     w_p = float(__var_w_p.get())
     x_1 = float(__var_x_1.get())
-    y_1 = float(__var_y_1.get())
+    y_1 = float(__var_y_1.get()) # boomer always sits a bit higher
 
     v_x = __mouse_drag["x_delta"]
     v_y = __mouse_drag["y_delta"]
 
     # TODO: add a calibration function
-    initial_drag = 120
-    drag_factor = 1.08
-
+    __lock.acquire()
+    global __drag_factor, __initial_drag
     if v_x == 0:
         power = 0
         angle = 0
     else:
         angle = math.atan(v_y/v_x)
         power = math.sqrt(v_y**2 + v_x**2)
-        power = max(drag_factor*power - initial_drag, 0)
+        power = max(__drag_factor*power+__initial_drag, 0)
+    __lock.release()
 
     w_y = w_f*w_p*math.sin(w_a)
     w_x = w_f*w_p*math.cos(w_a)
@@ -195,12 +253,12 @@ def compute_path_boomer(reverse):
 
     # slap part
     if reverse:
-        v_x_slap = -VX_SLAP
+        v_x_slap = -VX_SLAP * np.sign(v_x)
         v_y_slap = math.fabs(v_x_slap / math.tan((BOOMER_ANG_REV / 180) * math.pi))
         x_aim_vec_slap = v_x_slap * t_vec_slap + x_aim_vec[-1]
         y_aim_vec_slap = v_y_slap * t_vec_slap + y_aim_vec[-1]
     else:
-        v_x_slap = VX_SLAP
+        v_x_slap = VX_SLAP * np.sign(v_x)
         v_y_slap = math.fabs(v_x_slap / math.tan((BOOMER_ANG_FORWARD / 180) * math.pi))
         x_aim_vec_slap = v_x_slap * t_vec_slap + x_aim_vec[-1]
         y_aim_vec_slap = v_y_slap * t_vec_slap + y_aim_vec[-1]
@@ -227,7 +285,7 @@ def compute_path_boomer(reverse):
             boom_ang_x *= -1
         boom_ang_y -= SLAP_FACTOR * w_y / g_f
         boom_ang = math.atan(boom_ang_x / boom_ang_y)
-        v_x_slap = -VX_SLAP
+        v_x_slap = -VX_SLAP * np.sign(v_x)
         v_y_slap = math.fabs(v_x_slap / math.tan(boom_ang))
         x_path_vec_slap = v_x_slap*t_vec_slap + 0.5*w_x*(t_vec_slap**2) + x_path_vec[-1]
         y_path_vec_slap = v_y_slap*t_vec_slap - 0.5*w_y*(t_vec_slap**2) + y_path_vec[-1]
@@ -239,7 +297,7 @@ def compute_path_boomer(reverse):
             boom_ang_x *= -1
         boom_ang_y -= SLAP_FACTOR * w_y / g_f
         boom_ang = math.atan(boom_ang_x / boom_ang_y)
-        v_x_slap = VX_SLAP
+        v_x_slap = VX_SLAP * np.sign(v_x)
         v_y_slap = math.fabs(v_x_slap / math.tan(boom_ang))
         x_path_vec_slap = v_x_slap*t_vec_slap + 0.5*w_x*(t_vec_slap**2) + x_path_vec[-1]
         y_path_vec_slap = v_y_slap*t_vec_slap - 0.5*w_y*(t_vec_slap**2) + y_path_vec[-1]
@@ -248,7 +306,6 @@ def compute_path_boomer(reverse):
     line_vec_wind_slap[0::2] = x_path_vec_slap
     line_vec_wind_slap[1::2] = y_path_vec_slap
 
-    global __lock
     __lock.acquire()
     global __aim_lines
     __aim_lines["aim_parabola"] = np.concatenate((line_vec, line_vec_slap))
@@ -259,17 +316,16 @@ def on_mouse_click_general(x, y, button, pressed):
     # TODO: should probably use button to test for mouse button
     global __STATE, __CANVAS
     if __STATE == "base_drag_start" and pressed:
-        c_x, c_y = __CANVAS.winfo_rootx(), __CANVAS.winfo_rooty()
-        draw_base(x - c_x, y - c_y)
-        set_state("base_drag")
+        # c_x, c_y = __CANVAS.winfo_rootx(), __CANVAS.winfo_rooty()
+        # draw_base(x - c_x, y - c_y)
         update_mouse_drag_info(x, y, set_base=True)
         # put msg in queue to set target start
-    elif __STATE == "base_drag" and not pressed:
-        set_state("base_drag_stopped")
+    #elif __STATE == "base_drag" and not pressed:
+    #    set_state("base_drag_stopped")
 
 def on_mouse_move_general(x, y):
     global __STATE
-    if __STATE == "base_drag":
+    if __STATE == "base_drag_start":
         update_mouse_drag_info(x, y)
 
 def update_mouse_drag_info(x, y, set_base=False):
@@ -299,11 +355,10 @@ def after_loop():
 def update_aim_lines(aim_parabola, wind_parabola):
     pass
 
-
 def overlay():
     global __CANVAS
     content = ttk.Frame(root, borderwidth=1, relief="solid", width=GB_WIDTH, height=(GB_HEIGHT+MENU_HEIGHT))
-    content.grid(column=0, row=0, padx=50, pady=20)
+    content.grid(column=0, row=0, padx=50, pady=100)
 
     # gunbound
     gunbound = ttk.Frame(content, borderwidth=1, relief="solid", width=GB_WIDTH, height=GB_HEIGHT)
@@ -328,6 +383,9 @@ def overlay():
     canvas.grid(column=0, row=0, sticky="nsew")
     canvas.bind("<Button-1>", canvas_on_click)
 
+    # y_max for calibration
+    canvas.create_line(0, __var_y_max_1.get(), GB_WIDTH, __var_y_max_1.get(), fill='magenta')
+    canvas.create_line(0, __var_y_max_2.get(), GB_WIDTH, __var_y_max_2.get(), fill='violet')
 
     # wind drag token
     global __wind_drag_oval
@@ -436,16 +494,42 @@ def canvas_on_click(event):
 
 def draw_base(x, y):
     global __CANVAS, __var_x_1, __var_y_1
+
     __CANVAS.delete("base")
-    __CANVAS.create_oval(x-10, y-10, x+10, y+10, outline='green', tags=("base",))
+    __CANVAS.create_oval(x-20, y-20, x+20, y+20, outline='green', tags=("base",), width=1)
     __var_x_1.set(x)
     __var_y_1.set(y)
     __CANVAS["background"] = "#60b26c"
 
+def draw_calibration_helper():
+    global __lock, __CANVAS
+    m = mouse.Controller()
+    c_x, c_y = __CANVAS.winfo_rootx(), __CANVAS.winfo_rooty()
+    x_m, x_y = m.position
+    x, y = x_m - c_x, x_y - c_y
+    calib_len = 200
+    print((x, y), flush=True)
+    __CANVAS.create_line(x, y-calib_len, x, y+calib_len, fill='green', tags=("calib_line",), width=4, dash=(2,2))
+
 def on_key_release(event):
-    global __STATE
+    global __STATE, __lock
+    global __mouse_drag_calib_1, __mouse_drag_calib_2, __mouse_drag
     try:
         match event.char:
+            case '1':
+                m = mouse.Controller()
+                c_x, c_y = __CANVAS.winfo_rootx(), __CANVAS.winfo_rooty()
+                __mouse_drag_calib_1 = { "y_delta": __var_y_1.get() - (m.position[1] - c_y) }
+                root.after(1, draw_calibration_helper)
+            case '2':
+                try:
+                    m = mouse.Controller()
+                    c_x, c_y = __CANVAS.winfo_rootx(), __CANVAS.winfo_rooty()
+                    __mouse_drag_calib_2 = { "y_delta": __var_y_1.get() - (m.position[1] - c_y) }
+                    root.after(1, calibrate)
+                    __CANVAS.delete("calib_line")
+                except Exception as e:
+                    print(f"calibration failed: {e}")
             case 'd':
                 set_state("base_drag_start")
             case 'D':
@@ -461,8 +545,6 @@ def on_key_release(event):
                 reset()
             case 'M':
                 __var_shot_type.set("boomer_s2")
-            case _:
-                pass
     except AttributeError:
         pass
 
@@ -527,8 +609,8 @@ def redraw_aim_lines():
     __lock.acquire()
     global __aim_lines
     __CANVAS.delete("aim_lines")
-    __CANVAS.create_line(*__aim_lines["aim_parabola"], fill="yellow", tags=("aim_lines",), width=2)
-    __CANVAS.create_line(*__aim_lines["wind_parabola"], fill="green", tags=("aim_lines",), width=2)
+    __CANVAS.create_line(*__aim_lines["aim_parabola"], fill="green", tags=("aim_lines",), width=4)
+    __CANVAS.create_line(*__aim_lines["wind_parabola"], fill="yellow", tags=("aim_lines",), width=4)
     __lock.release()
 
 def main():

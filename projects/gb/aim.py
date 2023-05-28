@@ -3,6 +3,9 @@ import functools
 import math
 import numpy as np
 from tkinter import ttk
+from pynput import mouse
+from pynput import keyboard
+
 
 # TODO:
 # [ ] menu -> | set wind angle | set wind power | set base | set target | set ymax | calculate
@@ -48,7 +51,7 @@ __CROSSHAIR_CIRCLE_2 = None
 __BASE_CIRCLE_2 = None
 __TARGET_CIRCLE_2 = None
 
-__var_w_a = tk.DoubleVar(value=0)
+__var_w_a = tk.IntVar(value=0)
 __var_w_p = tk.DoubleVar(value=0)
 __var_x_1 = tk.DoubleVar()
 __var_y_1 = tk.DoubleVar()
@@ -61,7 +64,7 @@ __var_x_2_2 = tk.DoubleVar()
 __var_y_2_2 = tk.DoubleVar()
 
 __var_y_max = tk.DoubleVar(value=150)
-__var_wf = tk.DoubleVar(value=1.185)
+__var_wf = tk.DoubleVar(value=1.2)
 __var_gf = tk.DoubleVar(value=98)
 __var_pf = tk.DoubleVar()
 __var_shot_type = tk.StringVar(value="normal")
@@ -156,7 +159,7 @@ def reset():
     __var_w_p.set(value=0)
 
     __var_y_max.set(150)
-    __var_wf.set(1.185)
+    __var_wf.set(1.2)
     __var_gf.set(98)
     __var_shot_type.set("normal")
     __var_shot_type_2.set("normal")
@@ -202,6 +205,8 @@ def calculate_power(tank, show_multiple=True):
         y_base = __var_y_2.get()
     colors = ["#223C20", "#4C8D26", "#DE60CA", "#882380", "#D5FB00"]
     i = 0
+    if shot_type.startswith("dnak"):
+        show_multiple = False
     if show_multiple:
         for y in np.linspace(y_base - 100, y_base - 600, num=5, endpoint=True):
             c = colors[i]
@@ -661,7 +666,7 @@ def calculate_wind_ang(x, y):
         elif y > y_mid and x > x_mid:
             w_a_rad = 2 * math.pi - w_a_rad
 
-    __var_w_a.set(float(w_a_rad * 180 / math.pi))
+    __var_w_a.set(int(w_a_rad * 180 / math.pi))
     __WIND_LINE = __CANVAS.create_line(__wind_center[0], y_mid, __wind_center[0] + 40 * math.cos(w_a_rad), y_mid - 40 * math.sin(w_a_rad), fill='green', width=2)
     __CANVAS["background"] = "#60b26c"
 
@@ -1014,69 +1019,74 @@ def overlay():
     __CANVAS = canvas
 
 def on_key_release(event):
-    if event.char == 'r':
-        reset()
-    if event.char == 'b':
-        set_state('base_1')
-    if event.char == 't':
-        set_state('target_1')
-    if event.char == 'B':
-        set_state('base_2')
-    if event.char == 'T':
-        set_state('target_2')
-    if event.char == 'a':
-        set_state('w_a')
-    if event.char == 's':
-        set_state('w_p')
-    if event.char == 'y':
-        set_state('y_max')
-    if event.char == 'c':
-        calculate_power(1)
-    if event.char == 'C':
-        calculate_power(2)
-    if event.char == 'n':
-        __var_shot_type.set("normal")
-        calculate_power(1)
-    if event.char == 'm':
-        __var_shot_type.set("boomer_s1")
-        calculate_power(1)
-    if event.char == 'M':
-        __var_shot_type.set("boomer_s2")
-        calculate_power(1)
-    if event.char == 'd':
-        __var_shot_type.set("dnak_s2")
-        calculate_power(1)
-    if event.char == 'D':
-        __var_shot_type.set("dnak_s2_flip")
-        calculate_power(1)
-
-
-    global __SET_STATE
-    global __var_w_p
-    if __SET_STATE == 'w_p' and event.char != 's':
-        if event.char == "!":
-            __var_w_p.set(10.0)
+    try:
+        if event.char == 'r':
+            reset()
+        if event.char == 'b':
+            set_state('base_1')
+        if event.char == 't':
+            set_state('target_1')
+        if event.char == 'B':
+            set_state('base_2')
+        if event.char == 'T':
+            set_state('target_2')
+        if event.char == 'a':
+            set_state('w_a')
+        if event.char == 's':
+            set_state('w_p')
+        if event.char == 'y':
+            set_state('y_max')
+        if event.char == 'c':
             calculate_power(1)
-        elif event.char == "@":
-            __var_w_p.set(11.0)
+        if event.char == 'C':
+            calculate_power(2)
+        if event.char == 'n':
+            __var_shot_type.set("normal")
             calculate_power(1)
-        elif event.char == "#":
-            __var_w_p.set(12.0)
+        if event.char == 'm':
+            __var_shot_type.set("boomer_s1")
             calculate_power(1)
-        elif int(event.char) >= 0 and int(event.char) <=9:
-            __var_w_p.set(event.char)
+        if event.char == 'M':
+            __var_shot_type.set("boomer_s2")
+            calculate_power(1)
+        if event.char == 'd':
+            __var_shot_type.set("dnak_s2")
+            calculate_power(1)
+        if event.char == 'D':
+            __var_shot_type.set("dnak_s2_flip")
             calculate_power(1)
 
-        __CANVAS["background"] = "#60b26c"
-        __SET_STATE = None
 
+        global __SET_STATE
+        global __var_w_p
+        if __SET_STATE == 'w_p' and event.char != 's':
+            if event.char == "!":
+                __var_w_p.set(10.0)
+                calculate_power(1)
+            elif event.char == "@":
+                __var_w_p.set(11.0)
+                calculate_power(1)
+            elif event.char == "#":
+                __var_w_p.set(12.0)
+                calculate_power(1)
+            elif int(event.char) >= 0 and int(event.char) <=9:
+                __var_w_p.set(event.char)
+                calculate_power(1)
+
+            __CANVAS["background"] = "#60b26c"
+            __SET_STATE = None
+
+    except (AttributeError, ValueError):
+        pass
     __dummy_button.focus()
 
 def main():
     root.title("gunbound_aim")
     overlay()
     reset()
-    root.bind('<KeyRelease>', on_key_release)
+    # root.bind('<KeyRelease>', on_key_release)
+    t_keys = keyboard.Listener(on_release=on_key_release, daemon=True)
+    t_keys.start()
     root.mainloop()
 
 if __name__ == "__main__":
