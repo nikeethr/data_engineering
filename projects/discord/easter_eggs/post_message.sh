@@ -1,15 +1,17 @@
 #!/bin/bash
 
 
-TOKEN=
-GUILD_ID=
-CHANNEL_ID=
+TOKEN=ODQ2NTcwMjY0ODA4NzgzOTAy.YlTG3A.6xyjTt7PYoM8KlgEyZ4k0mfWX-s
+GUILD_ID=944191531286429746
+CHANNEL_ID=944191581974564864
 RAND=0
 WAIT_TIME_ALL_MSGS=20
 declare -a MSG_TYPE=(
   "pm"
   "beg"
+  "bet 1500"
   "deposit max"
+  "use hoe"
   "search"
   "crime"
   "hunt"
@@ -75,7 +77,7 @@ while :; do
     post_content "${MSG}"
     sleep $WAIT_TIME
   else
-    MIN_WAIT_TIME=5
+    MIN_WAIT_TIME=6
     WAIT_TIME_RAND=3
     for MSG in "${MSG_TYPE[@]}"; do
       post_content "${MSG}"

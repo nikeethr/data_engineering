@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::string::String;
 
 // TODO: pick up API_URI and API_KEY from config file
+// https://app.swaggerhub.com/apis/HiveOS/public/2.1-beta
 static API_URI: &str = "https://api2.hiveos.farm/api/v2";
 static API_KEY: &str = "";
 
