@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 datafusion = "31.0.0"
 tar = "0.4.40"
+tokio = "1.33.0"
