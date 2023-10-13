@@ -42,19 +42,116 @@ use tar::Archive;
 // TODO: move these to separate files/folders
 // -------------------------------------------------------------------------------------------------
 
+mod utils {
+    use std::cmp::{Ordering, PartialOrd};
+
+    struct Sec<U = u64>(U);
+    struct IntervalType<T>(T);
+
+    trait CmpSeconds<U> {
+        fn to_seconds(&self) -> U;
+    }
+
+    impl<T> PartialEq<IntervalType<T>> for IntervalType<T>
+    where
+        T: CmpSeconds<Sec> + PartialOrd + PartialEq,
+    {
+        fn eq(&self, other: &IntervalType<T>) -> bool {
+            self.0.to_seconds().0.eq(&other.0.to_seconds().0)
+        }
+    }
+
+    impl<T> PartialOrd<IntervalType<T>> for IntervalType<T>
+    where
+        T: CmpSeconds<Sec> + PartialOrd + PartialEq,
+    {
+        fn partial_cmp(&self, other: &IntervalType<T>) -> Option<Ordering> {
+            self.0.to_seconds().0.partial_cmp(&other.0.to_seconds().0)
+        }
+    }
+
+    impl<T> IntervalType<T> {
+        pub fn inner(&self) -> T {
+            self.0
+        }
+    }
+
+    impl<T> CmpSeconds<Sec> for IntervalType<T>
+    where
+        T: CmpSeconds<Sec> + PartialOrd + PartialEq,
+    {
+        fn to_seconds(&self) -> Sec {
+            self.0.to_seconds()
+        }
+    }
+
+    #[derive(Debug, Clone, PartialOrd, PartialEq)]
+    pub enum SqlDateBinKind {
+        TenMins,
+        ThirtyMinutes,
+        OneHour,
+        SixHours,
+    }
+
+    impl CmpSeconds<Sec> for SqlDateBinKind {
+        #[inline]
+        fn to_seconds(&self) -> Sec {
+            match self {
+                Self::TenMins => Sec(10 * 60),
+                Self::ThirtyMinutes => Sec(30 * 60),
+                Self::OneHour => Sec(60 * 60),
+                Self::SixHours => Sec(6 * 60 * 60),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, PartialOrd, PartialEq)]
+    pub enum InputDataFreq {
+        Seconds,
+        Minutes,
+        Hours,
+        Days,
+    }
+
+    impl CmpSeconds<Sec> for InputDataFreq {
+        #[inline]
+        fn to_seconds(&self) -> Sec {
+            match self {
+                Self::Seconds => Sec(1),
+                Self::Minutes => Sec(60),
+                Self::Hours => Sec(60 * 60),
+                Self::Days => Sec(24 * 60 * 60),
+            }
+        }
+    }
+
+    #[test]
+    fn test_lt_different_enums() {
+        assert_eq!(
+            IntervalType(InputDataFreq::Seconds.to_seconds().0).inner()
+                < IntervalType(SqlDateBinKind::TenMins.to_seconds().0).inner(),
+            true
+        )
+    }
+
+    #[test]
+    fn test_gt_different_enums() {
+        assert_eq!(InputDataFreq::Hours < SqlDateBinKind::TenMins, false)
+    }
+
+    #[test]
+    fn test_eq_different_enums() {
+        assert_eq!(InputDataFreq::Hours == SqlDateBinKind::TenMins, true)
+    }
+}
+
 mod my_resampler {
+    use crate::utils::{InputDataFreq, SqlDateBinKind};
     use datafusion::prelude::*;
 
     // -------------------------------------------------------------------------------------------------
     // Resample frequency
     // -------------------------------------------------------------------------------------------------
-
-    #[derive(Debug, Clone)]
-    enum SqlDateBinKind {
-        OneMin,
-        TenMins,
-        OneHour,
-    }
 
     // Date builder is a one-time construct and will be consumed after generating the expression.
     // This could have been implemented with a constructor, but this is an expriemnt to try out the
@@ -63,6 +160,7 @@ mod my_resampler {
     // Note: currently this builder pattern only applies to date bins, in the future this can
     // probably be expanded to more generic resamplers. In which case a non-consuming builder might
     // make sense.
+
     struct ParquetDateBinBuilder {
         date_field: String,
         date_bin: SqlDateBinKind,
@@ -116,26 +214,30 @@ mod my_resampler {
         fn construct_expr(self) -> Vec<Expr>;
     }
 
+    // TODO: hardcoded reference time to start at 1900-01-01T00:00:00UTC - this should be
+    // sufficient for the current implementation but may need to revisit if causes issues.
+    const REFERENCE_DATE: &str = "1900-01-01T00:00:00";
+
     // Currently only `self::SqlDateBinKind` is supported, i.e. for date_bin, therefore it doesn't
     // take generics
     impl ParquetBinExpression for ParquetDateBin {
-        // TODO: hardcoded reference time to start at 1900-01-01T00:00:00 - this should be
-        // sufficient for the current implementation but may need to revisit if causes issues.
         fn construct_expr(self) -> Vec<Expr> {
             vec![
                 lit(self.resample_bin_parser(&self.date_bin)),
                 ident(self.date_field),
-                lit("1900-01-01T00:00:00"),
+                lit(REFERENCE_DATE),
             ]
         }
     }
 
     impl ResampleBin<SqlDateBinKind, String> for ParquetDateBin {
+        #[inline]
         fn resample_bin_parser(&self, bin: &SqlDateBinKind) -> String {
             match bin {
-                SqlDateBinKind::OneMin => "1 minute".to_string(),
                 SqlDateBinKind::TenMins => "10 minutes".to_string(),
+                SqlDateBinKind::ThirtyMinutes => "30 minutes".to_string(),
                 SqlDateBinKind::OneHour => "1 hour".to_string(),
+                SqlDateBinKind::SixHours => "6 hours".to_string(),
             }
         }
     }
@@ -153,29 +255,53 @@ mod my_resampler {
     }
 
     #[derive(Debug, Clone)]
+    struct ParquetResamplerBuilder {
+        date_bin_exp: Vec<Expr>,
+        time_fields: Vec<String>,
+        value_fields: Vec<String>,
+        quality_fields: Option<Vec<String>>,
+        input_data_freq: Option<InputDataFreq>,
+        // These are writer parameters - should probably just have a writer struct
+        output_file_type: OutputFileKind,
+    }
+}
+
+mod my_reader {
+    // Reader
+    // => get tar bytes (Arc)
+    // => put into in_memory object store
+    // => use parquet reader to get record batches
+    // => create memory table
+
+    #[derive(Debug, Clone)]
     enum InputFileKind {
         SingleParquet,
         MultipleParquet,
         ParquetTarball,
     }
 
-    struct ParquetResamplerBuilder {
-        date_bin_exp: Vec<Expr>,
-        time_fields: Vec<String>,
-        value_fields: Vec<String>,
-        quality_fields: Option<Vec<String>>,
+    type DateYMD = (u32, u8, u8);
+    type DateRange = (DateYMD, DateYMD);
+
+    #[derive(Debug, Clone)]
+    struct ParquetReaderBuilder {
         // These are reader parameters - should probably just have a reader struct
         input_file_type: InputFileKind,
         num_threads: u8,
-        max_files_per_thread: u32,
-        // These are writer parameters - should probably just have a writer struct
-        output_file_type: OutputFileKind,
+        date_range: DateRange,
     }
+
+    impl ParquetReaderBuilder {
+        fn build(self) -> ParquetReader {}
+    }
+
+    struct ParquetReader {}
 }
 
-mod my_parquetreader {}
-
-mod my_writer {}
+mod my_writer {
+    // Writer
+    // =>
+}
 
 // -------------------------------------------------------------------------------------------------
 // Actual implementation
