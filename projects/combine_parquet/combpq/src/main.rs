@@ -35,57 +35,20 @@ use tar::Archive;
 // * my_resampler: resamples the data - main structure used to run the program, uses datafusion +
 // async io to batch process with sql like querying
 //
-// my_reader: reads data from a source, can be multithreaded if the source contains multiple files
+// * my_reader: reads data from a source, can be multithreaded if the source contains multiple files
 // or are in a tarball with multiple files, otherwise invokes tokio with multiple threads for a
 // single large file.
 //
+// * my_writer: writes data to an output file.
+//
+// * utils: generic helpers and definitions.
+//
 // TODO: move these to separate files/folders
 // -------------------------------------------------------------------------------------------------
-
 mod utils {
     use std::cmp::{Ordering, PartialOrd};
 
-    struct Sec<U = u64>(U);
-    struct IntervalType<T>(T);
-
-    trait CmpSeconds<U> {
-        fn to_seconds(&self) -> U;
-    }
-
-    impl<T> PartialEq<IntervalType<T>> for IntervalType<T>
-    where
-        T: CmpSeconds<Sec> + PartialOrd + PartialEq,
-    {
-        fn eq(&self, other: &IntervalType<T>) -> bool {
-            self.0.to_seconds().0.eq(&other.0.to_seconds().0)
-        }
-    }
-
-    impl<T> PartialOrd<IntervalType<T>> for IntervalType<T>
-    where
-        T: CmpSeconds<Sec> + PartialOrd + PartialEq,
-    {
-        fn partial_cmp(&self, other: &IntervalType<T>) -> Option<Ordering> {
-            self.0.to_seconds().0.partial_cmp(&other.0.to_seconds().0)
-        }
-    }
-
-    impl<T> IntervalType<T> {
-        pub fn inner(&self) -> T {
-            self.0
-        }
-    }
-
-    impl<T> CmpSeconds<Sec> for IntervalType<T>
-    where
-        T: CmpSeconds<Sec> + PartialOrd + PartialEq,
-    {
-        fn to_seconds(&self) -> Sec {
-            self.0.to_seconds()
-        }
-    }
-
-    #[derive(Debug, Clone, PartialOrd, PartialEq)]
+    #[derive(Debug, Clone)]
     pub enum SqlDateBinKind {
         TenMins,
         ThirtyMinutes,
@@ -93,19 +56,7 @@ mod utils {
         SixHours,
     }
 
-    impl CmpSeconds<Sec> for SqlDateBinKind {
-        #[inline]
-        fn to_seconds(&self) -> Sec {
-            match self {
-                Self::TenMins => Sec(10 * 60),
-                Self::ThirtyMinutes => Sec(30 * 60),
-                Self::OneHour => Sec(60 * 60),
-                Self::SixHours => Sec(6 * 60 * 60),
-            }
-        }
-    }
-
-    #[derive(Debug, Clone, PartialOrd, PartialEq)]
+    #[derive(Debug, Clone)]
     pub enum InputDataFreq {
         Seconds,
         Minutes,
@@ -113,35 +64,68 @@ mod utils {
         Days,
     }
 
-    impl CmpSeconds<Sec> for InputDataFreq {
-        #[inline]
-        fn to_seconds(&self) -> Sec {
-            match self {
-                Self::Seconds => Sec(1),
-                Self::Minutes => Sec(60),
-                Self::Hours => Sec(60 * 60),
-                Self::Days => Sec(24 * 60 * 60),
+    type SecondsType = i32;
+
+    struct Seconds(SecondsType);
+
+    impl From<SqlDateBinKind> for Seconds {
+        fn from(s: SqlDateBinKind) -> Seconds {
+            match s {
+                SqlDateBinKind::TenMins => Seconds(10 * 60),
+                SqlDateBinKind::ThirtyMinutes => Seconds(30 * 60),
+                SqlDateBinKind::OneHour => Seconds(60 * 60),
+                SqlDateBinKind::SixHours => Seconds(6 * 60 * 60),
             }
         }
     }
 
+    /// Also implicitly implements [`Into<SecondsType>`]
+    impl From<InputDataFreq> for Seconds {
+        fn from(s: InputDataFreq) -> Seconds {
+            match s {
+                InputDataFreq::Seconds => Seconds(1),
+                InputDataFreq::Minutes => Seconds(60),
+                InputDataFreq::Hours => Seconds(60 * 60),
+                InputDataFreq::Days => Seconds(24 * 60 * 60),
+            }
+        }
+    }
+
+    // TODO: Implement ability to compare seconds
+    impl PartialEq for Seconds {
+        fn eq(&self, other: &Self) -> bool {
+            self.0.eq(&other.0)
+        }
+    }
+
+    impl PartialOrd for Seconds {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            self.0.partial_cmp(&other.0)
+        }
+    }
+
     #[test]
-    fn test_lt_different_enums() {
+    // TODO: probably split tests with macro
+    fn test_cmp_seconds() {
         assert_eq!(
-            IntervalType(InputDataFreq::Seconds.to_seconds().0).inner()
-                < IntervalType(SqlDateBinKind::TenMins.to_seconds().0).inner(),
+            Seconds::from(SqlDateBinKind::TenMins) <= Seconds::from(InputDataFreq::Seconds),
+            false
+        );
+
+        assert_eq!(
+            Seconds::from(SqlDateBinKind::ThirtyMinutes) <= Seconds::from(InputDataFreq::Minutes),
+            false
+        );
+
+        assert_eq!(
+            Seconds::from(SqlDateBinKind::OneHour) <= Seconds::from(InputDataFreq::Hours),
             true
-        )
-    }
+        );
 
-    #[test]
-    fn test_gt_different_enums() {
-        assert_eq!(InputDataFreq::Hours < SqlDateBinKind::TenMins, false)
-    }
-
-    #[test]
-    fn test_eq_different_enums() {
-        assert_eq!(InputDataFreq::Hours == SqlDateBinKind::TenMins, true)
+        assert_eq!(
+            Seconds::from(SqlDateBinKind::SixHours) <= Seconds::from(InputDataFreq::Days),
+            true
+        );
     }
 }
 
@@ -210,7 +194,7 @@ mod my_resampler {
         fn resample_bin_parser(&self, bin: &T) -> U;
     }
 
-    trait ParquetBinExpression: ResampleBin<SqlDateBinKind, String> {
+    trait ParquetBinExpression {
         fn construct_expr(self) -> Vec<Expr>;
     }
 
@@ -218,8 +202,6 @@ mod my_resampler {
     // sufficient for the current implementation but may need to revisit if causes issues.
     const REFERENCE_DATE: &str = "1900-01-01T00:00:00";
 
-    // Currently only `self::SqlDateBinKind` is supported, i.e. for date_bin, therefore it doesn't
-    // take generics
     impl ParquetBinExpression for ParquetDateBin {
         fn construct_expr(self) -> Vec<Expr> {
             vec![
@@ -230,6 +212,8 @@ mod my_resampler {
         }
     }
 
+    // Currently only `self::SqlDateBinKind` is supported, i.e. for date_bin, therefore it doesn't
+    // take generics
     impl ResampleBin<SqlDateBinKind, String> for ParquetDateBin {
         #[inline]
         fn resample_bin_parser(&self, bin: &SqlDateBinKind) -> String {
@@ -292,7 +276,9 @@ mod my_reader {
     }
 
     impl ParquetReaderBuilder {
-        fn build(self) -> ParquetReader {}
+        fn build(self) -> ParquetReader {
+            todo!()
+        }
     }
 
     struct ParquetReader {}
