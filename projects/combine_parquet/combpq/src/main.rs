@@ -45,6 +45,9 @@ use tar::Archive;
 //
 // TODO: move these to separate files/folders
 // -------------------------------------------------------------------------------------------------
+
+mod intermediate_obj_store {}
+
 mod utils {
     use std::cmp::{Ordering, PartialOrd};
 
@@ -103,6 +106,9 @@ mod utils {
             self.0.partial_cmp(&other.0)
         }
     }
+
+    pub type DateYMD = (u32, u8, u8);
+    pub type DateRange = (DateYMD, DateYMD);
 
     #[test]
     // TODO: probably split tests with macro
@@ -238,13 +244,13 @@ mod my_resampler {
         MultipleParquet,
     }
 
+    // TODO: specific implementation for obs for now
     #[derive(Debug, Clone)]
-    struct ParquetResamplerBuilder {
+    struct ParquetObsResamplerBuilder {
         date_bin_exp: Vec<Expr>,
         time_fields: Vec<String>,
         value_fields: Vec<String>,
         quality_fields: Option<Vec<String>>,
-        input_data_freq: Option<InputDataFreq>,
         // These are writer parameters - should probably just have a writer struct
         output_file_type: OutputFileKind,
     }
@@ -256,23 +262,22 @@ mod my_reader {
     // => put into in_memory object store
     // => use parquet reader to get record batches
     // => create memory table
+    use crate::utils::DateRange;
+    use crate::utils::InputDataFreq;
 
     #[derive(Debug, Clone)]
     enum InputFileKind {
-        SingleParquet,
-        MultipleParquet,
-        ParquetTarball,
+        ParquetDir,     // directory containing input data
+        ParquetTarball, // tarball containing input data
     }
-
-    type DateYMD = (u32, u8, u8);
-    type DateRange = (DateYMD, DateYMD);
 
     #[derive(Debug, Clone)]
     struct ParquetReaderBuilder {
         // These are reader parameters - should probably just have a reader struct
         input_file_type: InputFileKind,
-        num_threads: u8,
         date_range: DateRange,
+        input_data_freq: Option<InputDataFreq>,
+        max_files_per_partition: u8, // only applies to tarball
     }
 
     impl ParquetReaderBuilder {
@@ -281,7 +286,16 @@ mod my_reader {
         }
     }
 
-    struct ParquetReader {}
+    struct ParquetReader {
+        // NOTE: when using  tarball we need to push to an intermediate directory first otherwise
+        // datafusion will not know how to read the parquet metadata. Tarball extraction is hard to
+        // do async - so the best way is to process it file by file if possible.
+
+        // InputFileKind | InputFileKind == ParquetTarball => WriteOutput . ProcessSql . CreateIntermediateObjStore
+        //               | InputFileKind == ParquetDir => WriteOutput . ProcessSql . ReadDataSource
+        //               where CreateIntermediateObjStore = in-memory if each file partition can
+        //               fit in memory, otherwise filesystem
+    }
 }
 
 mod my_writer {
