@@ -46,10 +46,180 @@ use tar::Archive;
 // TODO: move these to separate files/folders
 // -------------------------------------------------------------------------------------------------
 
-mod intermediate_obj_store {}
+mod tar_obj_store {
+    use crate::utils;
+    use async_trait::async_trait;
+    use bytes::Bytes;
+    use object_store::{
+        local::LocalFileSystem, memory::InMemory, path::Path as ObjStorePath, ObjectStore,
+    };
+    use std::fs::File;
+    use std::io::{copy, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
+    use std::path::{Path, PathBuf};
+    use std::sync::Arc;
+    use tar::{Archive, Entry};
+    use tokio::io::{Error, ErrorKind, Result};
+
+    /// InMemory: performs intermediate actions on an in-memory object store. This assumes that the
+    /// data-processing operation can be processed in independent batches.
+    ///
+    /// Filesystem: moves relevant files into a filesystem. This has to adhere to file-system
+    /// quotas, and hence may also be required to be processed in independent batches.
+    ///
+    /// TODO: could potentially also be used to combine files for date_range
+    struct EntryMetadata {
+        pub raw_file_position: u64,
+        pub size: u64,
+        pub path: Arc<PathBuf>,
+    }
+
+    #[async_trait]
+    trait IntermediateStore {
+        async fn to_intermediate<U: ObjectStore>(
+            &self,
+            path: Arc<ObjStorePath>,
+            entry: Arc<EntryMetadata>,
+        ) -> Result<()>;
+    }
+
+    #[async_trait]
+    trait TarToObjectStore: IntermediateStore {
+        type TarFileFilter: Fn(&Path) -> bool;
+        async fn read_entries(&self, filter: Option<Self::TarFileFilter>) -> tokio::io::Result<()>;
+    }
+
+    // NOTE: the above tar library only supports synchronous writes. Furthermore, data needs to be
+    // read in order from the read-only view or it may get corrupt, as such processing happens 1
+    // file at a time (in the archive).
+    //
+    // However, the intermediate store itself can be uploaded to concurrently for a given entry.
+
+    #[derive(Debug, Clone)]
+    struct ParquetTarObjectStore<T: ObjectStore> {
+        obj_store_path: String,
+        archive_path: String,
+        object_store: T,
+    }
+
+    // TODO: break this into memory/filesystem
+    // if it's memory - need to check if there's enough space
+    // if it's filesystem - need to create directory before insertion
+    #[async_trait]
+    impl IntermediateStore for ParquetTarObjectStore<InMemory> {
+        async fn to_intermediate<InMemory>(
+            &self,
+            path: Arc<ObjStorePath>,
+            entry: Arc<EntryMetadata>,
+        ) -> Result<()> {
+            if utils::get_available_memory() <= entry.size {
+                panic!("Not enough memory to read into InMemory object store - try with FileSystem storage instead.");
+            }
+            let src_path: &Path = self.archive_path.as_ref();
+            // requires prefix to be a directory
+            let obj_fs = LocalFileSystem::new_with_prefix(&src_path.parent().unwrap())?;
+            let b = obj_fs
+                .get_range(
+                    &ObjStorePath::parse(entry.path.to_str().unwrap()).unwrap(),
+                    entry.raw_file_position as usize
+                        ..(entry.raw_file_position + entry.size) as usize,
+                )
+                .await?;
+
+            self.object_store
+                .put(&ObjStorePath::from(path.filename().unwrap()), b)
+                .await?;
+
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl IntermediateStore for ParquetTarObjectStore<LocalFileSystem> {
+        async fn to_intermediate<LocalFileSystem>(
+            &self,
+            path: Arc<ObjStorePath>,
+            entry: Arc<EntryMetadata>,
+        ) -> Result<()> {
+            let archive_path = self.archive_path.to_owned();
+            let obj_path = path.to_owned();
+
+            tokio::task::spawn_blocking(move || -> Result<()> {
+                // bypass object store api since it's probably not efficient
+                let f = File::open(archive_path)?;
+                let f_out = File::open(obj_path.to_string())?;
+                let r = &mut BufReader::new(f);
+                let w = &mut BufWriter::new(f_out);
+                r.seek(SeekFrom::Start(entry.raw_file_position))?;
+                r.take(entry.size);
+                std::io::copy(r, w)?;
+                w.flush()
+            })
+            .await?
+        }
+    }
+
+    #[async_trait]
+    impl<T> TarToObjectStore for ParquetTarObjectStore<T>
+    where
+        T: ObjectStore,
+        ParquetTarObjectStore<T>: IntermediateStore,
+    {
+        type TarFileFilter = fn(&Path) -> bool;
+
+        async fn read_entries(&self, filter: Option<Self::TarFileFilter>) -> tokio::io::Result<()> {
+            let entries =
+                tokio::task::block_in_place(move || -> std::io::Result<Vec<EntryMetadata>> {
+                    let mut ta = Archive::new(File::open(&self.archive_path)?);
+                    let res = ta
+                        .entries()?
+                        .map(|e| -> tokio::io::Result<EntryMetadata> {
+                            let e = e.expect("corrupt entry");
+                            if let Some(f) = filter {
+                                if !f(e.path()?.as_ref()) {
+                                    return Err(Error::from(ErrorKind::NotFound));
+                                }
+                            }
+                            Ok(EntryMetadata {
+                                raw_file_position: e.raw_file_position(),
+                                size: e.size(),
+                                path: Arc::new(e.path()?.to_path_buf()),
+                            })
+                        })
+                        .filter_map(|e| e.ok())
+                        .collect::<Vec<_>>();
+                    Ok(res)
+                });
+
+            for e in entries? {
+                self.to_intermediate::<T>(
+                    ObjStorePath::parse(&self.obj_store_path).unwrap().into(),
+                    e.into(),
+                )
+                .await?;
+            }
+
+            Ok(())
+        }
+    }
+
+    // Using constructor pattern, since we tried builder pattern with the processing logic.
+    impl<T> ParquetTarObjectStore<T>
+    where
+        T: ObjectStore,
+    {
+        pub fn new(obj_store_path: String, archive_path: String, object_store: T) -> Self {
+            ParquetTarObjectStore::<T> {
+                obj_store_path,
+                archive_path,
+                object_store,
+            }
+        }
+    }
+}
 
 mod utils {
     use std::cmp::{Ordering, PartialOrd};
+    use sysinfo::{NetworkExt, NetworksExt, ProcessExt, System, SystemExt};
 
     #[derive(Debug, Clone)]
     pub enum SqlDateBinKind {
@@ -94,7 +264,6 @@ mod utils {
         }
     }
 
-    // TODO: Implement ability to compare seconds
     impl PartialEq for Seconds {
         fn eq(&self, other: &Self) -> bool {
             self.0.eq(&other.0)
@@ -105,6 +274,13 @@ mod utils {
         fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
             self.0.partial_cmp(&other.0)
         }
+    }
+
+    pub fn get_available_memory() -> u64 {
+        let mut sys = System::new_all();
+        sys.refresh_all();
+        const RESERVE_FACTOR: f32 = 0.2; // amount of memory to reserve
+        sys.available_memory() - ((sys.total_memory() as f32 * RESERVE_FACTOR) as u64)
     }
 
     pub type DateYMD = (u32, u8, u8);
@@ -277,7 +453,6 @@ mod my_reader {
         input_file_type: InputFileKind,
         date_range: DateRange,
         input_data_freq: Option<InputDataFreq>,
-        max_files_per_partition: u8, // only applies to tarball
     }
 
     impl ParquetReaderBuilder {
@@ -300,7 +475,7 @@ mod my_reader {
 
 mod my_writer {
     // Writer
-    // =>
+    // => OutputConfig e.g. ONE_FILE_PER_MONTH, ALL_STATIONS | ONE_FILE_PER_YEAR ... etc.
 }
 
 // -------------------------------------------------------------------------------------------------
