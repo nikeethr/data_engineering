@@ -217,6 +217,8 @@ mod tar_obj_store {
     }
 }
 
+mod refactor;
+
 mod utils {
     use std::cmp::{Ordering, PartialOrd};
     use sysinfo::{NetworkExt, NetworksExt, ProcessExt, System, SystemExt};
