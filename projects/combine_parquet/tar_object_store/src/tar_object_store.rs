@@ -9,11 +9,11 @@ use object_store::{
 };
 use std::collections::{BTreeSet, HashMap};
 use std::fs::File;
-use std::rc::Rc;
+
 use std::sync::{Arc, Weak};
 use tokio::io::AsyncWrite;
 
-const TAR_PQ_STORE_BASE_URI: &str = r"tar+pq://";
+pub const TAR_PQ_STORE_BASE_URI: &str = r"tar+pq://";
 
 /// This is effectively a read-only mirror of the filesystem store, with the location of the
 /// underlying files. Does not assume that the files within are sorted, but could be made more
