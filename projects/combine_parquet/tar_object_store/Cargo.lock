@@ -1958,11 +1958,15 @@ dependencies = [
 name = "tar_object_store"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "bytes",
  "chrono",
  "datafusion",
+ "futures",
  "object_store",
  "regex",
  "tar",
+ "tokio",
 ]
 
 [[package]]

@@ -27,7 +27,7 @@ impl EntryMetadataLocationHash {
 }
 
 #[derive(Debug, Clone)]
-struct EntryMetadataVec {
+pub struct EntryMetadataVec {
     inner: Rc<Vec<EntryMetadata>>,
 }
 
@@ -65,11 +65,11 @@ pub struct AdamTarMetadataExtract {
 
 #[derive(Debug, Clone)]
 pub struct EntryMetadata {
-    raw_file_position: u64,
-    size: u64,
-    path: String,
-    mtime: u64,
-    file_date: NaiveDate, // date within the filename of each file in the tarball
+    pub raw_file_position: u64,
+    pub size: u64,
+    pub path: String,
+    pub mtime: u64,
+    pub file_date: NaiveDate, // date within the filename of each file in the tarball
 }
 
 pub trait ExtractTarEntryMetadata {
@@ -131,7 +131,10 @@ impl AdamTarMetadataExtract {
 
 impl ExtractTarEntryMetadata for AdamTarMetadataExtract {
     fn extract_metadata(&mut self) -> std::io::Result<()> {
-        println!(">>> indexing metadata for tar file: {}...", &self.tar_path);
+        println!("----------------------------------------------------------------------------------------------------");
+        println!("| >>> loading tar archive >>>");
+        println!("----------------------------------------------------------------------------------------------------");
+        println!("| archive path = {}", &self.tar_path);
 
         let mut ta = Archive::new(File::open(&self.tar_path)?);
         ta.entries()?.try_for_each(|e| -> std::io::Result<()> {
@@ -177,29 +180,19 @@ impl ExtractTarEntryMetadata for AdamTarMetadataExtract {
     }
 }
 
-pub fn print_adam_metadata_stats(metadata: &AdamTarMetadataExtract) {
+pub fn print_adam_metadata_stats(metadata: &Vec<EntryMetadata>) {
     println!("----------------------------------------------------------------------------------------------------");
     println!("| >>> tar file stats >>>");
     println!("----------------------------------------------------------------------------------------------------");
-    println!(
-        "| total entries: {:?}",
-        metadata.entry_metadata.inner().len()
-    );
+    println!("| total entries: {:?}", metadata.len());
     println!(
         "| total size: {:?} mb",
-        metadata
-            .entry_metadata
-            .inner()
-            .iter()
-            .map(|x| x.size)
-            .sum::<u64>()
-            / 1024
-            / 1024
+        metadata.iter().map(|x| x.size).sum::<u64>() / 1024 / 1024
     );
     println!(
-        "| date range (inferred from filename): {:?}, {:?}",
-        metadata.entry_metadata.inner().first().unwrap().file_date,
-        metadata.entry_metadata.inner().last().unwrap().file_date,
+        "| date range (inferred from filename): {:?} -> {:?}",
+        metadata.first().unwrap().file_date,
+        metadata.last().unwrap().file_date,
     );
     println!("----------------------------------------------------------------------------------------------------");
 }

@@ -6,25 +6,13 @@ use std::io::Read;
 use std::path::Path;
 use std::rc::Rc;
 use tar::{Archive, Entry};
-
 pub(crate) mod tar_metadata;
 pub(crate) mod tar_object_store;
 use crate::tar_metadata::{
     print_adam_metadata_stats, AdamTarMetadataExtract, ExtractTarEntryMetadata,
 };
-
-#[cfg(dead_code)]
-struct TarFileObjectStore {
-    archive_path: Path,
-    /// entries - hashmap
-    entries_metadata: HashMap<Location, EntryMetadata>,
-}
-
-/// Currently assumes daily files
-#[cfg(dead_code)]
-fn register_partitioned_tar<T: ParseSingleFile>(single_file_parser: T) {
-    T::parse()
-}
+use crate::tar_object_store::AdamTarFileObjectStore;
+use futures::prelude::*;
 
 // NOTE: this can only work for small-ish archives, if we have >100,000 in the archive files for
 // example this can use up a lot of memory, and may be better to process in batches.
@@ -35,34 +23,21 @@ fn register_partitioned_tar<T: ParseSingleFile>(single_file_parser: T) {
 //
 //
 
-fn main() {
+#[tokio::main(flavor = "multi_thread")]
+async fn main() {
     let locations =
         AdamTarMetadataExtract::construct_locations_from_date_range("2022-04-01", "2022-04-05");
 
-    println!("{:?}", locations);
-
-    let mut adam_tar_metadata = AdamTarMetadataExtract::new(
+    let tar_path =
         "/home/nvr90/repos/data_engineering/projects/combine_parquet/combpq/blah2020.tar"
-            .to_string(),
-        "nowboost/tjl/one_minute_data".to_string(),
-    );
+            .to_string();
 
-    println!(
-        ">>> indexing metadata for tar file: {}...",
-        &adam_tar_metadata.tar_path
-    );
+    let prefix = "nowboost/tjl/one_minute_data".to_string();
 
-    print_adam_metadata_stats(&adam_tar_metadata);
+    let adam_tar_store = AdamTarFileObjectStore::new_with_locations(locations, &tar_path, &prefix);
 
-    for l in &locations {
-        if adam_tar_metadata.add_entry_if_exists(l.to_string()) {
-            println!(
-                "{} exists: {:?}",
-                l,
-                adam_tar_metadata.get_entry(l.to_string())
-            )
-        } else {
-            println!("{} does not exist", l,)
-        }
-    }
+    print_adam_metadata_stats(&adam_tar_store.tar_metadata_all);
+
+    let x = adam_tar_store.list(None).await.unwrap();
+    println!("{:?}", x.collect::<Vec<_>>().await)
 }
