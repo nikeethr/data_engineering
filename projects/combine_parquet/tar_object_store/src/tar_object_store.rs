@@ -91,7 +91,7 @@ impl AdamTarFileObjectStore {
         })
     }
 
-    fn strong_ref(&self) -> Arc<Self> {
+    pub fn strong_ref(&self) -> Arc<Self> {
         return self.weak_self.upgrade().unwrap();
     }
 }
