@@ -158,6 +158,7 @@ mod parquet_table_reader {
         intermediate_obj_path: ObjPath,
     }
 
+    /// registers table for directory in a filesystem
     #[async_trait]
     impl<'a> ParquetTableReader for ParquetFileSystemTableReader<'a> {
         async fn register_table(&self) -> datafusion::error::Result<()> {
@@ -175,6 +176,76 @@ mod parquet_table_reader {
     }
 
     #[async_trait]
+    impl IntermediateStore for ParquetTarObjectStore<LocalFileSystem> {
+        async fn to_intermediate<LocalFileSystem>(
+            &self,
+            path: Arc<ObjStorePath>,
+            entry: Arc<EntryMetadata>,
+        ) -> Result<()> {
+            let archive_path = self.archive_path.to_owned();
+            let obj_path = path.to_owned();
+
+            tokio::task::spawn_blocking(move || -> Result<()> {
+                // bypass object store api since it's probably not efficient
+                let f = File::open(archive_path)?;
+                let f_out = File::open(obj_path.to_string())?;
+                let r = &mut BufReader::new(f);
+                let w = &mut BufWriter::new(f_out);
+                r.seek(SeekFrom::Start(entry.raw_file_position))?;
+                r.take(entry.size);
+                std::io::copy(r, w)?;
+                w.flush()
+            })
+            .await?
+        }
+    }
+
+    #[async_trait]
+    impl<T> TarToObjectStore for ParquetTarObjectStore<T>
+    where
+        T: ObjectStore,
+        ParquetTarObjectStore<T>: IntermediateStore,
+    {
+        type TarFileFilter = fn(&Path) -> bool;
+
+        async fn read_entries(&self, filter: Option<Self::TarFileFilter>) -> tokio::io::Result<()> {
+            let entries =
+                tokio::task::block_in_place(move || -> std::io::Result<Vec<EntryMetadata>> {
+                    let mut ta = Archive::new(File::open(&self.archive_path)?);
+                    let res = ta
+                        .entries()?
+                        .map(|e| -> tokio::io::Result<EntryMetadata> {
+                            let e = e.expect("corrupt entry");
+                            if let Some(f) = filter {
+                                if !f(e.path()?.as_ref()) {
+                                    return Err(Error::from(ErrorKind::NotFound));
+                                }
+                            }
+                            Ok(EntryMetadata {
+                                raw_file_position: e.raw_file_position(),
+                                size: e.size(),
+                                path: Arc::new(e.path()?.to_path_buf()),
+                            })
+                        })
+                        .filter_map(|e| e.ok())
+                        .collect::<Vec<_>>();
+                    Ok(res)
+                });
+
+            for e in entries? {
+                self.to_intermediate::<T>(
+                    ObjStorePath::parse(&self.obj_store_path).unwrap().into(),
+                    e.into(),
+                )
+                .await?;
+            }
+
+            Ok(())
+        }
+    }
+
+    /// registers table through intermediate store for tarball
+    #[async_trait]
     impl<'a> ParquetTableReader for ParquetTarTableReader<'a> {
         async fn register_table(&self) -> datafusion::error::Result<()> {
             todo!()
@@ -184,7 +255,64 @@ mod parquet_table_reader {
     #[async_trait]
     impl<'a> IntermediateStore for ParquetTarTableReader<'a> {
         async fn into_intermediate_store(&self, store_type: IntermediateStoreType) -> Result<()> {
-            todo!()
+            // read tar file entries
+            match store_type {
+                IntermediateStoreType::InMemory => {}
+                IntermediateStoreType::LocalFileSystem => {}
+            }
+        }
+    }
+
+    impl<'a> ParquetTarTableReader<'a> {
+        type TarFileFilter = fn(&Path) -> bool;
+
+        async fn read_entries(&self, filter: Option<T>) -> tokio::io::Result<()> {
+            let entries =
+                tokio::task::block_in_place(move || -> std::io::Result<Vec<EntryMetadata>> {
+                    let mut ta = Archive::new(File::open(&self.archive_path)?);
+                    let res = ta
+                        .entries()?
+                        .map(|e| -> tokio::io::Result<EntryMetadata> {
+                            let e = e.expect("corrupt entry");
+                            if let Some(f) = filter {
+                                if !f(e.path()?.as_ref()) {
+                                    return Err(Error::from(ErrorKind::NotFound));
+                                }
+                            }
+                            Ok(EntryMetadata {
+                                raw_file_position: e.raw_file_position(),
+                                size: e.size(),
+                                path: Arc::new(e.path()?.to_path_buf()),
+                            })
+                        })
+                        .filter_map(|e| e.ok())
+                        .collect::<Vec<_>>();
+                    Ok(res)
+                });
+
+            for e in entries? {
+                self.to_intermediate::<T>(
+                    ObjStorePath::parse(&self.obj_store_path).unwrap().into(),
+                    e.into(),
+                )
+                .await?;
+            }
+
+            Ok(())
         }
     }
 }
+
+
+/// Obj store:
+///
+/// Note: registering can be done in common function (e.g. trait, or separate function - probably
+/// easier to use separate function)
+///
+/// 1. register_object_store to register the store:
+/// e.g.
+///
+/// How do we prompt rust to only read when required????
+///
+/// 2. register_listing_table to register the table to the object store
+///

@@ -1,0 +1,13 @@
+[package]
+name = "tar_object_store"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chrono = "0.4.31"
+datafusion = "32.0.0"
+object_store = "0.7.1"
+regex = "1.10.2"
+tar = "0.4.40"
