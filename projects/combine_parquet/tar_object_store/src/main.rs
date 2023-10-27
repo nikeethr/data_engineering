@@ -1,7 +1,3 @@
-use object_store::ObjectStore;
-
-pub(crate) mod tar_metadata;
-pub(crate) mod tar_object_store;
 use crate::tar_metadata::{print_adam_metadata_stats, AdamTarMetadataExtract};
 use crate::tar_object_store::AdamTarFileObjectStore;
 use datafusion::arrow::datatypes::DataType;
@@ -10,19 +6,58 @@ use datafusion::datasource::{
     listing::{ListingOptions, ListingTableInsertMode},
 };
 use datafusion::prelude::*;
-use futures::prelude::*;
+use object_store::ObjectStore;
+use std::io::Write;
 use std::sync::Arc;
 use url::Url;
+
+pub(crate) mod resampler;
+pub(crate) mod tar_metadata;
+pub(crate) mod tar_object_store;
 
 // NOTE: this can only work for small-ish archives, if we have >100,000 in the archive files for
 // example this can use up a lot of memory, and may be better to process in batches.
 //
 // extract_tar_entry_file_metadata -> Vec<EntryMetadata>
 // iter.for_each filename in metadata ->
-//
-//
-//
 
+fn main() {
+    // TODO: clean this up into command line args
+    // NOTE: these are file date ranges, and do not necessarily correspond to the actual obs date.
+    // As such it may be better to index the entire tar_file.
+    // TODO: add option to index entire tar file and cache it.
+    let locations =
+        AdamTarMetadataExtract::construct_locations_from_date_range("2022-04-01", "2022-04-05");
+
+    let tar_path =
+        "/home/nvr90/repos/data_engineering/projects/combine_parquet/combpq/blah2020.tar"
+            .to_string();
+
+    let prefix = "nowboost/tjl/one_minute_data".to_string();
+
+    let adam_tar_store = AdamTarFileObjectStore::new_with_locations(locations, &tar_path, &prefix);
+
+    std::io::stdout().flush().unwrap();
+
+    let adam_resampler = resampler::ParquetResampler::new(
+        adam_tar_store,
+        resampler::DataFreq::OneMin,
+        resampler::DataFreq::OneHour,
+        resampler::FilePartition::ByStation,
+        Some(r#"LSD"#.to_string()),
+        Some(r#"STN_NUM"#.to_string()),
+        Some(vec![
+            r#"AIR_TEMP"#.to_string(),
+            r#"AIR_TEMP_MIN"#.to_string(),
+            r#"AIR_TEMP_MAX"#.to_string(),
+            r#"DWPT"#.to_string(),
+        ]),
+    );
+
+    resampler::ParquetResampler::resample(adam_resampler.clone()).unwrap();
+}
+
+// TODO: CLI
 // CLI:
 // use clap::{Arg, App};
 
@@ -57,62 +92,3 @@ use url::Url;
 //         }
 //     }
 // }
-
-fn main() {
-    // TODO: clean this up into command line args
-    let locations =
-        AdamTarMetadataExtract::construct_locations_from_date_range("2022-04-01", "2022-04-05");
-
-    let tar_path =
-        "/home/nvr90/repos/data_engineering/projects/combine_parquet/combpq/blah2020.tar"
-            .to_string();
-
-    let prefix = "nowboost/tjl/one_minute_data".to_string();
-
-    let adam_tar_store = AdamTarFileObjectStore::new_with_locations(locations, &tar_path, &prefix);
-
-    print_adam_metadata_stats(&adam_tar_store.tar_metadata_all);
-
-    {
-        #[tokio::main(flavor = "multi_thread")]
-        async fn inner(adam_tar_store: Arc<AdamTarFileObjectStore>) -> tokio::io::Result<()> {
-            tokio::spawn(async move {
-                let x = adam_tar_store.list(None).await.unwrap();
-                println!("{:?}", x.collect::<Vec<_>>().await);
-
-                // TODO: below should be extracted into modules
-                let ctx = SessionContext::new();
-                ctx.runtime_env().register_object_store(
-                    &Url::parse(tar_object_store::TAR_PQ_STORE_BASE_URI).unwrap(),
-                    adam_tar_store,
-                );
-
-                ctx.register_listing_table(
-                    "adam_obs",
-                    tar_object_store::TAR_PQ_STORE_BASE_URI,
-                    ListingOptions::new(Arc::new(ParquetFormat::default()))
-                        .with_file_extension(".parquet")
-                        .with_table_partition_cols(vec![("date".to_string(), DataType::Date32)])
-                        .with_file_sort_order(vec![vec![col("date").sort(true, true)]])
-                        .with_insert_mode(ListingTableInsertMode::Error),
-                    None,
-                    None,
-                )
-                .await
-                .unwrap();
-
-                ctx.table("adam_obs")
-                    .await
-                    .unwrap()
-                    .filter(col("date").gt_eq(lit("2022-04-04")))
-                    .unwrap()
-                    .show_limit(10)
-                    .await
-                    .unwrap();
-            })
-            .await?;
-            Ok(())
-        }
-        inner(adam_tar_store.strong_ref()).unwrap();
-    }
-}

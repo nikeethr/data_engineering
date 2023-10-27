@@ -13,7 +13,9 @@ use std::fs::File;
 use std::sync::{Arc, Weak};
 use tokio::io::AsyncWrite;
 
-pub const TAR_PQ_STORE_BASE_URI: &str = r"tar+pq://";
+pub const TAR_PQ_STORE_BASE_URI: &'static str = r"tar+pq://";
+pub const PQ_EXTENSION: &'static str = r".parquet";
+pub const ADAM_OBS_TABLE_NAME: &'static str = r"adam_obs";
 
 /// This is effectively a read-only mirror of the filesystem store, with the location of the
 /// underlying files. Does not assume that the files within are sorted, but could be made more
@@ -23,7 +25,6 @@ pub const TAR_PQ_STORE_BASE_URI: &str = r"tar+pq://";
 /// Todo: We probably want a generic tar store - for now only adam is supported
 #[derive(Debug)]
 pub struct AdamTarFileObjectStore {
-    obj_store_root: String,
     tar_path: String,
     location_to_entry_map: HashMap<ObjPath, EntryMetadata>, // gets entry path within the tar
     // archive from object store location path
@@ -82,7 +83,6 @@ impl AdamTarFileObjectStore {
         Arc::new_cyclic(|s| {
             // Create the actual struct here.
             Self {
-                obj_store_root: TAR_PQ_STORE_BASE_URI.to_string(),
                 location_to_entry_map,
                 weak_self: s.clone(),
                 tar_path: tar_path.clone(),
