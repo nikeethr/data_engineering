@@ -1,15 +1,12 @@
-use crate::tar_metadata::{print_adam_metadata_stats, AdamTarMetadataExtract};
+use crate::tar_metadata::{AdamTarMetadataExtract};
 use crate::tar_object_store::AdamTarFileObjectStore;
-use datafusion::arrow::datatypes::DataType;
-use datafusion::datasource::{
-    file_format::parquet::ParquetFormat,
-    listing::{ListingOptions, ListingTableInsertMode},
-};
-use datafusion::prelude::*;
-use object_store::ObjectStore;
+
+
+
+
 use std::io::Write;
-use std::sync::Arc;
-use url::Url;
+
+
 
 pub(crate) mod resampler;
 pub(crate) mod tar_metadata;

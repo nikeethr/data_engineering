@@ -1,11 +1,11 @@
-use crate::tar_metadata::{print_adam_metadata_stats, AdamTarMetadataExtract};
+
 use crate::tar_object_store::{self, AdamTarFileObjectStore};
 
-use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef};
-use datafusion::common::{DFSchema, DFSchemaRef};
+use datafusion::arrow::datatypes::{DataType};
+
 use datafusion::dataframe::DataFrameWriteOptions;
 use datafusion::datasource::{
-    file_format::{csv::CsvFormat, parquet::ParquetFormat},
+    file_format::{parquet::ParquetFormat},
     listing::{ListingOptions, ListingTableInsertMode},
 };
 use datafusion::prelude::*;
