@@ -1,17 +1,24 @@
-
 use crate::tar_object_store::{self, AdamTarFileObjectStore};
 
-use datafusion::arrow::datatypes::{DataType};
+use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef, UnionFields, UnionMode};
 
+use chrono::{DateTime, Duration, Utc};
 use datafusion::dataframe::DataFrameWriteOptions;
+use datafusion::datasource::file_format::FileFormat;
+use datafusion::datasource::provider_as_source;
 use datafusion::datasource::{
-    file_format::{parquet::ParquetFormat},
+    file_format::{csv::CsvFormat, parquet::ParquetFormat},
     listing::{ListingOptions, ListingTableInsertMode},
 };
+use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::prelude::*;
-use object_store::{local::LocalFileSystem, ObjectStore};
+use object_store::local::LocalFileSystem;
 use std::cmp::{Ordering, PartialOrd};
+use std::fmt::Debug;
+use std::io::Write;
 use std::sync::{Arc, Weak};
+use tokio::runtime::{Handle, Runtime};
+use tokio::sync::mpsc;
 use url::Url;
 
 // ------------------------------------------------------------------------------------------------
@@ -54,6 +61,8 @@ impl From<DataFreq> for Seconds {
     }
 }
 
+// TODO: not all frequencies are used
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum DataFreq {
     OneMin,
@@ -63,7 +72,8 @@ pub enum DataFreq {
     CustomFreqSeconds(SecondsType),
 }
 
-/// TODO: probably single file or by station for now
+// TODO: probably single file or by station for now
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum FilePartition {
     SingleFile,
@@ -101,6 +111,7 @@ pub enum FilePartition {
 /// * input_store - currently only accepts tar files, but could be expanded to general parquet
 ///   files - though those can probably use datafusion API directly.
 /// * currently uses mean() for aggregation
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct ParquetResampler {
     input_store: Arc<AdamTarFileObjectStore>,
@@ -123,7 +134,7 @@ pub struct ParquetResampler {
     // weak pointer to self
     weak_self: Weak<ParquetResampler>,
     // for saving output
-    dest: Arc<LocalFileSystem>,
+    output_store: Arc<LocalFileSystem>,
 }
 
 impl ParquetResampler {
@@ -152,7 +163,7 @@ impl ParquetResampler {
                 include_stations: None,
                 weak_self: s.clone(),
                 // TODO: change this currently for testing
-                dest: Arc::new(
+                output_store: Arc::new(
                     LocalFileSystem::new_with_prefix(std::path::Path::new("/home/nvr90/tmp/test/"))
                         .unwrap(),
                 ),
@@ -160,6 +171,9 @@ impl ParquetResampler {
         })
     }
 
+    // TODO: currently there's no usecase for strong ref, but generally it can be used to upgrade a
+    // weak ref in the event that the Arc gets dropped, while the allocation still exists.
+    #[allow(dead_code)]
     pub fn strong_ref(&self) -> Arc<Self> {
         return self.weak_self.upgrade().unwrap();
     }
@@ -194,74 +208,115 @@ impl ParquetResampler {
     // setup can be done as single sync thread.
     #[tokio::main(flavor = "multi_thread")]
     pub async fn resample(resampler: Arc<ParquetResampler>) -> tokio::io::Result<()> {
+        let start = Utc::now();
+        println!("----------------------------------------------------------------------------------------------------");
+        println!(">>> Resampling >>>");
+        println!("----------------------------------------------------------------------------------------------------");
+        println!("| start = {:?}", start.format("%+").to_string());
+
         let ctx = SessionContext::new();
 
+        // ---
+        // TODO: split out these stages into individual functions
+        // ---
+
+        // --- register input ---
+        // register input object store - tar file
         ctx.runtime_env().register_object_store(
             &Url::parse(tar_object_store::TAR_PQ_STORE_BASE_URI).unwrap(),
             resampler.input_store.clone(),
         );
 
-        // register input object store - tar file
+        println!("| >>> register input table parquet table from tar store...");
+
         ctx.register_listing_table(
             tar_object_store::ADAM_OBS_TABLE_NAME,
             tar_object_store::TAR_PQ_STORE_BASE_URI,
             ListingOptions::new(Arc::new(ParquetFormat::default()))
-                .with_file_extension(".parquet")
+                .with_file_extension(tar_object_store::PQ_EXTENSION)
                 .with_table_partition_cols(vec![("date".to_string(), DataType::Date32)])
                 .with_file_sort_order(vec![vec![col("date").sort(true, true)]])
                 .with_insert_mode(ListingTableInsertMode::Error),
             None,
             None,
         )
-        .await?;
+        .await
+        .expect("Could not register input parquet tar table");
 
+        // --- resample ---
         // clone Vec<String> into a &[&str] because that's what the query expects instead of
         // Vec<String>. I'm too lazy to look up how to do this using ::from, and too even more lazy
         // to write my own trait so this ugly mess is what you get.
-        let agg_fields = resampler.agg_fields.clone().unwrap();
+
         let station_field = resampler.station_field.clone().unwrap();
         let time_index = resampler.time_index.clone().unwrap();
-        let mut columns = Vec::<String>::new();
-        columns.push(station_field.clone());
-        columns.push(time_index.clone());
-        columns.append(&mut agg_fields.clone());
-        let columns = &columns.iter().map(|x| x.as_str()).collect::<Vec<_>>();
-
-        // remove mutability
-        let station_field = station_field;
-        let agg_fields = agg_fields;
+        let agg_fields = resampler.agg_fields.clone().unwrap();
+        let columns = {
+            // temporary mutabiilty
+            let mut columns = vec![&station_field, &time_index];
+            columns.extend(&agg_fields);
+            columns.iter().map(|x| x.as_str()).collect::<Vec<&str>>()
+        };
 
         // construct resampling plan
+        println!("| >>> constructiong logical plan...");
         let df = ctx.table(tar_object_store::ADAM_OBS_TABLE_NAME).await?;
         let df = df
             .clone()
             .select_columns(columns.as_slice())?
             .with_column(TIME_RESAMPLED_FIELD, resampler.build_resample_expr())?
+            .with_column("stn_id", is_false(is_null(ident(&station_field))))?
             .aggregate(
-                vec![col(TIME_RESAMPLED_FIELD), ident(&station_field)],
+                vec![col(TIME_RESAMPLED_FIELD), col("stn_id")],
                 agg_fields.iter().map(|x| avg(ident(x))).collect(),
             )?
             .sort(vec![
-                ident(&station_field).sort(true, false),
+                col("stn_id").sort(true, false),
                 col(TIME_RESAMPLED_FIELD).sort(true, false),
-            ])?;
+            ])
+            .expect("Could not generate logical plan for resampling");
 
-        ctx.register_csv(
+        // --- output ---
+
+        let ref_schema = SchemaRef::new(Schema::from(df.schema()));
+
+        println!("{:?}", ref_schema);
+
+        // ctx.runtime_env().register_object_store(
+        //     &Url::parse(r"file:///test/").unwrap(),
+        //     resampler.output_store.clone(),
+        // );
+
+        println!("| >>> register csv store...");
+
+        // let (_, station_field_ref) = ref_schema.fields().find(station_field.as_str()).unwrap();
+
+        // let station_partition_col = (
+        //     station_field_ref.name().to_owned(),
+        //     station_field_ref.data_type().to_owned(),
+        // );
+
+        // ListingOptions::infer_schema(
+
+        ctx.register_listing_table(
             "adam_obs_save",
-            "/home/nvr90/tmp/test",
-            CsvReadOptions::new().table_partition_cols(vec![(station_field, DataType::Utf8)]),
-        );
-        // register output format
-        // ctx.register_listing_table(
-        //     "adam_obs_save",
-        //     r"file:///home/nvr90/tmp/test/",
-        //     ListingOptions::new(Arc::new(CsvFormat::default()))
-        //         .with_table_partition_cols(vec![(station_field, DataType::Utf8)])
-        //         .with_file_sort_order(vec![vec![col(TIME_RESAMPLED_FIELD).sort(true, true)]]),
-        //     Some(SchemaRef::new(Schema::from(df.schema().clone()))),
-        //     None,
-        // )
-        // .await?;
+            r"file:///home/nvr90/tmp/test/",
+            ListingOptions::new(Arc::new(CsvFormat::default()))
+                .with_single_file(false)
+                .with_table_partition_cols(vec![("stn_id".to_string(), DataType::UInt64)]),
+            Some(ref_schema),
+            None,
+        )
+        .await
+        .expect("Issue with registering issue table schema");
+
+        let df2 = ctx.table("adam_obs_save").await?;
+
+        let ref_schema_2 = SchemaRef::new(Schema::from(df.schema()));
+
+        println!("{:?}", ref_schema_2);
+
+        println!("| >>> write output");
 
         // Currently distributes by station
         // TODO: fix these to write to actual path, and fix compression
@@ -275,7 +330,14 @@ impl ParquetResampler {
                         datafusion::common::parsers::CompressionTypeVariant::UNCOMPRESSED,
                     ),
             )
-            .await?;
+            .await
+            .expect("Failed to save to output store");
+
+        // close logging channel
+        let end = Utc::now();
+        println!("| end = {:?}", end.format("%+").to_string());
+        println!("| time_taken = {:?}", end.signed_duration_since(start));
+        println!("----------------------------------------------------------------------------------------------------");
 
         Ok(())
     }

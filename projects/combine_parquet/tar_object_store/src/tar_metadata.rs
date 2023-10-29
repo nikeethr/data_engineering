@@ -1,5 +1,7 @@
 use chrono::prelude::NaiveDate;
 use regex::Regex;
+use rkyv::{Deserialize, Serialize};
+use serde_json;
 use std::fs::File;
 use std::rc::Rc;
 use tar::Archive;
@@ -38,6 +40,13 @@ impl EntryMetadataVec {
         }
     }
 
+    /// Generates a cache file for the metadata, for faster future retrieval
+    pub fn try_from_cache() -> Self {}
+
+    // pub fn to_cache() -> {
+
+    // }
+
     fn push(&mut self, e: EntryMetadata) {
         let inner_mut = Rc::get_mut(&mut self.inner).unwrap(); // get mutable reference counter
         inner_mut.push(e);
@@ -63,12 +72,13 @@ pub struct AdamTarMetadataExtract {
     pub(crate) entry_location_metadata_map: EntryMetadataLocationHash,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EntryMetadata {
     pub raw_file_position: u64,
     pub size: u64,
     pub path: String,
     pub mtime: u64,
+    #[serde(default)]
     pub file_date: NaiveDate, // date within the filename of each file in the tarball
 }
 

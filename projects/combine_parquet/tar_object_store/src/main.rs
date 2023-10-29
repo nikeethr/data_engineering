@@ -1,12 +1,7 @@
-use crate::tar_metadata::{AdamTarMetadataExtract};
+use crate::tar_metadata::AdamTarMetadataExtract;
 use crate::tar_object_store::AdamTarFileObjectStore;
 
-
-
-
 use std::io::Write;
-
-
 
 pub(crate) mod resampler;
 pub(crate) mod tar_metadata;
