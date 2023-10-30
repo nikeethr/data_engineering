@@ -42,7 +42,10 @@ impl AdamTarFileObjectStore {
         let mut adam_tar_metadata =
             AdamTarMetadataExtract::new(tar_path.to_string(), prefix.to_string());
 
-        adam_tar_metadata.extract_metadata().unwrap();
+        if !adam_tar_metadata.entry_metadata.cached {
+            adam_tar_metadata.extract_metadata().unwrap();
+            adam_tar_metadata.entry_metadata.to_cache();
+        }
 
         println!("----------------------------------------------------------------------------------------------------");
         println!("| >>> indexing metadata >>>");

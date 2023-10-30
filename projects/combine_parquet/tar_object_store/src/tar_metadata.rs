@@ -1,10 +1,15 @@
 use chrono::prelude::NaiveDate;
+use datafusion::common::DEFAULT_ARROW_EXTENSION;
+use datafusion::parquet::data_type::AsBytes;
 use regex::Regex;
-use rkyv::{Deserialize, Serialize};
+use rkyv::{Archive, Deserialize, Serialize};
 use serde_json;
 use std::fs::File;
+use std::io::Read;
 use std::rc::Rc;
-use tar::Archive;
+
+// TODO: update this to command line arg
+const DEFAULT_CACHE_PATH: &'static str = "/home/nvr90/tmp/blahblahcache";
 
 #[derive(Debug, Clone)]
 pub struct EntryMetadataLocationHash {
@@ -31,21 +36,37 @@ impl EntryMetadataLocationHash {
 #[derive(Debug, Clone)]
 pub struct EntryMetadataVec {
     inner: Rc<Vec<EntryMetadata>>,
+    pub cached: bool,
 }
 
 impl EntryMetadataVec {
     pub fn new() -> Self {
-        EntryMetadataVec {
+        let default = EntryMetadataVec {
             inner: Rc::new(Vec::<EntryMetadata>::new()),
-        }
+            cached: false,
+        };
+        EntryMetadataVec::try_from_cache().unwrap_or(default)
+    }
+
+    /// Attempt to retrieve from cache
+    pub fn try_from_cache() -> std::io::Result<Self> {
+        let b = std::fs::read(DEFAULT_CACHE_PATH)?;
+        let metadata = unsafe {
+            rkyv::from_bytes_unchecked::<Rc<Vec<EntryMetadata>>>(b.as_bytes())
+                .expect("failed to deserialize entry metadata")
+        };
+        Ok(EntryMetadataVec {
+            inner: metadata,
+            cached: true,
+        })
     }
 
     /// Generates a cache file for the metadata, for faster future retrieval
-    pub fn try_from_cache() -> Self {}
-
-    // pub fn to_cache() -> {
-
-    // }
+    pub fn to_cache(&self) {
+        let b = rkyv::to_bytes::<_, 1024>(&self.inner.clone())
+            .expect("failed to serialize entry metadata");
+        std::fs::write(DEFAULT_CACHE_PATH, b).unwrap();
+    }
 
     fn push(&mut self, e: EntryMetadata) {
         let inner_mut = Rc::get_mut(&mut self.inner).unwrap(); // get mutable reference counter
@@ -72,13 +93,12 @@ pub struct AdamTarMetadataExtract {
     pub(crate) entry_location_metadata_map: EntryMetadataLocationHash,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Archive, Serialize, Deserialize, Debug, Clone)]
 pub struct EntryMetadata {
     pub raw_file_position: u64,
     pub size: u64,
     pub path: String,
     pub mtime: u64,
-    #[serde(default)]
     pub file_date: NaiveDate, // date within the filename of each file in the tarball
 }
 
@@ -146,7 +166,7 @@ impl ExtractTarEntryMetadata for AdamTarMetadataExtract {
         println!("----------------------------------------------------------------------------------------------------");
         println!("| archive path = {}", &self.tar_path);
 
-        let mut ta = Archive::new(File::open(&self.tar_path)?);
+        let mut ta = tar::Archive::new(File::open(&self.tar_path)?);
         ta.entries()?.try_for_each(|e| -> std::io::Result<()> {
             let e = e.expect("corrupt entry");
             let path_str = String::from_utf8(e.path_bytes().to_vec()).unwrap();

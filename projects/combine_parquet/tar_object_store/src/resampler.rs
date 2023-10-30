@@ -1,6 +1,15 @@
 use crate::tar_object_store::{self, AdamTarFileObjectStore};
 
-use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef, UnionFields, UnionMode};
+use datafusion::arrow::array::{
+    Array, ArrayAccessor, ArrayData, Int64Array, IntervalDayTimeBuilder,
+};
+use datafusion::arrow::datatypes::{
+    DataType, Field, FieldRef, Schema, SchemaBuilder, SchemaRef, UnionFields, UnionMode,
+};
+use datafusion::arrow::record_batch::{RecordBatchIterator, RecordBatchReader};
+use datafusion::arrow::util::pretty;
+
+use std::collections::HashMap;
 
 use chrono::{DateTime, Duration, Utc};
 use datafusion::dataframe::DataFrameWriteOptions;
@@ -10,12 +19,13 @@ use datafusion::datasource::{
     file_format::{csv::CsvFormat, parquet::ParquetFormat},
     listing::{ListingOptions, ListingTableInsertMode},
 };
-use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
+use datafusion::logical_expr::{ExprSchemable, LogicalPlan, LogicalPlanBuilder};
 use datafusion::prelude::*;
 use object_store::local::LocalFileSystem;
 use std::cmp::{Ordering, PartialOrd};
 use std::fmt::Debug;
 use std::io::Write;
+use std::pin::Pin;
 use std::sync::{Arc, Weak};
 use tokio::runtime::{Handle, Runtime};
 use tokio::sync::mpsc;
@@ -261,77 +271,318 @@ impl ParquetResampler {
         // construct resampling plan
         println!("| >>> constructiong logical plan...");
         let df = ctx.table(tar_object_store::ADAM_OBS_TABLE_NAME).await?;
+
         let df = df
             .clone()
             .select_columns(columns.as_slice())?
             .with_column(TIME_RESAMPLED_FIELD, resampler.build_resample_expr())?
-            .with_column("stn_id", is_false(is_null(ident(&station_field))))?
+            .with_column(
+                &station_field,
+                ident(&station_field)
+                    .cast_to(&DataType::Utf8, df.schema())?
+                    .alias(&station_field),
+            )?
             .aggregate(
-                vec![col(TIME_RESAMPLED_FIELD), col("stn_id")],
-                agg_fields.iter().map(|x| avg(ident(x))).collect(),
+                vec![col(TIME_RESAMPLED_FIELD), ident(&station_field)],
+                agg_fields.iter().map(|x| avg(ident(x)).alias(x)).collect(),
             )?
             .sort(vec![
-                col("stn_id").sort(true, false),
+                ident(&station_field).sort(true, false),
                 col(TIME_RESAMPLED_FIELD).sort(true, false),
             ])
             .expect("Could not generate logical plan for resampling");
 
         // --- output ---
 
-        let ref_schema = SchemaRef::new(Schema::from(df.schema()));
+        // register object store
+        ctx.runtime_env().register_object_store(
+            &Url::parse(r"file:///test/").unwrap(),
+            resampler.output_store.clone(),
+        );
 
-        println!("{:?}", ref_schema);
+        // register listing table from object store
+        let ref_schema = SchemaRef::new(Schema::from(df.schema()).clone());
+        // let mut sb = SchemaBuilder::new();
+        // ref_schema.fields().iter().for_each(|f| {
+        //     let sb = &mut sb;
+        //     let f = FieldRef::from(f.clone());
+        //     let station_field = station_field.clone();
+        //     if station_field.eq(f.name()) {
+        //         return;
+        //         // sb.push(Field::new(station_field, DataType::Utf8, false));
+        //     } else {
+        //         sb.push(f.clone());
+        //     }
+        // });
+        // let schema_new = sb.finish();
+
+        ctx.sql(
+            "
+            create external table 
+            test(\"STN_NUM\" VARCHAR, \"AIR_TEMP\" DOUBLE)
+            stored as parquet 
+            partitioned by (STN_NUM) 
+            location '/home/nvr90/tmp/test/'  
+            options (create_local_path 'true');
+            ",
+        )
+        .await
+        .expect("Uh oh 1");
+
+        let test_table = ctx.table("test").await?;
+        println!("{:?}", test_table.schema());
+
+        let xxx = df
+            .clone()
+            .select(vec![ident("STN_NUM"), ident("AIR_TEMP")])?;
+
+        ctx.register_table("xxx", xxx.into_view())?;
+
+        let xxx = ctx.table("xxx").await?;
+        xxx.clone().show_limit(100).await?;
+
+        ctx.sql(
+            "
+            insert into test (\"STN_NUM\", \"AIR_TEMP\")
+            select \"STN_NUM\", \"AIR_TEMP\" from xxx;
+            ",
+        )
+        .await
+        .expect("Uh oh 2");
+        // sanity check schema
+        println!("{:?}", ctx.table("xxx").await?.schema());
+
+        // Xxx.write_table(
+        //     "test",
+        //     DataFrameWriteOptions::new().with_single_file_output(false),
+        // )
+        // .await?;
+
+        // println!(">>> BEFORE");
+        // println!("{:?}", ref_schema.clone());
+        // println!("{:?}", df.schema().fields());
+        // println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+
+        // ctx.register_listing_table(
+        //     "adam_obs_save",
+        //     r"file:///test/",
+        //     ListingOptions::new(Arc::new(ParquetFormat::default()))
+        //         .with_single_file(false)
+        //         .with_table_partition_cols(vec![(String::from(r#""STN_NUM""#), DataType::Int64)])
+        //         .with_insert_mode(ListingTableInsertMode::AppendNewFiles),
+        //     Some(ref_schema.clone()),
+        //     None,
+        // )
+        // .await
+        // .expect("Issue with registering issue table schema");
+
+        // // NOTE: theres a bug that causes hive-like write to parititioned object store to fail
+        // // cast column to the correct type: https://github.com/apache/arrow-datafusion/pull/7801#issuecomment-1771867480
+        // // NOTE: this may have been fixed by now - probably worth looking into updating to higher version.
+        // //df.clone().select(vec![ident("STN_NUM").cast_to(&DataType::Int64)?.alias("STN_NUM")].extend())
+
+        // let ref_schema = ref_schema.clone();
+        // let df2 = ctx.table("adam_obs_save").await?.select(
+        //     ref_schema
+        //         .fields()
+        //         .iter()
+        //         .map(|x| ident(x.name().as_str()).alias(x.name()))
+        //         .collect::<Vec<_>>(),
+        // )?;
+        // let ret = df2.clone().collect().await?;
+        // println!("{:?}", ret);
+
+        // df.clone()
+        //     .write_table("adam_obs_save", DataFrameWriteOptions::new())
+        //     .await
+        //     .expect_err("This should fail with schemas not equal");
+
+        // let schema_after = SchemaRef::new(Schema::from(df2.schema()));
+        // println!(">>> AFTER");
+        // println!("{:?}", schema_after.clone());
+        // println!("{:?}", df2.schema().fields());
+        // println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+
+        // // Now schema is fixed so try again and hopefully it works
+        // println!("--- HOPEFULLY SCHEMA HAS FIXED ITSELF ---");
+
+        // df.clone()
+        //     .write_table(
+        //         "adam_obs_save",
+        //         DataFrameWriteOptions::new().with_single_file_output(false),
+        //     )
+        //     .await?;
+
+        //_df.clone()
+        //.select(vec![col("trace_id").cast_to(&DataType::Int64, _df.schema())?.alias("trace_id"), col("partition")])?
+
+        // df.clone()
+        //     .write_csv(
+        //         format!("/home/nvr90/tmp/blah.csv").as_str(),
+        //         DataFrameWriteOptions::new(),
+        //         None,
+        //     )
+        //     .await?;
+
+        // ctx.sql(
+        //     r#"
+        //         CREATE EXTERNAL TABLE out
+        //         STORED AS CSV
+        //         PARTITIONED BY ("STN_NUM")
+        //         LOCATION '/home/nvr90/tmp/test/'
+        //         OPTIONS (
+        //             CREATE_LOCAL_PATH 'true',
+        //             NULL_VALUE 'NAN'
+        //         );
+
+        //         INSERT INTO out SELECT * FROM adam_obs
+        //     "#,
+        // )
+        // .await?;
+
+        // ---
+        // create output folder structure: required prior to partitioned output
+        // let station_records = df
+        //     .clone()
+        //     .select(vec![ident(&station_field)])?
+        //     .distinct()?
+        //     .collect()
+        //     .await?;
+
+        // let station_iter = RecordBatchIterator::new(
+        //     station_records.clone().into_iter().map(Ok),
+        //     station_records.first().unwrap().schema(),
+        // );
+
+        // let mut station_out_path = Arc::new(HashMap::<i64, String>::new());
+
+        // let station_iter = station_iter;
+        // station_iter.for_each(|r| {
+        //     let r = r.unwrap();
+        //     let s = r.column(0).as_any().downcast_ref::<Int64Array>().unwrap();
+        //     for stn in s {
+        //         match stn {
+        //             Some(stn) => {
+        //                 std::fs::create_dir_all(format!("/home/nvr90/tmp/best/{stn}/")).unwrap();
+        //                 // std::fs::File::create(format!("/home/nvr90/tmp/test/{stn}/out.csv")).unwrap();
+
+        //                 let out_path = format!("/home/nvr90/tmp/best/{stn}/out.csv");
+        //                 let x = Arc::get_mut(&mut station_out_path)
+        //                     .unwrap()
+        //                     .insert(stn, out_path);
+        //                 let df = df.clone();
+        //                 let station_field = station_field.clone();
+        //             }
+        //             _ => (),
+        //         };
+        //     }
+        // });
+
+        // println!("stations registered");
+
+        // let rt = Arc::new(tokio::runtime::Handle::current());
+
+        // let station_out_path = station_out_path.as_ref();
+        // for (stn, out_path) in station_out_path.iter() {
+        //     let df = df.clone();
+        //     let station_field = station_field.clone();
+        //     println!("processing {:?}", stn);
+        //     let rt = rt.clone();
+        //     tokio::task::block_in_place(move || {
+        //         rt.block_on(async move {
+        //             df.filter(ident(&station_field).eq(lit(*stn)))
+        //                 .unwrap()
+        //                 .write_csv(
+        //                     out_path.as_str(),
+        //                     DataFrameWriteOptions::new().with_single_file_output(true), // use single file output if we're splitting by stations
+        //                     None,
+        //                 )
+        //                 .await
+        //                 .unwrap();
+        //         });
+        //     });
+        // }
+
+        // for h in handlers {
+        //     h.await?;
+        // }
+        // ---
+
+        // ctx.sql(
+        //     r#"
+        //         CREATE EXTERNAL TABLE out
+        //         STORED AS CSV
+        //         PARTITIONED BY ("STN_NUM")
+        //         LOCATION '/home/nvr90/tmp/test/'
+        //         OPTIONS (
+        //             CREATE_LOCAL_PATH 'true',
+        //             NULL_VALUE 'NAN'
+        //         );
+        //     "#,
+        // )
+        // .await?;
+        // ctx.sql(
+        //     r#"
+        //         INSERT INTO out SELECT * FROM adam_obs;
+        //     "#,
+        // )
+        // .await?;
+
+        // let ref_schema = SchemaRef::new(Schema::from(df.schema()));
+
+        // println!("{:?}", ref_schema);
 
         // ctx.runtime_env().register_object_store(
         //     &Url::parse(r"file:///test/").unwrap(),
         //     resampler.output_store.clone(),
         // );
 
-        println!("| >>> register csv store...");
+        // println!("| >>> register csv store...");
 
-        // let (_, station_field_ref) = ref_schema.fields().find(station_field.as_str()).unwrap();
+        // // let (_, station_field_ref) = ref_schema.fields().find(station_field.as_str()).unwrap();
 
-        // let station_partition_col = (
-        //     station_field_ref.name().to_owned(),
-        //     station_field_ref.data_type().to_owned(),
-        // );
+        // // let station_partition_col = (
+        // //     station_field_ref.name().to_owned(),
+        // //     station_field_ref.data_type().to_owned(),
+        // // );
 
-        // ListingOptions::infer_schema(
+        // // ListingOptions::infer_schema(
 
-        ctx.register_listing_table(
-            "adam_obs_save",
-            r"file:///home/nvr90/tmp/test/",
-            ListingOptions::new(Arc::new(CsvFormat::default()))
-                .with_single_file(false)
-                .with_table_partition_cols(vec![("stn_id".to_string(), DataType::UInt64)]),
-            Some(ref_schema),
-            None,
-        )
-        .await
-        .expect("Issue with registering issue table schema");
+        // ctx.register_listing_table(
+        //     "adam_obs_save",
+        //     r"file:///test/",
+        //     ListingOptions::new(Arc::new(CsvFormat::default()))
+        //         .with_single_file(false)
+        //         .with_table_partition_cols(vec![(&station_field.to_string(), DataType::Int64)]),
+        //     Some(ref_schema.clone()),
+        //     None,
+        // )
+        // .await
+        // .expect("Issue with registering issue table schema");
 
-        let df2 = ctx.table("adam_obs_save").await?;
+        // let df2 = ctx.table("adam_obs_save").await?;
 
-        let ref_schema_2 = SchemaRef::new(Schema::from(df.schema()));
+        // let ref_schema_2 = SchemaRef::new(Schema::from(df2.schema()));
 
-        println!("{:?}", ref_schema_2);
+        // println!("{:?}", ref_schema_2);
 
         println!("| >>> write output");
 
         // Currently distributes by station
         // TODO: fix these to write to actual path, and fix compression
         // TODO: logic to determine whether to partition or not
-        df.clone()
-            .write_table(
-                "adam_obs_save",
-                DataFrameWriteOptions::new()
-                    .with_single_file_output(false)
-                    .with_compression(
-                        datafusion::common::parsers::CompressionTypeVariant::UNCOMPRESSED,
-                    ),
-            )
-            .await
-            .expect("Failed to save to output store");
+        // df.clone()
+        //     .write_table(
+        //         "adam_obs_save",
+        //         DataFrameWriteOptions::new()
+        //             .with_single_file_output(false)
+        //             .with_overwrite(true)
+        //             .with_compression(
+        //                 datafusion::common::parsers::CompressionTypeVariant::UNCOMPRESSED,
+        //             ),
+        //     )
+        //     .await
+        //     .expect("Failed to save to output store");
 
         // close logging channel
         let end = Utc::now();
