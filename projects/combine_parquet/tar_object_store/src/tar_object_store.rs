@@ -42,8 +42,11 @@ impl AdamTarFileObjectStore {
         cache_path: Option<String>,
         locations: Option<Vec<String>>,
     ) -> Arc<Self> {
-        let mut adam_tar_metadata =
-            AdamTarMetadataExtract::new(tar_path.to_string(), prefix.to_string());
+        let mut adam_tar_metadata = AdamTarMetadataExtract::new(
+            tar_path.to_string(),
+            prefix.to_string(),
+            cache_path.clone(),
+        );
 
         if !adam_tar_metadata.entry_metadata.cached {
             adam_tar_metadata.extract_metadata().unwrap();
@@ -54,15 +57,20 @@ impl AdamTarFileObjectStore {
         println!("| >>> indexing metadata >>>");
         println!("----------------------------------------------------------------------------------------------------");
 
-        let locations = locations.unwrap_or(
-            adam_tar_metadata
-                .entry_metadata
-                .inner()
-                .clone()
+        let locations = locations.unwrap_or({
+            let m = &adam_tar_metadata.entry_metadata.inner();
+            let start = m
                 .iter()
-                .map(|x| x.path.clone())
-                .collect::<Vec<_>>(),
-        );
+                .min_by(|x, y| x.file_date.cmp(&y.file_date))
+                .unwrap()
+                .file_date;
+            let end = m
+                .iter()
+                .max_by(|x, y| x.file_date.cmp(&y.file_date))
+                .unwrap()
+                .file_date;
+            AdamTarMetadataExtract::construct_locations_from_date_range(&start, &end)
+        });
 
         for l in locations {
             if adam_tar_metadata.add_entry_if_exists(l.clone().to_string()) {

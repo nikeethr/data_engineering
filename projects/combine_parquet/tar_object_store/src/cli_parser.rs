@@ -34,7 +34,7 @@ pub(crate) struct Cli {
 
     /// the fields to argregate over (average) for each resample time interval. Note: currently does not support
     /// quality flags.
-    #[arg(long, required = true)]
+    #[arg(long, required = true, value_delimiter = ',')]
     pub(crate) agg_fields: Vec<String>,
 
     /// column to partition by. Datafusion batching may be faster but will not split output files by station.

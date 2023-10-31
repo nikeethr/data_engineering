@@ -1,5 +1,5 @@
 use crate::cli_parser::Cli;
-use crate::tar_metadata::AdamTarMetadataExtract;
+
 use crate::tar_object_store::AdamTarFileObjectStore;
 
 use clap::Parser;
@@ -40,9 +40,13 @@ fn main() {
 }
 
 /*
+
+./target/debug/pq_resample --output-freq=one-hour --agg-fields="AIR_TEMP,DWPT" ../combpq/blah2020.tar ./test nowboost/tjl/one_minute_data
+
 fn main() {
     let locations =
         AdamTarMetadataExtract::construct_locations_from_date_range("2022-01-01", "2022-12-31");
+
 
     let tar_path =
         "/home/nvr90/repos/data_engineering/projects/combine_parquet/combpq/blah2020.tar"

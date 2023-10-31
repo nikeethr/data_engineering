@@ -1,6 +1,6 @@
 use crate::tar_object_store::{self, AdamTarFileObjectStore};
 
-use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef};
+use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatchReader;
 
 use chrono::Utc;
@@ -282,16 +282,17 @@ impl ParquetResampler {
             .aggregate(
                 vec![
                     col(TIME_RESAMPLED_FIELD),
-                    ident(&station_field).alias(station_field.to_lowercase()),
+                    ident(&station_field)
+                        .alias(station_field.to_lowercase())
+                        .cast_to(&DataType::Utf8, df.schema())?,
                 ],
                 agg_fields
                     .iter()
                     .map(|x| avg(ident(x)).alias(x.to_lowercase()))
                     .collect(),
             )?
-            .filter(is_false(is_null(ident(&station_field))))?
             .sort(vec![
-                ident(&station_field).sort(true, false),
+                ident(station_field.to_lowercase()).sort(true, false),
                 col(TIME_RESAMPLED_FIELD).sort(true, false),
             ])
             .expect("Could not generate logical plan for resampling");
@@ -306,6 +307,8 @@ impl ParquetResampler {
         );
 
         let ref_schema = SchemaRef::new(Schema::from(df.schema()).clone());
+
+        // ref_schema.clone().fields().iter().chain(Some(Field::new()).iter())
 
         // -----
         // Equivilent to:
@@ -324,7 +327,7 @@ impl ParquetResampler {
         //     "#,
         // )
         // -----
-        let mut listing_opts = ListingOptions::new(match resampler.output_format.as_str() {
+        let listing_opts = ListingOptions::new(match resampler.output_format.as_str() {
             // TODO: probably should be an enum
             "parquet" => Arc::new(ParquetFormat::default()),
             "csv" => Arc::new(CsvFormat::default().with_has_header(true)),
@@ -345,11 +348,14 @@ impl ParquetResampler {
             FilePartition::DatafusionDefault => listing_opts,
         };
 
+        std::fs::create_dir_all(&resampler.output_path)
+            .expect("Err: could not create output directory path");
+
         ctx.register_listing_table(
             ADAM_RESAMPLED_OBS_TABLE_NAME,
             &resampler.output_path,
             listing_opts,
-            Some(ref_schema),
+            Some(ref_schema.clone()),
             None,
         )
         .await
@@ -360,20 +366,26 @@ impl ParquetResampler {
 
         // adjust column cast so it works properly... partition column has to be a string or it
         // doesn't seem to work. Also partition field will be eaten up, so needs to be duplicated.
-        let plan = df
-            .clone()
-            .with_column(
-                &station_field.to_lowercase(),
-                col(&station_field).cast_to(&DataType::Utf8, df.schema())?,
-            )?
+        df.clone()
+            // .select_columns(
+            //     ref_schema
+            //         .clone()
+            //         .fields()
+            //         .iter()
+            //         .map(|x| x.name().as_str())
+            //         .collect::<Vec<_>>()
+            //         .as_slice(),
+            // )?
             .with_column(
                 STATION_PARTITION_FIELD,
-                col(&station_field).cast_to(&DataType::Utf8, df.schema())?,
+                ident(station_field.to_lowercase()).cast_to(&DataType::Utf8, df.schema())?,
             )?
             .write_table(
-                "test",
+                ADAM_RESAMPLED_OBS_TABLE_NAME,
                 DataFrameWriteOptions::new().with_single_file_output(false),
-            );
+            )
+            .await
+            .expect("Failed to write to output");
 
         let end = Utc::now();
         println!("| end = {:?}", end.format("%+").to_string());

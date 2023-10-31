@@ -53,7 +53,11 @@ impl EntryMetadataVec {
     /// Attempt to retrieve from cache
     pub fn try_from_cache(cache_path: Option<String>) -> std::io::Result<Self> {
         let cache_path = &cache_path.unwrap_or(DEFAULT_CACHE_PATH.to_string());
-        let b = std::fs::read(cache_path);
+        let b = std::fs::read(format!(
+            "{}/{}.json",
+            cache_path,
+            chrono::Utc::now().format("%Y%m%d")
+        ));
 
         match b {
             Ok(b) => {
@@ -69,7 +73,7 @@ impl EntryMetadataVec {
                 })
             }
             Err(_) => {
-                println!("Err: Could not retrieve metadata from cache, constructing without cache");
+                println!("Err: Could not retrieve metadata from cache: {cache_path}, constructing without cache");
                 Ok(EntryMetadataVec {
                     inner: Rc::new(Vec::<EntryMetadata>::new()),
                     cached: false,
@@ -83,10 +87,17 @@ impl EntryMetadataVec {
     pub fn to_cache(&mut self, cache_path: Option<String>) -> Option<String> {
         let b = rkyv::to_bytes::<_, 1024>(&self.inner.clone())
             .expect("failed to serialize entry metadata");
+
         let cache_path = cache_path.unwrap_or(DEFAULT_CACHE_PATH.to_string());
-        std::fs::create_dir_all(&cache_path);
+
+        std::fs::create_dir_all(&cache_path).unwrap_or({
+            println!("Could not create directory to cache metadata.");
+        });
+
         let mut cache_path = std::path::PathBuf::from(&cache_path);
-        cache_path.push(format!("{}.json", chrono::Utc::now().format("%Y%M%D")));
+
+        cache_path.push(format!("{}.json", chrono::Utc::now().format("%Y%m%d")));
+
         let res = std::fs::write(&cache_path, b).ok();
 
         match res {
@@ -95,7 +106,13 @@ impl EntryMetadataVec {
                 self.cache_path = Some(cache_path.clone());
                 Some(cache_path)
             }
-            None => None,
+            None => {
+                println!(
+                    "Err: could not save cache to {:?}",
+                    cache_path.to_str().unwrap()
+                );
+                None
+            }
         }
     }
 
@@ -142,7 +159,7 @@ pub trait ExtractTarEntryMetadata {
 impl AdamTarMetadataExtract {
     /// prefix = prefix of object within tarball
     /// NOTE: all data files within tarball assumed to have same prefix
-    pub fn new(tar_path: String, prefix: String) -> Self {
+    pub fn new(tar_path: String, prefix: String, metadata_cache_path: Option<String>) -> Self {
         Self {
             // YYYY-mm-dd -> e.g. 2021-09-11 -> DataType::Date32
             // This probably would not work past the year 9999, but if this tool is still being
@@ -150,21 +167,22 @@ impl AdamTarMetadataExtract {
             pattern: Regex::new(r"date=(\d{4}-\d{2}-\d{2})/adam.parquet").unwrap(),
             prefix,
             tar_path,
-            entry_metadata: EntryMetadataVec::new(),
+            entry_metadata: match metadata_cache_path {
+                Some(p) => EntryMetadataVec::try_from_cache(Some(p))
+                    .expect("Failed to extract metadata from cache"),
+                None => EntryMetadataVec::new(),
+            },
             entry_location_metadata_map: EntryMetadataLocationHash::new(),
         }
     }
 
     /// File names are not timezone aware, so using NaiveDate
-    pub fn construct_locations_from_date_range(start: &str, end: &str) -> Vec<String> {
-        let start = NaiveDate::parse_from_str(start, "%Y-%m-%d").unwrap();
-        let end = NaiveDate::parse_from_str(end, "%Y-%m-%d").unwrap();
-
+    pub fn construct_locations_from_date_range(start: &NaiveDate, end: &NaiveDate) -> Vec<String> {
         assert!(start <= end);
 
         {
-            let end = &end;
             let start = &start;
+            let end = &end;
 
             start
                 .iter_days()
