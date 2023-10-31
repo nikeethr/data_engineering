@@ -12,6 +12,7 @@ use datafusion::datasource::{
     file_format::parquet::ParquetFormat,
     listing::{ListingOptions, ListingTableInsertMode},
 };
+use datafusion::execution::disk_manager::{DiskManager, DiskManagerConfig};
 use datafusion::logical_expr::ExprSchemable;
 use datafusion::prelude::*;
 use object_store::local::LocalFileSystem;
@@ -226,6 +227,10 @@ impl ParquetResampler {
         println!("----------------------------------------------------------------------------------------------------");
         println!("| start = {:?}", start.format("%+").to_string());
 
+        // ---
+        // TODO: system based runtime config: datafusion can get memory hungry, so it may
+        // be wise to configure diskmanager/cachemanager/memorylimits appropriately.
+        // ---
         let ctx = SessionContext::new();
 
         // ---

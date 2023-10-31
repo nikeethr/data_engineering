@@ -10,6 +10,16 @@ pub(crate) mod resampler;
 pub(crate) mod tar_metadata;
 pub(crate) mod tar_object_store;
 
+/// Sample usage:
+///
+/// ```
+/// ./target/debug/pq_resample
+///        --output-freq=one-hour
+///        --agg-fields="AIR_TEMP,DWPT"
+///        ../combpq/blah2020.tar
+///        ./test
+///        nowboost/tjl/one_minute_data
+/// ```
 fn main() {
     let cli = Cli::parse();
 
@@ -38,41 +48,3 @@ fn main() {
 
     resampler::ParquetResampler::resample(adam_resampler.clone()).unwrap();
 }
-
-/*
-
-./target/debug/pq_resample --output-freq=one-hour --agg-fields="AIR_TEMP,DWPT" ../combpq/blah2020.tar ./test nowboost/tjl/one_minute_data
-
-fn main() {
-    let locations =
-        AdamTarMetadataExtract::construct_locations_from_date_range("2022-01-01", "2022-12-31");
-
-
-    let tar_path =
-        "/home/nvr90/repos/data_engineering/projects/combine_parquet/combpq/blah2020.tar"
-            .to_string();
-
-    let prefix = "nowboost/tjl/one_minute_data".to_string();
-
-    let adam_tar_store = AdamTarFileObjectStore::new_with_locations(locations, &tar_path, &prefix);
-
-    std::io::stdout().flush().unwrap();
-
-    let adam_resampler = resampler::ParquetResampler::new(
-        adam_tar_store,
-        resampler::DataFreq::OneMin,
-        resampler::DataFreq::OneHour,
-        resampler::FilePartition::ByStation,
-        Some(r#"LSD"#.to_string()),
-        Some(r#"STN_NUM"#.to_string()),
-        Some(vec![
-            r#"AIR_TEMP"#.to_string(),
-            r#"AIR_TEMP_MIN"#.to_string(),
-            r#"AIR_TEMP_MAX"#.to_string(),
-            r#"DWPT"#.to_string(),
-        ]),
-    );
-
-    resampler::ParquetResampler::resample(adam_resampler.clone()).unwrap();
-}
-*/

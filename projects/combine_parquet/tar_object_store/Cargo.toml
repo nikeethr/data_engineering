@@ -1,5 +1,5 @@
 [package]
-name = "pq_resample"
+name = "tarpq_res"
 version = "0.0.0-pre-alpha"
 description = """
  
