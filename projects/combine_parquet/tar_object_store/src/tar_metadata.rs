@@ -9,7 +9,7 @@ use std::fs::File;
 use std::rc::Rc;
 
 // TODO: update this to command line arg
-const DEFAULT_CACHE_PATH: &'static str = "/home/nvr90/tmp/blahblahcache";
+pub const DEFAULT_CACHE_PATH: &'static str = "/tmp/tarpq_cache/.tarpq_s";
 
 #[derive(Debug, Clone)]
 pub struct EntryMetadataLocationHash {
@@ -37,6 +37,7 @@ impl EntryMetadataLocationHash {
 pub struct EntryMetadataVec {
     inner: Rc<Vec<EntryMetadata>>,
     pub cached: bool,
+    pub cache_path: Option<String>,
 }
 
 impl EntryMetadataVec {
@@ -44,28 +45,58 @@ impl EntryMetadataVec {
         let default = EntryMetadataVec {
             inner: Rc::new(Vec::<EntryMetadata>::new()),
             cached: false,
+            cache_path: None,
         };
-        EntryMetadataVec::try_from_cache().unwrap_or(default)
+        EntryMetadataVec::try_from_cache(None).unwrap_or(default)
     }
 
     /// Attempt to retrieve from cache
-    pub fn try_from_cache() -> std::io::Result<Self> {
-        let b = std::fs::read(DEFAULT_CACHE_PATH)?;
-        let metadata = unsafe {
-            rkyv::from_bytes_unchecked::<Rc<Vec<EntryMetadata>>>(b.as_bytes())
-                .expect("failed to deserialize entry metadata")
-        };
-        Ok(EntryMetadataVec {
-            inner: metadata,
-            cached: true,
-        })
+    pub fn try_from_cache(cache_path: Option<String>) -> std::io::Result<Self> {
+        let cache_path = &cache_path.unwrap_or(DEFAULT_CACHE_PATH.to_string());
+        let b = std::fs::read(cache_path);
+
+        match b {
+            Ok(b) => {
+                let metadata = unsafe {
+                    rkyv::from_bytes_unchecked::<Rc<Vec<EntryMetadata>>>(b.as_bytes())
+                        .expect("failed to deserialize entry metadata")
+                };
+
+                Ok(EntryMetadataVec {
+                    inner: metadata,
+                    cached: true,
+                    cache_path: Some(cache_path.clone()),
+                })
+            }
+            Err(_) => {
+                println!("Err: Could not retrieve metadata from cache, constructing without cache");
+                Ok(EntryMetadataVec {
+                    inner: Rc::new(Vec::<EntryMetadata>::new()),
+                    cached: false,
+                    cache_path: None,
+                })
+            }
+        }
     }
 
     /// Generates a cache file for the metadata, for faster future retrieval
-    pub fn to_cache(&self) {
+    pub fn to_cache(&mut self, cache_path: Option<String>) -> Option<String> {
         let b = rkyv::to_bytes::<_, 1024>(&self.inner.clone())
             .expect("failed to serialize entry metadata");
-        std::fs::write(DEFAULT_CACHE_PATH, b).unwrap();
+        let cache_path = cache_path.unwrap_or(DEFAULT_CACHE_PATH.to_string());
+        std::fs::create_dir_all(&cache_path);
+        let mut cache_path = std::path::PathBuf::from(&cache_path);
+        cache_path.push(format!("{}.json", chrono::Utc::now().format("%Y%M%D")));
+        let res = std::fs::write(&cache_path, b).ok();
+
+        match res {
+            Some(()) => {
+                let cache_path = cache_path.to_str().unwrap().to_string();
+                self.cache_path = Some(cache_path.clone());
+                Some(cache_path)
+            }
+            None => None,
+        }
     }
 
     fn push(&mut self, e: EntryMetadata) {

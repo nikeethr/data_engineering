@@ -34,22 +34,35 @@ pub struct AdamTarFileObjectStore {
 }
 
 impl AdamTarFileObjectStore {
+    /// retrieves tar metadata for given locations. If locations is None, tries to retrieve all valid
+    /// locations.
     pub fn new_with_locations(
-        locations: Vec<String>,
         tar_path: &String,
         prefix: &String,
+        cache_path: Option<String>,
+        locations: Option<Vec<String>>,
     ) -> Arc<Self> {
         let mut adam_tar_metadata =
             AdamTarMetadataExtract::new(tar_path.to_string(), prefix.to_string());
 
         if !adam_tar_metadata.entry_metadata.cached {
             adam_tar_metadata.extract_metadata().unwrap();
-            adam_tar_metadata.entry_metadata.to_cache();
+            adam_tar_metadata.entry_metadata.to_cache(cache_path);
         }
 
         println!("----------------------------------------------------------------------------------------------------");
         println!("| >>> indexing metadata >>>");
         println!("----------------------------------------------------------------------------------------------------");
+
+        let locations = locations.unwrap_or(
+            adam_tar_metadata
+                .entry_metadata
+                .inner()
+                .clone()
+                .iter()
+                .map(|x| x.path.clone())
+                .collect::<Vec<_>>(),
+        );
 
         for l in locations {
             if adam_tar_metadata.add_entry_if_exists(l.clone().to_string()) {

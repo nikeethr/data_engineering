@@ -1,6 +1,5 @@
 use crate::tar_object_store::{self, AdamTarFileObjectStore};
 
-use arrow::compute::min_array;
 use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatchReader;
 
@@ -9,6 +8,7 @@ use datafusion::dataframe::DataFrameWriteOptions;
 
 use clap::ValueEnum;
 use datafusion::datasource::{
+    file_format::csv::CsvFormat,
     file_format::parquet::ParquetFormat,
     listing::{ListingOptions, ListingTableInsertMode},
 };
@@ -30,6 +30,10 @@ use url::Url;
 // back in time data can be retrieved.
 const REFERENCE_DATE: &'static str = "1900-01-01T00:00:00";
 const TIME_RESAMPLED_FIELD: &'static str = "time_rsmpl";
+
+// TODO: these constants are named too ADAM specific, they can be more generalized
+const STATION_PARTITION_FIELD: &'static str = "stn_partition_id";
+const ADAM_RESAMPLED_OBS_TABLE_NAME: &'static str = "adam_obs_resampled";
 
 pub type SecondsType = i64;
 
@@ -115,32 +119,39 @@ pub enum FilePartition {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct ParquetResampler {
+    /// input metadata of tar achive as an object store
     input_store: Arc<AdamTarFileObjectStore>,
-    // this is the input data frequency (which probably can be inferred), but it's more for sanity
-    // checks against the output_data_freq
+    /// output directory to store files
+    output_path: String,
+    /// currently supports parquet or csv - TODO: really should be an enum
+    output_format: String,
+    /// this is the input data frequency (which probably can be inferred), but it's more for sanity
+    /// checks against the output_data_freq
     input_data_freq: DataFreq,
-    // this is essentially resampling interval
+    /// this is essentially resampling interval
     output_data_freq: DataFreq,
-    // this the amount of data stored per file, e.g. monthly => month's worth of data in each file
+    /// this the amount of data stored per file, e.g. monthly => month's worth of data in each file
     output_file_partition: FilePartition,
-    // the variables to aggregate for resampling (by default will try to aggregate every variable
-    // which may not work)
+    /// the variables to aggregate for resampling (by default will try to aggregate every variable
+    /// which may not work)
     agg_fields: Option<Vec<String>>,
-    // time variable to resample against, defaults to 'time'
+    /// time variable to resample against, defaults to 'time'
     time_index: Option<String>,
-    // station field
+    /// station field
     station_field: Option<String>,
-    // station_filter
+    /// station_filter - currently unused
     include_stations: Option<Vec<String>>,
-    // weak pointer to self
+    /// weak pointer to self
     weak_self: Weak<ParquetResampler>,
-    // for saving output
+    /// for saving output
     output_store: Arc<LocalFileSystem>,
 }
 
 impl ParquetResampler {
     pub fn new(
         input_store: Arc<AdamTarFileObjectStore>,
+        output_path: String,
+        output_format: String,
         input_data_freq: DataFreq,
         output_data_freq: DataFreq,
         output_file_partition: FilePartition,
@@ -155,6 +166,8 @@ impl ParquetResampler {
             // Create the actual struct here.
             Self {
                 input_store,
+                output_path,
+                output_format,
                 input_data_freq,
                 output_data_freq,
                 output_file_partition,
@@ -204,6 +217,7 @@ impl ParquetResampler {
 
     // only this part needs to be async as it performs the loading, querying and saving, all the
     // setup can be done as single sync thread.
+    /// TODO: split out this function
     #[tokio::main(flavor = "multi_thread")]
     pub async fn resample(resampler: Arc<ParquetResampler>) -> tokio::io::Result<()> {
         let start = Utc::now();
@@ -256,10 +270,11 @@ impl ParquetResampler {
             columns.iter().map(|x| x.as_str()).collect::<Vec<&str>>()
         };
 
-        // construct resampling plan
+        // --- construct resampling plan ---
         println!("| >>> constructiong logical plan...");
         let df = ctx.table(tar_object_store::ADAM_OBS_TABLE_NAME).await?;
 
+        // note: constructing lowercase alias for most fields in order to normalize
         let df = df
             .clone()
             .select_columns(columns.as_slice())?
@@ -267,9 +282,12 @@ impl ParquetResampler {
             .aggregate(
                 vec![
                     col(TIME_RESAMPLED_FIELD),
-                    ident(&station_field).alias(&station_field),
+                    ident(&station_field).alias(station_field.to_lowercase()),
                 ],
-                agg_fields.iter().map(|x| avg(ident(x)).alias(x)).collect(),
+                agg_fields
+                    .iter()
+                    .map(|x| avg(ident(x)).alias(x.to_lowercase()))
+                    .collect(),
             )?
             .filter(is_false(is_null(ident(&station_field))))?
             .sort(vec![
@@ -278,137 +296,85 @@ impl ParquetResampler {
             ])
             .expect("Could not generate logical plan for resampling");
 
-        // --- output ---
+        // --- register local object store & listing table ---
 
-        // register object store
+        // TODO: This can eventually be extended to any implemented object store protocol
+        // e.g. cloud/hive/nfs/in-memory/ftp/http etc.
         ctx.runtime_env().register_object_store(
             &Url::parse(r"file://local").unwrap(),
             resampler.output_store.clone(),
         );
 
-        // register listing table from object store
-        let _ref_schema = SchemaRef::new(Schema::from(df.schema()).clone());
-        // let mut sb = SchemaBuilder::new();
-        // ref_schema.fields().iter().for_each(|f| {
-        //     let sb = &mut sb;
-        //     let f = FieldRef::from(f.clone());
-        //     let station_field = station_field.clone();
-        //     if station_field.eq(f.name()) {
-        //         return;
-        //         // sb.push(Field::new(station_field, DataType::Utf8, false));
-        //     } else {
-        //         sb.push(f.clone());
-        //     }
-        // });
-        // let schema_new = sb.finish();
+        let ref_schema = SchemaRef::new(Schema::from(df.schema()).clone());
 
-        // df.clone()
-        //     .write_parquet(
-        //         "file:///mest.parquet",
-        //         DataFrameWriteOptions::new().with_single_file_output(true),
-        //         None,
-        //     )
-        //     .await?;
+        // -----
+        // Equivilent to:
+        // ctx.sql(
+        //     r#"
+        //     create external table
+        //     test("stn_id" VARCHAR, "air_temp" DOUBLE, "stn_num" VARCHAR, ...)
+        //     stored as csv
+        //     with header row
+        //     partitioned by (stn_num)
+        //     location <output_path>
+        //     options (
+        //         create_local_path 'true',
+        //         insert_mode 'append_new_files',
+        //     );
+        //     "#,
+        // )
+        // -----
+        let mut listing_opts = ListingOptions::new(match resampler.output_format.as_str() {
+            // TODO: probably should be an enum
+            "parquet" => Arc::new(ParquetFormat::default()),
+            "csv" => Arc::new(CsvFormat::default().with_has_header(true)),
+            &_ => todo!(),
+        })
+        .with_insert_mode(ListingTableInsertMode::AppendNewFiles);
 
-        ctx.sql(
-            r#"
-            create external table 
-            test("stn_id" VARCHAR, "air_temp" DOUBLE, "stn_num" VARCHAR)
-            stored as csv
-            with header row
-            partitioned by (stn_num)
-            location './testme/'
-            options (
-                create_local_path 'true',
-                insert_mode 'append_new_files',
-            );
-            "#,
+        let listing_opts = match resampler.output_file_partition {
+            FilePartition::ByStation => {
+                // dummy field stn_id_partition - used for partitioning.
+                // TODO: this assumes that the data does not have this field already a
+                // sanity check needs to be performed.
+                listing_opts.with_table_partition_cols(vec![(
+                    STATION_PARTITION_FIELD.to_string(),
+                    DataType::Utf8,
+                )])
+            }
+            FilePartition::DatafusionDefault => listing_opts,
+        };
+
+        ctx.register_listing_table(
+            ADAM_RESAMPLED_OBS_TABLE_NAME,
+            &resampler.output_path,
+            listing_opts,
+            Some(ref_schema),
+            None,
         )
         .await
-        .expect("Making dirsss??")
-        .collect()
-        .await
-        .expect("Uh oh 1");
+        .expect("Could not register external output table");
 
-        // println!("{:?}", ctx.tables()?);
-
-        // let test_table = ctx.table("test").await?;
-        // println!("{:?}", test_table.schema());
-
-        // let xxx = df
-        //     .clone()
-        //     .select(vec![ident("STN_NUM"), ident("AIR_TEMP")])?;
-
-        // ctx.register_table("xxx", xxx.into_view())?;
-
-        // let xxx = ctx.table("xxx").await?;
-        // xxx.clone().show_limit(100).await?;
-
-        // ctx.sql(
-        //     r#" COPY (select 'STN_NUM' as stn_num, 'AIR_TEMP' as air_temp from xxx)
-        //     TO './test/'
-        //     (
-        //         format 'parquet,
-        //         single_file_output 'false',
-        //     );"#,
-        // )
-        // let res = ctx
-        //     .sql(
-        //         r#"
-        //     INSERT INTO test SELECT "STN_NUM" AS stn_num, "AIR_TEMP" FROM adam_obs WHERE "STN_NUM" is not null limit 10;
-        //     "#,
-        //     )
-        //     .await
-        //     .expect("Uh oh 2")
-        //     .collect()
-        //     .await?;
-
-        let _t = ctx.table("test").await?;
-        let plan = df.clone().select(vec![
-            ident(&station_field)
-                .cast_to(&DataType::Utf8, df.schema())?
-                .alias("stn_id"),
-            ident("AIR_TEMP")
-                .cast_to(&DataType::Float64, df.schema())?
-                .alias("air_temp"),
-            ident(&station_field)
-                .alias("stn_num")
-                .cast_to(&DataType::Utf8, df.schema())?,
-        ])?;
-
-        println!("{:?}", plan.schema());
-        println!("{:?}", ctx.table("test").await?.schema());
-
-        let _plan = plan
-            .clone()
-            .write_table("test", DataFrameWriteOptions::new())
-            .await
-            .expect("Buh Oh 2");
-
-        // println!("{:?}", res);
-        // select CAST("STN_NUM" as STRING) as stn_num, "AIR_TEMP" as air_temp from adam_obs limit 10;
-        // sanity check schema
-        // println!("{:?}", ctx.table("xxx").await?.schema());
-
+        // --- write output ---
         println!("| >>> write output");
 
-        // Currently distributes by station
-        // TODO: fix these to write to actual path, and fix compression
-        // TODO: logic to determine whether to partition or not
-        // df.clone()
-        //     .write_table(
-        //         "adam_obs_save",
-        //         DataFrameWriteOptions::new()
-        //             .with_single_file_output(false)
-        //             .with_overwrite(true)
-        //             .with_compression(
-        //                 datafusion::common::parsers::CompressionTypeVariant::UNCOMPRESSED,
-        //             ),
-        //     )
-        //     .await
-        //     .expect("Failed to save to output store");
+        // adjust column cast so it works properly... partition column has to be a string or it
+        // doesn't seem to work. Also partition field will be eaten up, so needs to be duplicated.
+        let plan = df
+            .clone()
+            .with_column(
+                &station_field.to_lowercase(),
+                col(&station_field).cast_to(&DataType::Utf8, df.schema())?,
+            )?
+            .with_column(
+                STATION_PARTITION_FIELD,
+                col(&station_field).cast_to(&DataType::Utf8, df.schema())?,
+            )?
+            .write_table(
+                "test",
+                DataFrameWriteOptions::new().with_single_file_output(false),
+            );
 
-        // close logging channel
         let end = Utc::now();
         println!("| end = {:?}", end.format("%+").to_string());
         println!("| time_taken = {:?}", end.signed_duration_since(start));

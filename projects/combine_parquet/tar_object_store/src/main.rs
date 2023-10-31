@@ -12,6 +12,31 @@ pub(crate) mod tar_object_store;
 
 fn main() {
     let cli = Cli::parse();
+
+    let adam_tar_store = AdamTarFileObjectStore::new_with_locations(
+        &cli.input_tar_path,
+        &cli.prefix,
+        cli.metadata_cache_path,
+        None,
+    );
+
+    tar_metadata::print_adam_metadata_stats(&adam_tar_store.tar_metadata_all);
+
+    std::io::stdout().flush().unwrap();
+
+    let adam_resampler = resampler::ParquetResampler::new(
+        adam_tar_store,
+        cli.output_path,
+        cli.output_format,
+        cli.input_freq,
+        cli.output_freq,
+        cli.partition_col,
+        Some(cli.time_field),
+        Some(cli.station_field),
+        Some(cli.agg_fields),
+    );
+
+    resampler::ParquetResampler::resample(adam_resampler.clone()).unwrap();
 }
 
 /*

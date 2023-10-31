@@ -1,11 +1,14 @@
 use crate::resampler;
+use crate::tar_metadata;
 use clap::Parser;
 
 #[derive(Parser)]
-#[command(author, version, about, long_about=None, max_term_width=100)]
+#[command(author, version, about, long_about=None, max_term_width=100, color=clap::ColorChoice::Always)]
 pub(crate) struct Cli {
-    input_tar_path: String,
-    output_path: String,
+    pub(crate) input_tar_path: String,
+    pub(crate) output_path: String,
+    /// prefix of the directory containing the parquet files within the input tarball.
+    pub(crate) prefix: String,
 
     /// input data interval. Only OneMin is supported as this is the frequency that ADAM outputs at
     /// it can also theoretically support other frequencies assuming they are in a tar archive.
@@ -40,6 +43,6 @@ pub(crate) struct Cli {
     pub(crate) partition_col: resampler::FilePartition,
 
     /// cache a serialized (json) record of the tar file for faster retrieval
-    #[arg(long, default_value = "/tmp/.tarpq_s")]
-    pub(crate) metadata_cache_path: String,
+    #[arg(long, default_value = tar_metadata::DEFAULT_CACHE_PATH)]
+    pub(crate) metadata_cache_path: Option<String>,
 }
