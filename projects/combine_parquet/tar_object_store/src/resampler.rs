@@ -1,34 +1,24 @@
 use crate::tar_object_store::{self, AdamTarFileObjectStore};
 
-use datafusion::arrow::array::{
-    Array, ArrayAccessor, ArrayData, Int64Array, IntervalDayTimeBuilder,
-};
-use datafusion::arrow::datatypes::{
-    DataType, Field, FieldRef, Schema, SchemaBuilder, SchemaRef, UnionFields, UnionMode,
-};
-use datafusion::arrow::record_batch::{RecordBatchIterator, RecordBatchReader};
-use datafusion::arrow::util::pretty;
+use arrow::compute::min_array;
+use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef};
+use datafusion::arrow::record_batch::RecordBatchReader;
 
-use std::collections::HashMap;
-
-use chrono::{DateTime, Duration, Utc};
+use chrono::Utc;
 use datafusion::dataframe::DataFrameWriteOptions;
-use datafusion::datasource::file_format::FileFormat;
-use datafusion::datasource::provider_as_source;
+
 use datafusion::datasource::{
-    file_format::{csv::CsvFormat, parquet::ParquetFormat},
+    file_format::parquet::ParquetFormat,
     listing::{ListingOptions, ListingTableInsertMode},
 };
-use datafusion::logical_expr::{ExprSchemable, LogicalPlan, LogicalPlanBuilder};
+use datafusion::logical_expr::ExprSchemable;
 use datafusion::prelude::*;
 use object_store::local::LocalFileSystem;
 use std::cmp::{Ordering, PartialOrd};
 use std::fmt::Debug;
-use std::io::Write;
-use std::pin::Pin;
+
 use std::sync::{Arc, Weak};
-use tokio::runtime::{Handle, Runtime};
-use tokio::sync::mpsc;
+
 use url::Url;
 
 // ------------------------------------------------------------------------------------------------
@@ -280,6 +270,7 @@ impl ParquetResampler {
                 ],
                 agg_fields.iter().map(|x| avg(ident(x)).alias(x)).collect(),
             )?
+            .filter(is_false(is_null(ident(&station_field))))?
             .sort(vec![
                 ident(&station_field).sort(true, false),
                 col(TIME_RESAMPLED_FIELD).sort(true, false),
@@ -295,7 +286,7 @@ impl ParquetResampler {
         );
 
         // register listing table from object store
-        let ref_schema = SchemaRef::new(Schema::from(df.schema()).clone());
+        let _ref_schema = SchemaRef::new(Schema::from(df.schema()).clone());
         // let mut sb = SchemaBuilder::new();
         // ref_schema.fields().iter().for_each(|f| {
         //     let sb = &mut sb;
@@ -321,8 +312,9 @@ impl ParquetResampler {
         ctx.sql(
             r#"
             create external table 
-            test("STN_NUM" BIGINT, "air_temp" DOUBLE, "stn_num" VARCHAR)
-            stored as parquet
+            test("stn_id" VARCHAR, "air_temp" DOUBLE, "stn_num" VARCHAR)
+            stored as csv
+            with header row
             partitioned by (stn_num)
             location './testme/'
             options (
@@ -370,25 +362,23 @@ impl ParquetResampler {
         //     .collect()
         //     .await?;
 
-        let t = ctx.table("test").await?;
-        let plan = df
-            .clone()
-            .select(vec![
-                ident("STN_NUM"),
-                ident("AIR_TEMP")
-                    .cast_to(&DataType::Float64, df.schema())?
-                    .alias("air_temp"),
-                ident("STN_NUM")
-                    .alias("stn_num")
-                    .cast_to(&DataType::Utf8, df.schema())?,
-            ])?
-            .filter(is_false(is_null(col("stn_num"))))?
-            .limit(0, Some(1))?;
+        let _t = ctx.table("test").await?;
+        let plan = df.clone().select(vec![
+            ident(&station_field)
+                .cast_to(&DataType::Utf8, df.schema())?
+                .alias("stn_id"),
+            ident("AIR_TEMP")
+                .cast_to(&DataType::Float64, df.schema())?
+                .alias("air_temp"),
+            ident(&station_field)
+                .alias("stn_num")
+                .cast_to(&DataType::Utf8, df.schema())?,
+        ])?;
 
         println!("{:?}", plan.schema());
         println!("{:?}", ctx.table("test").await?.schema());
 
-        let plan = plan
+        let _plan = plan
             .clone()
             .write_table("test", DataFrameWriteOptions::new())
             .await

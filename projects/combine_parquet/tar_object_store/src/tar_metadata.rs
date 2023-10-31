@@ -1,11 +1,11 @@
 use chrono::prelude::NaiveDate;
-use datafusion::common::DEFAULT_ARROW_EXTENSION;
+
 use datafusion::parquet::data_type::AsBytes;
 use regex::Regex;
 use rkyv::{Archive, Deserialize, Serialize};
-use serde_json;
+
 use std::fs::File;
-use std::io::Read;
+
 use std::rc::Rc;
 
 // TODO: update this to command line arg
