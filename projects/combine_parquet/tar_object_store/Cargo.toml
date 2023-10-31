@@ -1,6 +1,42 @@
 [package]
-name = "tar_object_store"
-version = "0.1.0"
+name = "pq_resample"
+version = "0.0.0-pre-alpha"
+description = """
+ 
+  +------------------------------------------------------------------+
+  | >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  |
+  | >>> pq+tar:// | Parquet Tarball Resampler | datafusion+rust >>>  |
+  | >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  |
+  | made @DSET for internal use only                                 |
+  +------------------------------------------------------------------+
+
+  CAUTION: This tool is experimental and does not come with any warranty.
+
+  >>> Description
+
+  Takes an (uncompressed) input tar file containing parquet files and resamples
+  (i.e. downsample over time) the data to an output directory.
+
+  The main use case is for lustre/NCI and potentially traditional VMs where a
+  large number of small files take longer to process than a single large file.
+
+  Datafusion currently doesn't support arbitrary tarball'd inputs so this tries
+  to address that.
+
+  Limitations:
+  * Currently only works with tarballs with ADAM 1 min data [+]
+  * Assumes that the input data has all the relevant parquet files in a single prefix.
+  * Not for generic use - its use-case is specific to uncompressedtarball'd archives.
+  * Datafusion comes with a nice cli and rust/python APIs for generic purposes
+  * Currently only supports limited number of output formats/intervals see help
+    for options. [+]
+  * Does not do upsampling/interpolation/custom aggregation [+]
+  * Only supports local filesystem processing [+]
+  * Only supports output partitioning by station number [+]
+
+  Items above marked with [+] can be extended for future work.
+"""
+authors = ["Nikeeth Ramanathan <nikeeth.ramanathan@gmail.com>"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -20,3 +56,4 @@ tar = "0.4.40"
 tokio = { version = "1.33.0", features = ["rt-multi-thread"] }
 url = "2.4.1"
 rkyv = "0.7.42"
+clap = { version = "4.4.7", features = ["derive", "wrap_help", "color"] }

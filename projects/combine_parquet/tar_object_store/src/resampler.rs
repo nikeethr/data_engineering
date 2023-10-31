@@ -7,6 +7,7 @@ use datafusion::arrow::record_batch::RecordBatchReader;
 use chrono::Utc;
 use datafusion::dataframe::DataFrameWriteOptions;
 
+use clap::ValueEnum;
 use datafusion::datasource::{
     file_format::parquet::ParquetFormat,
     listing::{ListingOptions, ListingTableInsertMode},
@@ -16,7 +17,6 @@ use datafusion::prelude::*;
 use object_store::local::LocalFileSystem;
 use std::cmp::{Ordering, PartialOrd};
 use std::fmt::Debug;
-
 use std::sync::{Arc, Weak};
 
 use url::Url;
@@ -63,21 +63,22 @@ impl From<DataFreq> for Seconds {
 
 // TODO: not all frequencies are used
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ValueEnum)]
 pub enum DataFreq {
     OneMin,
     TenMins,
     OneHour,
     OneDay,
+    #[value(skip)]
     CustomFreqSeconds(SecondsType),
 }
 
 // TODO: probably single file or by station for now
 #[allow(dead_code)]
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, ValueEnum)]
 pub enum FilePartition {
-    SingleFile,
     ByStation,
+    DatafusionDefault,
 }
 
 // ------------------------------------------------------------------------------------------------
