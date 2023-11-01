@@ -1,6 +1,8 @@
 #!/bin/bash
 
-RUST_LOG="debug" ./target/release/tarpq_res \
+export RUST_LOG='debug'
+
+./target/release/tarpq_res \
   --output-freq=ten-mins \
   --agg-fields="AIR_TEMP,DWPT" \
   --output-format=csv \
