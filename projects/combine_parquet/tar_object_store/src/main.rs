@@ -44,7 +44,8 @@ fn main() {
         Some(cli.time_field),
         Some(cli.station_field),
         Some(cli.agg_fields),
+        cli.memory_limit_gb,
     );
 
-    resampler::ParquetResampler::resample(adam_resampler.clone()).unwrap();
+    resampler::ParquetResampler::resample_async_wrapper(adam_resampler, cli.worker_threads)
 }

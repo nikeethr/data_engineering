@@ -21,8 +21,8 @@ pub(crate) struct Cli {
 
     /// output data format. Note: currently output will always go to a directory.
     /// i.e. the filename cannot be chosen, determined by partition column see: --partition-col.
-    #[arg(long, default_value = "parquet", value_names=["parquet", "csv"])]
-    pub(crate) output_format: String,
+    #[arg(long, value_enum, default_value_t = resampler::OutputFormat::Parquet)]
+    pub(crate) output_format: resampler::OutputFormat,
 
     /// station number column name
     #[arg(long, default_value = "STN_NUM")]
@@ -45,4 +45,17 @@ pub(crate) struct Cli {
     /// cache a serialized (json) record of the tar file for faster retrieval
     #[arg(long, default_value = tar_metadata::DEFAULT_CACHE_PATH)]
     pub(crate) metadata_cache_path: Option<String>,
+
+    /// soft memory limit to limit queries to, note: the tool tries to keep under 80% of the provided memory limit.
+    /// by default it greedily uses up all memory that is available. This is generally not required unless
+    /// additional memory is required for other applications - or the system memory is very limited e.g. <16GB
+    /// by default tool is configured to try to spill to disk, to prevent crashes.
+    #[arg(long, default_value = None)]
+    pub(crate) memory_limit_gb: Option<usize>,
+
+    /// number of worker threads to limit async jobs to, by default uses up all available cpu threads.
+    /// its advisable not to change this, unless you require reserved threads for other applications in
+    /// some sort of shared setting.
+    #[arg(long, default_value = None)]
+    pub(crate) worker_threads: Option<usize>,
 }

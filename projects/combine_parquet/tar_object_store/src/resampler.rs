@@ -4,6 +4,7 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatchReader;
 
 use chrono::Utc;
+use datafusion::catalog::MemoryCatalogList;
 use datafusion::dataframe::DataFrameWriteOptions;
 
 use clap::ValueEnum;
@@ -13,6 +14,9 @@ use datafusion::datasource::{
     listing::{ListingOptions, ListingTableInsertMode},
 };
 use datafusion::execution::disk_manager::{DiskManager, DiskManagerConfig};
+use datafusion::execution::memory_pool::{FairSpillPool, MemoryConsumer, MemoryPool};
+use datafusion::execution::object_store::{DefaultObjectStoreRegistry, ObjectStoreRegistry};
+use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion::logical_expr::ExprSchemable;
 use datafusion::prelude::*;
 use object_store::local::LocalFileSystem;
@@ -86,6 +90,13 @@ pub enum FilePartition {
     DatafusionDefault,
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, ValueEnum)]
+pub enum OutputFormat {
+    Parquet,
+    Csv,
+}
+
 // ------------------------------------------------------------------------------------------------
 // Resampler
 // ------------------------------------------------------------------------------------------------
@@ -120,12 +131,10 @@ pub enum FilePartition {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct ParquetResampler {
-    /// input metadata of tar achive as an object store
-    input_store: Arc<AdamTarFileObjectStore>,
     /// output directory to store files
     output_path: String,
     /// currently supports parquet or csv - TODO: really should be an enum
-    output_format: String,
+    output_format: OutputFormat,
     /// this is the input data frequency (which probably can be inferred), but it's more for sanity
     /// checks against the output_data_freq
     input_data_freq: DataFreq,
@@ -144,21 +153,22 @@ pub struct ParquetResampler {
     include_stations: Option<Vec<String>>,
     /// weak pointer to self
     weak_self: Weak<ParquetResampler>,
-    /// for saving output
-    output_store: Arc<LocalFileSystem>,
+    /// saved runtime env - same environment will be used for all sessions
+    runtime_env: Arc<RuntimeEnv>,
 }
 
 impl ParquetResampler {
     pub fn new(
         input_store: Arc<AdamTarFileObjectStore>,
         output_path: String,
-        output_format: String,
+        output_format: OutputFormat,
         input_data_freq: DataFreq,
         output_data_freq: DataFreq,
         output_file_partition: FilePartition,
         time_index: Option<String>,
         station_field: Option<String>,
         agg_fields: Option<Vec<String>>,
+        memory_limit_gb: Option<usize>,
     ) -> Arc<Self> {
         // Currently only support downsampling
         assert!(Seconds::from(input_data_freq.clone()) <= Seconds::from(output_data_freq.clone()));
@@ -166,7 +176,6 @@ impl ParquetResampler {
         Arc::new_cyclic(|s| {
             // Create the actual struct here.
             Self {
-                input_store,
                 output_path,
                 output_format,
                 input_data_freq,
@@ -177,10 +186,44 @@ impl ParquetResampler {
                 station_field,
                 include_stations: None,
                 weak_self: s.clone(),
-                // TODO: change this currently for testing
-                output_store: Arc::new(LocalFileSystem::new()),
+                runtime_env: Self::create_rt_env(input_store, memory_limit_gb),
             }
         })
+    }
+
+    fn create_rt_env(
+        input_store: Arc<AdamTarFileObjectStore>,
+        memory_limit_gb: Option<usize>,
+    ) -> Arc<RuntimeEnv> {
+        // Os chooses specified paths
+        println!(
+            ">>> Registering runtime config, memory_limit_gb={:?}",
+            memory_limit_gb
+        );
+        let rt = RuntimeConfig::new().with_disk_manager(DiskManagerConfig::new_specified(vec![
+            "/home/nvr90/tmp/".into(),
+        ]));
+
+        // setup memory limits
+        let gb_to_b = |x| (x * 1024 * 1024 * 1024) as usize;
+        let rt = match memory_limit_gb {
+            None => rt,
+            Some(mem_gb) => rt.with_memory_pool(Arc::new(FairSpillPool::new(gb_to_b(mem_gb)))),
+        };
+
+        // insert object stores
+        let rt = rt.with_object_store_registry({
+            // this includes the local filesstem by default so we only need to
+            // register the tar store
+            let obj_store_registry = DefaultObjectStoreRegistry::new();
+            obj_store_registry.register_store(
+                &Url::parse(tar_object_store::TAR_PQ_STORE_BASE_URI).unwrap(),
+                input_store,
+            );
+            Arc::new(obj_store_registry)
+        });
+
+        Arc::new(RuntimeEnv::new(rt).expect("Could not create runtime environment"))
     }
 
     // TODO: currently there's no usecase for strong ref, but generally it can be used to upgrade a
@@ -216,11 +259,42 @@ impl ParquetResampler {
         .unwrap()
     }
 
-    // only this part needs to be async as it performs the loading, querying and saving, all the
-    // setup can be done as single sync thread.
+    fn session_ctx_with_runtime_config(&self) -> SessionContext {
+        SessionContext::new_with_config_rt(SessionConfig::new(), self.runtime_env.clone())
+    }
+
+    /// Blocks current thread and sets up the main resampling task
+    ///
+    /// Only this part needs to be async as it performs the loading, querying and saving, all the
+    /// setup can be done as single sync thread prior to running the resampling.
+    ///
+    /// CAUTION: Avoid spawning blocking threads here as it will slow down any data fusion
+    /// functionality. Any thread spawning required to custom batch certain operations
+    /// (e.g. splitting queries by month) should be done outside of this function system threads
+    /// and/or use a separate tokio runtime with configured blocking limits, to avoid spawning too
+    /// many blocking IO threads that interfere with datafusion. Datafusion gets really confused
+    /// with nested green threads, unless done properly.
+    ///
     /// TODO: split out this function
-    #[tokio::main(flavor = "multi_thread")]
-    pub async fn resample(resampler: Arc<ParquetResampler>) -> tokio::io::Result<()> {
+    pub fn resample_async_wrapper(resampler: Arc<ParquetResampler>, thread_count: Option<usize>) {
+        let tokio_runtime = match thread_count {
+            None => tokio::runtime::Builder::new_multi_thread().build().unwrap(),
+            Some(n) => tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(n)
+                .build()
+                .unwrap(),
+        };
+
+        // block current thread and run main resampling task
+        tokio_runtime.block_on(async move {
+            resampler
+                .resample()
+                .await
+                .expect("Resampling was unsuccessful - see stack trace or logs for more info")
+        })
+    }
+
+    async fn resample(&self) -> tokio::io::Result<()> {
         let start = Utc::now();
         println!("----------------------------------------------------------------------------------------------------");
         println!(">>> Resampling >>>");
@@ -231,18 +305,11 @@ impl ParquetResampler {
         // TODO: system based runtime config: datafusion can get memory hungry, so it may
         // be wise to configure diskmanager/cachemanager/memorylimits appropriately.
         // ---
-        let ctx = SessionContext::new();
+        let ctx = self.session_ctx_with_runtime_config();
 
         // ---
         // TODO: split out these stages into individual functions
         // ---
-
-        // --- register input ---
-        // register input object store - tar file
-        ctx.runtime_env().register_object_store(
-            &Url::parse(tar_object_store::TAR_PQ_STORE_BASE_URI).unwrap(),
-            resampler.input_store.clone(),
-        );
 
         println!("| >>> register input table parquet table from tar store...");
 
@@ -265,9 +332,9 @@ impl ParquetResampler {
         // Vec<String>. I'm too lazy to look up how to do this using ::from, and too even more lazy
         // to write my own trait so this ugly mess is what you get.
 
-        let station_field = resampler.station_field.clone().unwrap();
-        let time_index = resampler.time_index.clone().unwrap();
-        let agg_fields = resampler.agg_fields.clone().unwrap();
+        let station_field = self.station_field.clone().unwrap();
+        let time_index = self.time_index.clone().unwrap();
+        let agg_fields = self.agg_fields.clone().unwrap();
         let columns = {
             // temporary mutabiilty
             let mut columns = vec![&station_field, &time_index];
@@ -283,7 +350,7 @@ impl ParquetResampler {
         let df = df
             .clone()
             .select_columns(columns.as_slice())?
-            .with_column(TIME_RESAMPLED_FIELD, resampler.build_resample_expr())?
+            .with_column(TIME_RESAMPLED_FIELD, self.build_resample_expr())?
             .aggregate(
                 vec![
                     col(TIME_RESAMPLED_FIELD),
@@ -296,25 +363,11 @@ impl ParquetResampler {
                     .map(|x| avg(ident(x)).alias(x.to_lowercase()))
                     .collect(),
             )?
-            .sort(vec![
-                ident(station_field.to_lowercase()).sort(true, false),
-                col(TIME_RESAMPLED_FIELD).sort(true, false),
-            ])
+            .sort(vec![col(TIME_RESAMPLED_FIELD).sort(true, false)])
             .expect("Could not generate logical plan for resampling");
 
-        // --- register local object store & listing table ---
-
-        // TODO: This can eventually be extended to any implemented object store protocol
-        // e.g. cloud/hive/nfs/in-memory/ftp/http etc.
-        ctx.runtime_env().register_object_store(
-            &Url::parse(r"file://local").unwrap(),
-            resampler.output_store.clone(),
-        );
-
+        // --- register local listing table ---
         let ref_schema = SchemaRef::new(Schema::from(df.schema()).clone());
-
-        // ref_schema.clone().fields().iter().chain(Some(Field::new()).iter())
-
         // -----
         // Equivilent to:
         // ctx.sql(
@@ -332,15 +385,14 @@ impl ParquetResampler {
         //     "#,
         // )
         // -----
-        let listing_opts = ListingOptions::new(match resampler.output_format.as_str() {
+        let listing_opts = ListingOptions::new(match self.output_format {
             // TODO: probably should be an enum
-            "parquet" => Arc::new(ParquetFormat::default()),
-            "csv" => Arc::new(CsvFormat::default().with_has_header(true)),
-            &_ => todo!(),
+            OutputFormat::Parquet => Arc::new(ParquetFormat::default()),
+            OutputFormat::Csv => Arc::new(CsvFormat::default().with_has_header(true)),
         })
         .with_insert_mode(ListingTableInsertMode::AppendNewFiles);
 
-        let listing_opts = match resampler.output_file_partition {
+        let listing_opts = match self.output_file_partition {
             FilePartition::ByStation => {
                 // dummy field stn_id_partition - used for partitioning.
                 // TODO: this assumes that the data does not have this field already a
@@ -353,12 +405,12 @@ impl ParquetResampler {
             FilePartition::DatafusionDefault => listing_opts,
         };
 
-        std::fs::create_dir_all(&resampler.output_path)
+        std::fs::create_dir_all(&self.output_path)
             .expect("Err: could not create output directory path");
 
         ctx.register_listing_table(
             ADAM_RESAMPLED_OBS_TABLE_NAME,
-            &resampler.output_path,
+            &self.output_path,
             listing_opts,
             Some(ref_schema.clone()),
             None,
@@ -372,15 +424,6 @@ impl ParquetResampler {
         // adjust column cast so it works properly... partition column has to be a string or it
         // doesn't seem to work. Also partition field will be eaten up, so needs to be duplicated.
         df.clone()
-            // .select_columns(
-            //     ref_schema
-            //         .clone()
-            //         .fields()
-            //         .iter()
-            //         .map(|x| x.name().as_str())
-            //         .collect::<Vec<_>>()
-            //         .as_slice(),
-            // )?
             .with_column(
                 STATION_PARTITION_FIELD,
                 ident(station_field.to_lowercase()).cast_to(&DataType::Utf8, df.schema())?,
