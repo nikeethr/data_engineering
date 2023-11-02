@@ -200,9 +200,7 @@ impl ParquetResampler {
             ">>> Registering runtime config, memory_limit_gb={:?}",
             memory_limit_gb
         );
-        let rt = RuntimeConfig::new().with_disk_manager(DiskManagerConfig::new_specified(vec![
-            "/home/nvr90/tmp/".into(),
-        ]));
+        let rt = RuntimeConfig::new().with_disk_manager(DiskManagerConfig::new());
 
         // setup memory limits
         let gb_to_b = |x| (x * 1024 * 1024 * 1024) as usize;
