@@ -388,6 +388,10 @@ impl ParquetResampler {
         //     "#,
         // )
         // -----
+
+        std::fs::create_dir_all(&self.output_path)
+            .expect("Err: could not create output directory path");
+
         let listing_opts = ListingOptions::new(match self.output_format {
             // TODO: probably should be an enum
             OutputFormat::Parquet => Arc::new(ParquetFormat::default()),
@@ -408,9 +412,6 @@ impl ParquetResampler {
             FilePartition::DatafusionDefault => listing_opts,
         };
 
-        std::fs::create_dir_all(&self.output_path)
-            .expect("Err: could not create output directory path");
-
         ctx.register_listing_table(
             ADAM_RESAMPLED_OBS_TABLE_NAME,
             &self.output_path,
@@ -426,11 +427,16 @@ impl ParquetResampler {
 
         // adjust column cast so it works properly... partition column has to be a string or it
         // doesn't seem to work. Also partition field will be eaten up, so needs to be duplicated.
-        df.clone()
-            .with_column(
+
+        let df = match self.output_file_partition {
+            FilePartition::ByStation => df.clone().with_column(
                 STATION_PARTITION_FIELD,
                 ident(station_field.to_lowercase()).cast_to(&DataType::Utf8, df.schema())?,
-            )?
+            )?,
+            FilePartition::DatafusionDefault => df.clone(),
+        };
+
+        df.clone()
             .write_table(
                 ADAM_RESAMPLED_OBS_TABLE_NAME,
                 DataFrameWriteOptions::new().with_single_file_output(false),
