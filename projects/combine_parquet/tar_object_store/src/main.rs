@@ -2,9 +2,9 @@ use crate::cli_parser::{Cli, Commands};
 
 use crate::tar_object_store::AdamTarFileObjectStore;
 
-use clap::{Command, Parser};
-use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
-use datafusion::physical_plan::streaming::PartitionStream;
+use clap::Parser;
+use datafusion::arrow::datatypes::SchemaRef;
+
 use std::io::Write;
 
 pub(crate) mod cli_parser;

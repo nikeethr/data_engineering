@@ -1,7 +1,7 @@
 use crate::resampler;
 use crate::tar_metadata;
 
-use chrono::NaiveDate;
+
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]

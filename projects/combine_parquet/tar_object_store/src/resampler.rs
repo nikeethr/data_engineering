@@ -1,10 +1,10 @@
 use crate::tar_object_store::{self, AdamTarFileObjectStore};
 
-use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatchReader;
 
 use chrono::Utc;
-use datafusion::catalog::MemoryCatalogList;
+
 use datafusion::dataframe::DataFrameWriteOptions;
 
 use clap::ValueEnum;
@@ -13,13 +13,13 @@ use datafusion::datasource::{
     file_format::parquet::ParquetFormat,
     listing::{ListingOptions, ListingTableInsertMode},
 };
-use datafusion::execution::disk_manager::{DiskManager, DiskManagerConfig};
-use datafusion::execution::memory_pool::{FairSpillPool, MemoryConsumer, MemoryPool};
+use datafusion::execution::disk_manager::{DiskManagerConfig};
+use datafusion::execution::memory_pool::{FairSpillPool};
 use datafusion::execution::object_store::{DefaultObjectStoreRegistry, ObjectStoreRegistry};
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion::logical_expr::ExprSchemable;
 use datafusion::prelude::*;
-use object_store::local::LocalFileSystem;
+
 use std::cmp::{Ordering, PartialOrd};
 use std::fmt::Debug;
 use std::sync::{Arc, Weak};

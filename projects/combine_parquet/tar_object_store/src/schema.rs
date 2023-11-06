@@ -1,23 +1,20 @@
 // get schema for all fields
 // deserialize
 
-use arrow::datatypes::SchemaBuilder;
-use bytes::{buf::Buf, buf::Reader, Bytes};
+use bytes::Bytes;
 use datafusion::datasource::listing::ListingTableInsertMode;
 use datafusion::prelude::*;
-use datafusion::sql::sqlparser::ast::SchemaName;
+
 use object_store::{memory::InMemory, ObjectStore};
-use serde::Serialize;
-use serde_json::Serializer;
-use std::fmt::Debug;
+
 use std::fs::File;
-use std::io::{BufReader, Read, Seek, Write};
-use std::sync::{Arc, Weak};
+use std::io::Read;
+use std::sync::Arc;
 use tar::{Archive, Entry};
-use tokio::runtime::Handle;
+
 use url::Url;
 
-use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use datafusion::arrow::datatypes::{Schema, SchemaRef};
 
 const REFERENCE_ENTRY_PATH: &'static str = "mem://reference_entry.pq";
 
@@ -25,7 +22,7 @@ pub fn infer_schema_from_first_obj(
     input_tar_path: String,
     output_path: String,
     prefix: Option<String>,
-) -> tokio::io::Result<()> {
+) {
     // extract entry
     let mut ta = Archive::new(File::open(input_tar_path).unwrap());
 
@@ -50,10 +47,11 @@ pub fn infer_schema_from_first_obj(
         });
 
     // spit out metadata to file
-    Ok(serde_json::to_writer(
+    serde_json::to_writer(
         File::create(output_path).unwrap(),
         &SchemaRef::into_inner(schema).unwrap(),
-    )?)
+    )
+    .expect("unable to deserialize schema");
 }
 
 pub fn deserialize(schema_ref_path: String) -> serde_json::Result<Schema> {
@@ -70,7 +68,9 @@ async fn get_schema_from_memory_store(mem_store: Arc<InMemory>) -> tokio::io::Re
     options.file_extension = ".pq";
     options.insert_mode = ListingTableInsertMode::Error;
 
-    ctx.register_parquet("entry_schema", REFERENCE_ENTRY_PATH, options);
+    ctx.register_parquet("entry_schema", "mem://", options)
+        .await
+        .expect("registered inmemory store");
 
     Ok(SchemaRef::new(Schema::from(
         ctx.table("entry_schema").await?.schema(),
@@ -81,8 +81,8 @@ async fn load_into_memory_store<'a>(entry: &mut Entry<'a, File>) -> tokio::io::R
     let store = InMemory::new();
     let location = object_store::path::Path::from(REFERENCE_ENTRY_PATH);
     let mut buffer = Vec::<u8>::new();
-    entry.read_to_end(&mut buffer);
-    store.put(&location, Bytes::from_iter(buffer));
+    entry.read_to_end(&mut buffer)?;
+    store.put(&location, Bytes::from_iter(buffer)).await?;
 
     Ok(store)
 }
