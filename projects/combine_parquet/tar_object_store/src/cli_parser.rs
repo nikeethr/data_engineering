@@ -1,61 +1,92 @@
 use crate::resampler;
 use crate::tar_metadata;
-use clap::Parser;
+
+use chrono::NaiveDate;
+use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about=None, max_term_width=100, color=clap::ColorChoice::Always)]
+#[command(propagate_version = true)]
 pub(crate) struct Cli {
-    pub(crate) input_tar_path: String,
-    pub(crate) output_path: String,
-    /// prefix of the directory containing the parquet files within the input tarball.
-    pub(crate) prefix: String,
+    #[command(subcommand)]
+    pub(crate) command: Commands,
+}
 
-    /// input data interval. Only OneMin is supported as this is the frequency that ADAM outputs at
-    /// it can also theoretically support other frequencies assuming they are in a tar archive.
-    #[arg(long, value_enum, default_value_t=resampler::DataFreq::OneMin)]
-    pub(crate) input_freq: resampler::DataFreq,
+#[derive(Subcommand)]
+pub(crate) enum Commands {
+    /// Performs resampling (i.e. downsampling over time dimension) of the input tar+pq object store into
+    /// parquet or csv outputs.
+    Resample {
+        input_tar_path: String,
+        output_path: String,
+        /// prefix of the directory containing the parquet files within the input tarball.
+        prefix: String,
 
-    /// frequency of the output data i.e. the interval to aggregate (average) over.
-    #[arg(long, value_enum, required = true)]
-    pub(crate) output_freq: resampler::DataFreq,
+        /// input data interval. Only OneMin is supported as this is the frequency that ADAM outputs at
+        /// it can also theoretically support other frequencies assuming they are in a tar archive.
+        #[arg(long, value_enum, default_value_t=resampler::DataFreq::OneMin)]
+        input_freq: resampler::DataFreq,
 
-    /// output data format. Note: currently output will always go to a directory.
-    /// i.e. the filename cannot be chosen, determined by partition column see: --partition-col.
-    #[arg(long, value_enum, default_value_t = resampler::OutputFormat::Parquet)]
-    pub(crate) output_format: resampler::OutputFormat,
+        /// frequency of the output data i.e. the interval to aggregate (average) over.
+        #[arg(long, value_enum, required = true)]
+        output_freq: resampler::DataFreq,
 
-    /// station number column name
-    #[arg(long, default_value = "STN_NUM")]
-    pub(crate) station_field: String,
+        /// output data format. Note: currently output will always go to a directory.
+        /// i.e. the filename cannot be chosen, determined by partition column see: --partition-col.
+        #[arg(long, value_enum, default_value_t = resampler::OutputFormat::Parquet)]
+        output_format: resampler::OutputFormat,
 
-    /// observation timestamp column name
-    #[arg(long, default_value = "LSD")]
-    pub(crate) time_field: String,
+        /// station number column name
+        #[arg(long, default_value = "STN_NUM")]
+        station_field: String,
 
-    /// the fields to argregate over (average) for each resample time interval. Note: currently does not support
-    /// quality flags.
-    #[arg(long, required = true, value_delimiter = ',')]
-    pub(crate) agg_fields: Vec<String>,
+        /// observation timestamp column name
+        #[arg(long, default_value = "LSD")]
+        time_field: String,
 
-    /// column to partition by. Datafusion batching may be faster but will not split output files by station.
-    /// recommend using datafusion batching for smaller data output, and station batching for larger outputs.
-    #[arg(long, value_enum, default_value_t=resampler::FilePartition::ByStation)]
-    pub(crate) partition_col: resampler::FilePartition,
+        /// the fields to argregate over (average) for each resample time interval. Note: currently does not support
+        /// quality flags.
+        #[arg(long, required = true, value_delimiter = ',')]
+        agg_fields: Vec<String>,
 
-    /// cache a serialized (json) record of the tar file for faster retrieval
-    #[arg(long, default_value = tar_metadata::DEFAULT_CACHE_PATH)]
-    pub(crate) metadata_cache_path: Option<String>,
+        #[arg(long, default_value = None)]
+        schema_ref_path: Option<String>,
 
-    /// soft memory limit to limit queries to, note: the tool tries to keep under 80% of the provided memory limit.
-    /// by default it greedily uses up all memory that is available. This is generally not required unless
-    /// additional memory is required for other applications - or the system memory is very limited e.g. <16GB
-    /// by default tool is configured to try to spill to disk, to prevent crashes.
-    #[arg(long, default_value = None)]
-    pub(crate) memory_limit_gb: Option<usize>,
+        /// column to partition by. Datafusion batching may be faster but will not split output files by station.
+        /// recommend using datafusion batching for smaller data output, and station batching for larger outputs.
+        #[arg(long, value_enum, default_value_t=resampler::FilePartition::ByStation)]
+        partition_col: resampler::FilePartition,
 
-    /// number of worker threads to limit async jobs to, by default uses up all available cpu threads.
-    /// its advisable not to change this, unless you require reserved threads for other applications in
-    /// some sort of shared setting.
-    #[arg(long, default_value = None)]
-    pub(crate) worker_threads: Option<usize>,
+        /// cache a serialized (json) record of the tar file for faster retrieval
+        #[arg(long, default_value = tar_metadata::DEFAULT_CACHE_PATH)]
+        metadata_cache_path: Option<String>,
+
+        /// soft memory limit to limit queries to, note: the tool tries to keep under 80% of the provided memory limit.
+        /// by default it greedily uses up all memory that is available. This is generally not required unless
+        /// additional memory is required for other applications - or the system memory is very limited e.g. <16GB
+        /// by default tool is configured to try to spill to disk, to prevent crashes.
+        #[arg(long, default_value = None)]
+        memory_limit_gb: Option<usize>,
+
+        /// number of worker threads to limit async jobs to, by default uses up all available cpu threads.
+        /// its advisable not to change this, unless you require reserved threads for other applications in
+        /// some sort of shared setting.
+        #[arg(long, default_value = None)]
+        worker_threads: Option<usize>,
+    },
+
+    /// Attempts to infer the schema from the tar+pq object store. start_date/end_date specifies a date range of files
+    /// to attempt to coerce into a schema. Otherwise, uses the schema from the first entry in the tar store.
+    ///
+    /// The main use case of this is if schemas between files don't match exactly and need to be coerced. the output
+    /// of this is a json format that can be fed into the `resample` command.
+    InferSchema {
+        /// tar file (object store) containing multiple .pq
+        input_tar_path: String,
+        /// file path to store output schema, this will be in json format
+        output_path: String,
+        /// optional prefix (if it exists in file name) to retrieve the schema from. Note: this will retrieve from the first match
+        #[arg(long, default_value = None)]
+        prefix: Option<String>,
+    },
 }

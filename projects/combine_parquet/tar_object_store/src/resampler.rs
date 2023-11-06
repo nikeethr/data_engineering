@@ -274,7 +274,11 @@ impl ParquetResampler {
     /// with nested green threads, unless done properly.
     ///
     /// TODO: split out this function
-    pub fn resample_async_wrapper(resampler: Arc<ParquetResampler>, thread_count: Option<usize>) {
+    pub fn resample_async_wrapper(
+        resampler: Arc<ParquetResampler>,
+        thread_count: Option<usize>,
+        provided_schema: Option<SchemaRef>,
+    ) {
         let tokio_runtime = match thread_count {
             None => tokio::runtime::Builder::new_multi_thread().build().unwrap(),
             Some(n) => tokio::runtime::Builder::new_multi_thread()
@@ -286,13 +290,13 @@ impl ParquetResampler {
         // block current thread and run main resampling task
         tokio_runtime.block_on(async move {
             resampler
-                .resample()
+                .resample(provided_schema)
                 .await
                 .expect("Resampling was unsuccessful - see stack trace or logs for more info")
         })
     }
 
-    async fn resample(&self) -> tokio::io::Result<()> {
+    async fn resample(&self, provided_schema: Option<SchemaRef>) -> tokio::io::Result<()> {
         let start = Utc::now();
         println!("----------------------------------------------------------------------------------------------------");
         println!(">>> Resampling >>>");
@@ -319,7 +323,7 @@ impl ParquetResampler {
                 .with_table_partition_cols(vec![("date".to_string(), DataType::Date32)])
                 .with_file_sort_order(vec![vec![col("date").sort(true, true)]])
                 .with_insert_mode(ListingTableInsertMode::Error),
-            None,
+            provided_schema,
             None,
         )
         .await

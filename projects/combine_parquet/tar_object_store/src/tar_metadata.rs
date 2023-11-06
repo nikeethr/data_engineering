@@ -216,19 +216,20 @@ impl ExtractTarEntryMetadata for AdamTarMetadataExtract {
         println!("| archive path = {}", &self.tar_path);
 
         let mut ta = tar::Archive::new(File::open(&self.tar_path)?);
-        ta.entries()?.try_for_each(|e| -> std::io::Result<()> {
-            let e = e.expect("corrupt entry");
-            let path_str = String::from_utf8(e.path_bytes().to_vec()).unwrap();
+        ta.entries_with_seek()?
+            .try_for_each(|e| -> std::io::Result<()> {
+                let e = e.expect("corrupt entry");
+                let path_str = String::from_utf8(e.path_bytes().to_vec()).unwrap();
 
-            self.entry_metadata.push(EntryMetadata {
-                raw_file_position: e.raw_file_position().to_owned(),
-                size: e.size().to_owned(),
-                path: path_str.to_owned(),
-                mtime: e.header().mtime()?.to_owned(),
-                file_date: Self::get_entry_date(&path_str).unwrap(),
-            });
-            Ok(())
-        })?;
+                self.entry_metadata.push(EntryMetadata {
+                    raw_file_position: e.raw_file_position().to_owned(),
+                    size: e.size().to_owned(),
+                    path: path_str.to_owned(),
+                    mtime: e.header().mtime()?.to_owned(),
+                    file_date: Self::get_entry_date(&path_str).unwrap(),
+                });
+                Ok(())
+            })?;
 
         self.entry_metadata.sort_by_date();
         Ok(())

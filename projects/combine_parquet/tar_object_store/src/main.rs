@@ -1,12 +1,15 @@
-use crate::cli_parser::Cli;
+use crate::cli_parser::{Cli, Commands};
 
 use crate::tar_object_store::AdamTarFileObjectStore;
 
-use clap::Parser;
+use clap::{Command, Parser};
+use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use datafusion::physical_plan::streaming::PartitionStream;
 use std::io::Write;
 
 pub(crate) mod cli_parser;
 pub(crate) mod resampler;
+pub(crate) mod schema;
 pub(crate) mod tar_metadata;
 pub(crate) mod tar_object_store;
 
@@ -23,29 +26,68 @@ pub(crate) mod tar_object_store;
 fn main() {
     let cli = Cli::parse();
 
-    let adam_tar_store = AdamTarFileObjectStore::new_with_locations(
-        &cli.input_tar_path,
-        &cli.prefix,
-        cli.metadata_cache_path,
-        None,
-    );
+    match &cli.command {
+        Commands::Resample {
+            input_tar_path,
+            output_path,
+            prefix,
+            input_freq,
+            output_freq,
+            output_format,
+            station_field,
+            time_field,
+            agg_fields,
+            schema_ref_path,
+            partition_col,
+            metadata_cache_path,
+            memory_limit_gb,
+            worker_threads,
+        } => {
+            let adam_tar_store = AdamTarFileObjectStore::new_with_locations(
+                &input_tar_path,
+                &prefix,
+                metadata_cache_path.clone(),
+                None,
+            );
 
-    tar_metadata::print_adam_metadata_stats(&adam_tar_store.tar_metadata_all);
+            tar_metadata::print_adam_metadata_stats(&adam_tar_store.tar_metadata_all);
 
-    std::io::stdout().flush().unwrap();
+            std::io::stdout().flush().unwrap();
+            let adam_resampler = resampler::ParquetResampler::new(
+                adam_tar_store,
+                output_path.clone(),
+                output_format.clone(),
+                input_freq.clone(),
+                output_freq.clone(),
+                partition_col.clone(),
+                Some(time_field.clone()),
+                Some(station_field.clone()),
+                Some(agg_fields.clone()),
+                memory_limit_gb.clone(),
+            );
 
-    let adam_resampler = resampler::ParquetResampler::new(
-        adam_tar_store,
-        cli.output_path,
-        cli.output_format,
-        cli.input_freq,
-        cli.output_freq,
-        cli.partition_col,
-        Some(cli.time_field),
-        Some(cli.station_field),
-        Some(cli.agg_fields),
-        cli.memory_limit_gb,
-    );
+            let schema_ref = match schema_ref_path {
+                None => None,
+                Some(p) => Some(SchemaRef::new(schema::deserialize(p.clone()).unwrap())),
+            };
 
-    resampler::ParquetResampler::resample_async_wrapper(adam_resampler, cli.worker_threads)
+            resampler::ParquetResampler::resample_async_wrapper(
+                adam_resampler,
+                worker_threads.clone(),
+                schema_ref,
+            );
+        }
+
+        Commands::InferSchema {
+            input_tar_path,
+            output_path,
+            prefix,
+        } => {
+            schema::infer_schema_from_first_obj(
+                input_tar_path.clone(),
+                output_path.clone(),
+                prefix.clone(),
+            );
+        }
+    };
 }
