@@ -210,9 +210,9 @@ impl AdamTarMetadataExtract {
 
 impl ExtractTarEntryMetadata for AdamTarMetadataExtract {
     fn extract_metadata(&mut self) -> std::io::Result<()> {
-        println!("----------------------------------------------------------------------------------------------------");
+        println!("+---------------------------------------------------------------------------------------------------");
         println!("| >>> loading tar archive >>>");
-        println!("----------------------------------------------------------------------------------------------------");
+        println!("+---------------------------------------------------------------------------------------------------");
         println!("| archive path = {}", &self.tar_path);
 
         let mut ta = tar::Archive::new(File::open(&self.tar_path)?);
@@ -261,9 +261,9 @@ impl ExtractTarEntryMetadata for AdamTarMetadataExtract {
 }
 
 pub fn print_adam_metadata_stats(metadata: &Vec<EntryMetadata>) {
-    println!("----------------------------------------------------------------------------------------------------");
+    println!("+---------------------------------------------------------------------------------------------------");
     println!("| >>> tar file stats >>>");
-    println!("----------------------------------------------------------------------------------------------------");
+    println!("+---------------------------------------------------------------------------------------------------");
     println!("| total entries: {:?}", metadata.len());
     println!(
         "| total size: {:?} mb",
@@ -274,5 +274,5 @@ pub fn print_adam_metadata_stats(metadata: &Vec<EntryMetadata>) {
         metadata.first().unwrap().file_date,
         metadata.last().unwrap().file_date,
     );
-    println!("----------------------------------------------------------------------------------------------------");
+    println!("+---------------------------------------------------------------------------------------------------");
 }

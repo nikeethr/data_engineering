@@ -13,8 +13,8 @@ use datafusion::datasource::{
     file_format::parquet::ParquetFormat,
     listing::{ListingOptions, ListingTableInsertMode},
 };
-use datafusion::execution::disk_manager::{DiskManagerConfig};
-use datafusion::execution::memory_pool::{FairSpillPool};
+use datafusion::execution::disk_manager::DiskManagerConfig;
+use datafusion::execution::memory_pool::FairSpillPool;
 use datafusion::execution::object_store::{DefaultObjectStoreRegistry, ObjectStoreRegistry};
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion::logical_expr::ExprSchemable;
@@ -197,7 +197,7 @@ impl ParquetResampler {
     ) -> Arc<RuntimeEnv> {
         // Os chooses specified paths
         println!(
-            ">>> Registering runtime config, memory_limit_gb={:?}",
+            "| >>> Registering runtime config, memory_limit_gb={:?}",
             memory_limit_gb
         );
         let rt = RuntimeConfig::new().with_disk_manager(DiskManagerConfig::new());
@@ -287,6 +287,7 @@ impl ParquetResampler {
                 .unwrap(),
         };
 
+        println!("| >>> Input schema: {:?}", provided_schema);
         // block current thread and run main resampling task
         tokio_runtime.block_on(async move {
             resampler
@@ -298,9 +299,9 @@ impl ParquetResampler {
 
     async fn resample(&self, provided_schema: Option<SchemaRef>) -> tokio::io::Result<()> {
         let start = Utc::now();
-        println!("----------------------------------------------------------------------------------------------------");
-        println!(">>> Resampling >>>");
-        println!("----------------------------------------------------------------------------------------------------");
+        println!("+---------------------------------------------------------------------------------------------------");
+        println!("| >>> Resampling >>>");
+        println!("+---------------------------------------------------------------------------------------------------");
         println!("| start = {:?}", start.format("%+").to_string());
 
         // ---
@@ -440,7 +441,7 @@ impl ParquetResampler {
         let end = Utc::now();
         println!("| end = {:?}", end.format("%+").to_string());
         println!("| time_taken = {:?}", end.signed_duration_since(start));
-        println!("----------------------------------------------------------------------------------------------------");
+        println!("+---------------------------------------------------------------------------------------------------");
 
         Ok(())
     }
