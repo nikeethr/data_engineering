@@ -423,7 +423,10 @@ impl ParquetResampler {
         .expect("Could not register external output table");
 
         // --- write output ---
-        println!("| >>> write output");
+        println!(
+            "| >>> write output ({:?}): {:?}",
+            self.output_format, self.output_path
+        );
 
         // adjust column cast so it works properly... partition column has to be a string or it
         // doesn't seem to work. Also partition field will be eaten up, so needs to be duplicated.
