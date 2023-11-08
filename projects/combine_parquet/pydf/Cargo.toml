@@ -15,11 +15,11 @@ description = """
 
 Description
 -----------
-This tool is a python module written in rust to query common data sources using python. Yes datafusion is natively 
-supported via python, but this is a taylored made implementation for learning purposes, without heavy API layers in 
-between.
+This tool is a python module written in rust to query common data sources using python. Yes,
+datafusion is natively supported via python, but this is a taylor made implementation for learning
+purposes; without heavy API layers in between.
 
-Currently this tool is not packaged via pip/conda - add this driectory PYTHONPATH env variable to use.
+Currently this tool is not packaged via pip/conda - add this driectory to PYTHONPATH env variable.
 
 Built using pyo3 (crate) and mauritin (pip module).
 
@@ -33,5 +33,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 datafusion = "32.0.0"
+log = "0.4.20"
 pyo3 = "0.19.0"
-tokio = "1.33.0"
+sysinfo = "0.29.10"
+tokio = { version = "1.33.0", features = ["rt-multi-thread"] }
