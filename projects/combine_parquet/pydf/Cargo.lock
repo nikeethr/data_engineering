@@ -1661,7 +1661,7 @@ dependencies = [
 
 [[package]]
 name = "pydf"
-version = "0.0.0-pre-alpha"
+version = "0.0.0-dev"
 dependencies = [
  "datafusion",
  "log",
