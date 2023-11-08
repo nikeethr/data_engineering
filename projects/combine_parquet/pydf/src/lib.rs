@@ -40,66 +40,47 @@ const SUPPORTED_FORMATS: [&'static str; 2] = ["parquet", "csv"];
 // -------------------------------------------------------------------------------------------------
 
 macro_rules! to_pydf {
-    ($i:ident, $t:ty, $u:ty) => {
-        Arc::new(PyDfArrayWrapper::<$u>::new(
+    ($i:ident, $t:ty, $u:expr) => {
+        Arc::new(
             $i.as_any()
                 .downcast_ref::<$t>()
                 .unwrap()
                 .iter()
-                .map(|x| Box::new(x.unwrap().into()))
-                .collect::<Vec<$u>>(),
-        )) as Arc<dyn PyDfArray<PyElem = $u>>
+                .map(|x| $u(x.unwrap().into()))
+                .collect::<Vec<_>>(),
+        )
     };
 }
 
-trait PyDfArray: DynPyDfArray + Extend {
-    fn as_extend(&self ) -> Extend
+enum PyElem {
+    Bool(bool),
+    Str(String),
+    Int(i64),
+    Float(f64),
+    Timestamp(String),
 }
 
-trait PyDfArray {
-    fn extend(self: &mut Self, other: Arc<dyn PyDfArray>);
-}
+#[pyclass]
+struct PyDfDictWrapper(PyDfDict);
+type PyDfDict = Option<HashMap<String, Arc<Vec<PyElem>>>>;
 
-struct PyDfArrayWrapper<T> {
-    /// we may share the vector across threads, but we may only process the vector within the thread
-    inner: Arc<Vec<T>>,
-}
-
-impl<T> PyDfArrayWrapper<T> {
-    pub fn new(a: Arc<Vec<T>>) -> Self {
-        PyDfArrayWrapper::<T> { inner: a }
-    }
-
-    fn pyconvert(&self, a: ArrayRef) -> Arc<dyn PyDfArray> {
-        let t = a.data_type();
-        if t.equals_datatype(&DataType::Boolean) {
-            to_pydf!(a, BooleanArray, bool)
-        } else if t.equals_datatype(&DataType::Utf8) {
-            to_pydf!(a, StringArray, String)
-        } else if t.is_integer() {
-            to_pydf!(a, Int64Array, i64)
-        } else if t.is_floating() {
-            to_pydf!(a, Float64Array, f64)
-        } else if t.is_temporal() {
-            // Represent as string array, since we may want time before unix epoch, otherwise
-            // defaults to timestamp64
-            // TODO: check if this actually works, or a manual cast is required.
-            to_pydf!(a, StringArray, String)
-        } else {
-            unimplemented!()
-        }
-    }
-}
-
-impl<T> PyDfArray for PyDfArrayWrapper<T> {
-    type PyElem = T;
-    fn extend(&mut self, other: ArrayRef) {
-        let this = Arc::get_mut(&mut self.inner).unwrap();
-        this.extend(self.pyconvert(other).inner());
-    }
-
-    fn inner(&mut self) -> Arc<Vec<Self::PyElem>> {
-        self.inner
+fn pyconvert(a: &ArrayRef) -> Arc<Vec<PyElem>> {
+    let t = a.data_type();
+    if t.equals_datatype(&DataType::Boolean) {
+        to_pydf!(a, BooleanArray, PyElem::Bool)
+    } else if t.equals_datatype(&DataType::Utf8) {
+        to_pydf!(a, StringArray, PyElem::Str)
+    } else if t.is_integer() {
+        to_pydf!(a, Int64Array, PyElem::Int)
+    } else if t.is_floating() {
+        to_pydf!(a, Float64Array, PyElem::Float)
+    } else if t.is_temporal() {
+        // Represent as string array, since we may want time before unix epoch, otherwise
+        // defaults to timestamp64
+        // TODO: check if this actually works, or a manual cast is required.
+        to_pydf!(a, StringArray, PyElem::Timestamp)
+    } else {
+        unimplemented!()
     }
 }
 
@@ -198,30 +179,30 @@ impl DfQuerier {
         Ok(())
     }
 
-    fn convert_records_to_pydf<T>(record_batches: Vec<RecordBatch>) -> PyDfDictOpt
-    where
-        T: Sync + Send,
-    {
+    fn convert_records_to_pydf(&self, record_batches: Vec<RecordBatch>) -> PyDfDict {
         let mut pydf_dict = HashMap::new();
 
-        let record_batch_iter = RecordBatchIterator::new(
-            record_batches.into_iter().map(Ok),
-            record_batches.first().unwrap().schema(),
-        );
+        let schema_ref = record_batches.first().unwrap().schema().clone();
+
+        let record_batch_iter =
+            RecordBatchIterator::new(record_batches.into_iter().map(Ok), schema_ref);
 
         record_batch_iter.filter_map(|b| b.ok()).for_each(|b| {
             assert_eq!(b.schema().fields().len(), b.num_columns());
             for i in 0..b.num_columns() {
-                let mut pydf_dict = &mut pydf_dict;
-                let field_name = b.schema().fields.get(i).unwrap().name();
+                let pydf_dict = &mut pydf_dict;
+                let field_name = b.schema().fields.get(i).unwrap().name().to_owned();
                 let col = b.column_by_name(field_name.as_str()).unwrap();
-                let col = to_pydf_generic!(col);
-                if pydf_dict.contains_key(field_name) {
-                    if let Some(v) = pydf_dict.get_mut(field_name) {
-                        let mut col_exist = Arc::get_mut(v).unwrap();
+                if pydf_dict.contains_key(&field_name) {
+                    if let Some(v) = pydf_dict.get_mut(&field_name) {
+                        let mut v = v;
+                        let col_exist: &mut Vec<PyElem> = Arc::get_mut(&mut v).unwrap();
+                        // we no longer need this
+                        let col_insert = Arc::into_inner(pyconvert(col)).unwrap();
+                        col_exist.extend(col_insert.into_iter());
                     }
                 } else {
-                    pydf_dict.insert(field_name.to_string(), col);
+                    pydf_dict.insert(field_name.clone(), pyconvert(col));
                 }
             }
         });
@@ -234,7 +215,7 @@ impl DfQuerier {
     /// Returns None if saving to file, otherwise collect and return in-memory records
     ///
     /// TODO: break this up into separate functions
-    fn run_df_query(&self, query: &str) -> PyDfDictOpt {
+    fn run_df_query(&self, query: &str) -> PyDfDict {
         self.verify(query);
 
         tokio::runtime::Builder::new_multi_thread()
@@ -275,19 +256,21 @@ impl DfQuerier {
                 // this is the main part that uses async io
                 let df = ctx.sql(query).await.expect("failed to execute query");
 
-                let res = match self.output_path {
+                let res = match self.output_path.clone() {
                     Some(p) => {
                         df.clone()
-                            .write_table(&self.output_table_name, DataFrameWriteOptions::default());
+                            .write_table(p.as_str(), DataFrameWriteOptions::default())
+                            .await
+                            .expect("unable to write dataframe");
                         None
                     }
                     None => {
                         // return dataframe in memory or print preview
                         if self.preview_only {
-                            df.clone().show_limit(10).await?;
+                            df.clone().show_limit(10).await.unwrap();
                             None
                         } else {
-                            self.convert_records_to_pydf(df.clone().collect().await?)
+                            self.convert_records_to_pydf(df.clone().collect().await.unwrap())
                         }
                     }
                 };
@@ -320,7 +303,7 @@ fn pydf_run_query(
     preview_only: bool,
     output_path: Option<&str>,
     output_table_name: Option<&str>,
-) -> PyResult<PyDfDictOptWrapper> {
+) -> PyResult<PyDfDictWrapper> {
     let df_querier = DfQuerier::new_from_data_dir(input_path, input_table_name)
         .with_output_path(output_path, output_table_name)
         .with_data_format(data_format)
@@ -328,7 +311,7 @@ fn pydf_run_query(
 
     // returns Some(Records) or None if it saves to disk
     let res = df_querier.run_df_query(q);
-    Ok(PyDfDictOptWrapper(res))
+    Ok(PyDfDictWrapper(res))
 }
 
 /// A Python module implemented in Rust.
