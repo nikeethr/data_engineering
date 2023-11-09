@@ -160,6 +160,8 @@ pub struct ParquetResampler {
     weak_self: Weak<ParquetResampler>,
     /// saved runtime env - same environment will be used for all sessions
     runtime_env: Arc<RuntimeEnv>,
+    /// input extension
+    input_ext: String,
 }
 
 impl ParquetResampler {
@@ -198,6 +200,12 @@ impl ParquetResampler {
             input_path
         };
 
+        let input_ext = if let Some(_) = input_store {
+            tar_object_store::PQ_EXTENSION.to_string()
+        } else {
+            String::default()
+        };
+
         Arc::new_cyclic(|s| {
             // Create the actual struct here.
             Self {
@@ -213,6 +221,7 @@ impl ParquetResampler {
                 include_stations: None,
                 weak_self: s.clone(),
                 runtime_env,
+                input_ext,
             }
         })
     }
@@ -343,11 +352,13 @@ impl ParquetResampler {
         ctx.register_listing_table(
             tar_object_store::ADAM_OBS_TABLE_NAME,
             &self.input_store_url,
-            ListingOptions::new(Arc::new(ParquetFormat::default()))
-                .with_file_extension(tar_object_store::PQ_EXTENSION)
-                .with_table_partition_cols(vec![("date".to_string(), DataType::Date32)])
-                .with_file_sort_order(vec![vec![col("date").sort(true, true)]])
-                .with_insert_mode(ListingTableInsertMode::Error),
+            ListingOptions::new(Arc::new(
+                ParquetFormat::default().with_enable_pruning(Some(true)),
+            ))
+            .with_file_extension(&self.input_ext)
+            .with_table_partition_cols(vec![("date".to_string(), DataType::Date32)])
+            .with_file_sort_order(vec![vec![col("date").sort(true, true)]])
+            .with_insert_mode(ListingTableInsertMode::Error),
             provided_schema,
             None,
         )
