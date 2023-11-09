@@ -1,28 +1,27 @@
 use datafusion::arrow::array::{
-    cast, Array, ArrayAccessor, ArrayRef, BooleanArray, Date64Array, Float64Array, Int64Array,
-    PrimitiveArray, StringArray,
+    as_string_array, downcast_array, downcast_temporal_array, Array, ArrayRef, BooleanArray,
+    Float64Array, Int64Array, StringArray, TimestampNanosecondArray, TimestampSecondArray,
 };
 
-use datafusion::datasource::listing::ListingOptions;
+use datafusion::datasource::listing::ListingTableInsertMode;
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 
-use datafusion::arrow::compute::lexicographical_partition_ranges;
-use datafusion::arrow::datatypes::{ArrowPrimitiveType, DataType};
-use datafusion::arrow::downcast_primitive_array;
+use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef, TimestampMicrosecondType};
+
 use datafusion::arrow::record_batch::{RecordBatch, RecordBatchIterator};
-use datafusion::dataframe::{DataFrame, DataFrameWriteOptions};
+use datafusion::dataframe::DataFrameWriteOptions;
 use datafusion::execution::disk_manager::DiskManagerConfig;
 use datafusion::execution::memory_pool::FairSpillPool;
-use datafusion::execution::object_store::{DefaultObjectStoreRegistry, ObjectStoreRegistry};
+use datafusion::execution::object_store::DefaultObjectStoreRegistry;
+use datafusion::physical_expr::intervals::rounding::next_down;
 use datafusion::prelude::*;
-use log::{info, warn};
-use std::any::Any;
+use log::info;
+
 use std::collections::HashMap;
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 use sysinfo::{System, SystemExt};
 
-// for parsing sql
-// use datafusion::sql::sqlparser
+use pyo3::FromPyObject;
 use pyo3::{exceptions::PyNotImplementedError, prelude::*};
 
 // TODO:
@@ -52,17 +51,34 @@ macro_rules! to_pydf {
     };
 }
 
+#[derive(Clone)]
 enum PyElem {
     Bool(bool),
     Str(String),
     Int(i64),
     Float(f64),
-    Timestamp(String),
+    Timestamp(i64),
+}
+
+impl IntoPy<PyObject> for PyElem {
+    fn into_py(self, py: Python<'_>) -> PyObject {
+        match self {
+            Self::Bool(val) => val.into_py(py),
+            Self::Str(val) => val.into_py(py),
+            Self::Int(val) => val.into_py(py),
+            Self::Float(val) => val.into_py(py),
+            Self::Timestamp(val) => val.into_py(py),
+        }
+    }
 }
 
 #[pyclass]
-struct PyDfDictWrapper(PyDfDict);
-type PyDfDict = Option<HashMap<String, Arc<Vec<PyElem>>>>;
+struct PyDfDictWrapper {
+    #[pyo3(get)]
+    inner: Option<HashMap<String, Vec<PyElem>>>,
+}
+
+type PyDfDict = Option<HashMap<String, Vec<PyElem>>>;
 
 fn pyconvert(a: &ArrayRef) -> Arc<Vec<PyElem>> {
     let t = a.data_type();
@@ -78,7 +94,7 @@ fn pyconvert(a: &ArrayRef) -> Arc<Vec<PyElem>> {
         // Represent as string array, since we may want time before unix epoch, otherwise
         // defaults to timestamp64
         // TODO: check if this actually works, or a manual cast is required.
-        to_pydf!(a, StringArray, PyElem::Timestamp)
+        to_pydf!(a, TimestampNanosecondArray, PyElem::Timestamp)
     } else {
         unimplemented!()
     }
@@ -143,39 +159,29 @@ impl DfQuerier {
         &self,
         name: &str,
         path: &str,
+        schema: Option<&Schema>,
         ctx: &SessionContext,
     ) -> tokio::io::Result<()> {
         if let Some(f) = &self.data_format {
             match f.as_str() {
                 "csv" => {
-                    ctx.register_csv(name, path, CsvReadOptions::default())
-                        .await?
+                    let options = match schema {
+                        Some(s) => CsvReadOptions::default().schema(s),
+                        None => CsvReadOptions::default(),
+                    };
+                    ctx.register_csv(name, path, options).await?
                 }
                 "parquet" => {
-                    ctx.register_parquet(name, path, ParquetReadOptions::default())
+                    let options = match schema {
+                        Some(s) => ParquetReadOptions::default().schema(s),
+                        None => ParquetReadOptions::default(),
+                    };
+                    ctx.register_parquet(name, path, options.parquet_pruning(true))
                         .await?
                 }
                 &_ => unreachable!(), // format is verified before this point
             }
         }
-        Ok(())
-    }
-
-    async fn register_io_tables(&self, ctx: &SessionContext) -> tokio::io::Result<()> {
-        info!("register table: input");
-        self.register_table_helper(&self.input_table_name, &self.input_path, &ctx)
-            .await?;
-
-        match &self.output_path {
-            None => {
-                info!("output is in-memory -> returns a in memory dictionary");
-            }
-            Some(p) => {
-                info!("register table: output");
-                self.register_table_helper(&self.output_table_name, p, &ctx)
-                    .await?;
-            }
-        };
         Ok(())
     }
 
@@ -207,7 +213,13 @@ impl DfQuerier {
             }
         });
 
-        Some(pydf_dict)
+        // extract out of Arc, as we will need extact types
+        let mut pydf_dict_solid = HashMap::new();
+        pydf_dict.into_iter().for_each(|(k, v)| {
+            pydf_dict_solid.insert(k, Arc::into_inner(v).unwrap());
+        });
+
+        Some(pydf_dict_solid)
     }
 
     /// Runs the datafusion query in rust using async threads/parallel execution
@@ -247,10 +259,10 @@ impl DfQuerier {
                     Arc::new(RuntimeEnv::new(rt).expect("Could not create runtime env")),
                 );
 
-                info!(">>> Register io tables");
-                self.register_io_tables(&ctx)
+                info!(">>> Register input table");
+                self.register_table_helper(&self.input_table_name, &self.input_path, None, &ctx)
                     .await
-                    .expect("Could not register tables");
+                    .expect("Could not register input table");
 
                 info!(">>> perform query");
                 // this is the main part that uses async io
@@ -258,8 +270,18 @@ impl DfQuerier {
 
                 let res = match self.output_path.clone() {
                     Some(p) => {
+                        info!(">>> Output to file: {:?}", &self.output_path);
+                        info!("register table: {:?}", &self.output_table_name);
+                        self.register_table_helper(
+                            &self.output_table_name,
+                            p.as_str(),
+                            Some(&df.schema().into()),
+                            &ctx,
+                        )
+                        .await
+                        .expect("unable to write output");
                         df.clone()
-                            .write_table(p.as_str(), DataFrameWriteOptions::default())
+                            .write_table(&self.output_table_name, DataFrameWriteOptions::default())
                             .await
                             .expect("unable to write dataframe");
                         None
@@ -267,9 +289,11 @@ impl DfQuerier {
                     None => {
                         // return dataframe in memory or print preview
                         if self.preview_only {
+                            info!(">>> Previewing data");
                             df.clone().show_limit(10).await.unwrap();
                             None
                         } else {
+                            info!(">>> In-memory table");
                             self.convert_records_to_pydf(df.clone().collect().await.unwrap())
                         }
                     }
@@ -295,14 +319,14 @@ impl DfQuerier {
 ///   > data_format = currently supports .parquet/.pq or .csv
 ///   > output_path = optional path to output the data to
 #[pyfunction]
-fn pydf_run_query(
-    q: &str,
-    input_path: &str,
-    input_table_name: &str,
-    data_format: &str,
+fn pydf_run_query<'py>(
+    q: &'py str,
+    input_path: &'py str,
+    input_table_name: &'py str,
+    data_format: &'py str,
     preview_only: bool,
-    output_path: Option<&str>,
-    output_table_name: Option<&str>,
+    output_path: Option<&'py str>,
+    output_table_name: Option<&'py str>,
 ) -> PyResult<PyDfDictWrapper> {
     let df_querier = DfQuerier::new_from_data_dir(input_path, input_table_name)
         .with_output_path(output_path, output_table_name)
@@ -311,12 +335,13 @@ fn pydf_run_query(
 
     // returns Some(Records) or None if it saves to disk
     let res = df_querier.run_df_query(q);
-    Ok(PyDfDictWrapper(res))
+    Ok(PyDfDictWrapper { inner: res })
 }
 
 /// A Python module implemented in Rust.
 #[pymodule]
 fn pydf(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(pydf_run_query, m)?)?;
+    m.add_class::<PyDfDictWrapper>()?;
     Ok(())
 }
