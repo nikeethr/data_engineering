@@ -1,7 +1,6 @@
 use crate::resampler;
 use crate::tar_metadata;
 
-
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -17,7 +16,12 @@ pub(crate) enum Commands {
     /// Performs resampling (i.e. downsampling over time dimension) of the input tar+pq object store into
     /// parquet or csv outputs.
     Resample {
-        input_tar_path: String,
+        /// path to the input data. Note: by default this is a tar archive, but you can force to
+        /// refer to a local filesystem using --force-filesystem option. Note by default the purpose
+        /// of this tool is to resample data from tar formats, it may be better to use datafusion
+        /// directly for general purposes.
+        input_path: String,
+        /// path to output data, currently only supports a local file system.
         output_path: String,
         /// prefix of the directory containing the parquet files within the input tarball.
         prefix: String,
@@ -73,6 +77,10 @@ pub(crate) enum Commands {
         /// some sort of shared setting.
         #[arg(long, default_value = None)]
         worker_threads: Option<usize>,
+
+        /// Force this app to use the input data as a filesystem. I.e. input_path will point to a filesystem instead.
+        #[arg(short, long, default_value_t = false)]
+        force_filesystem: bool,
     },
 
     /// Attempts to infer the schema from the tar+pq object store. start_date/end_date specifies a date range of files

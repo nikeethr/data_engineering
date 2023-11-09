@@ -1,4 +1,5 @@
-use crate::tar_object_store::{self, AdamTarFileObjectStore};
+use crate::tar_metadata::AdamTarMetadataExtract;
+use crate::tar_object_store::{self, AdamTarFileObjectStore, TAR_PQ_STORE_BASE_URI};
 
 use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatchReader;
@@ -19,6 +20,8 @@ use datafusion::execution::object_store::{DefaultObjectStoreRegistry, ObjectStor
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion::logical_expr::ExprSchemable;
 use datafusion::prelude::*;
+use object_store::local::LocalFileSystem;
+use object_store::ObjectStore;
 
 use std::cmp::{Ordering, PartialOrd};
 use std::fmt::Debug;
@@ -131,6 +134,8 @@ pub enum OutputFormat {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct ParquetResampler {
+    /// url of input data (current default is a tar object store)
+    input_store_url: String,
     /// output directory to store files
     output_path: String,
     /// currently supports parquet or csv - TODO: really should be an enum
@@ -159,7 +164,8 @@ pub struct ParquetResampler {
 
 impl ParquetResampler {
     pub fn new(
-        input_store: Arc<AdamTarFileObjectStore>,
+        input_store: Option<Arc<AdamTarFileObjectStore>>,
+        input_path: String,
         output_path: String,
         output_format: OutputFormat,
         input_data_freq: DataFreq,
@@ -173,9 +179,29 @@ impl ParquetResampler {
         // Currently only support downsampling
         assert!(Seconds::from(input_data_freq.clone()) <= Seconds::from(output_data_freq.clone()));
 
+        let runtime_env = match &input_store {
+            Some(tar_store) => Self::create_rt_env(
+                tar_store.clone(),
+                memory_limit_gb,
+                &TAR_PQ_STORE_BASE_URI.to_string(),
+            ),
+            None => Self::create_rt_env(
+                Arc::new(LocalFileSystem::default()),
+                memory_limit_gb,
+                &input_path,
+            ),
+        };
+
+        let input_url = if let Some(_) = input_store {
+            TAR_PQ_STORE_BASE_URI.to_string()
+        } else {
+            input_path
+        };
+
         Arc::new_cyclic(|s| {
             // Create the actual struct here.
             Self {
+                input_store_url: input_url,
                 output_path,
                 output_format,
                 input_data_freq,
@@ -186,14 +212,15 @@ impl ParquetResampler {
                 station_field,
                 include_stations: None,
                 weak_self: s.clone(),
-                runtime_env: Self::create_rt_env(input_store, memory_limit_gb),
+                runtime_env,
             }
         })
     }
 
     fn create_rt_env(
-        input_store: Arc<AdamTarFileObjectStore>,
+        input_store: Arc<dyn ObjectStore>,
         memory_limit_gb: Option<usize>,
+        url: &String,
     ) -> Arc<RuntimeEnv> {
         // Os chooses specified paths
         println!(
@@ -214,10 +241,7 @@ impl ParquetResampler {
             // this includes the local filesstem by default so we only need to
             // register the tar store
             let obj_store_registry = DefaultObjectStoreRegistry::new();
-            obj_store_registry.register_store(
-                &Url::parse(tar_object_store::TAR_PQ_STORE_BASE_URI).unwrap(),
-                input_store,
-            );
+            obj_store_registry.register_store(&Url::parse(url.as_str()).unwrap(), input_store);
             Arc::new(obj_store_registry)
         });
 
@@ -318,7 +342,7 @@ impl ParquetResampler {
 
         ctx.register_listing_table(
             tar_object_store::ADAM_OBS_TABLE_NAME,
-            tar_object_store::TAR_PQ_STORE_BASE_URI,
+            &self.input_store_url,
             ListingOptions::new(Arc::new(ParquetFormat::default()))
                 .with_file_extension(tar_object_store::PQ_EXTENSION)
                 .with_table_partition_cols(vec![("date".to_string(), DataType::Date32)])

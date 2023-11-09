@@ -28,7 +28,7 @@ fn main() {
 
     match &cli.command {
         Commands::Resample {
-            input_tar_path,
+            input_path,
             output_path,
             prefix,
             input_freq,
@@ -42,19 +42,26 @@ fn main() {
             metadata_cache_path,
             memory_limit_gb,
             worker_threads,
+            force_filesystem,
         } => {
-            let adam_tar_store = AdamTarFileObjectStore::new_with_locations(
-                &input_tar_path,
-                &prefix,
-                metadata_cache_path.clone(),
-                None,
-            );
-
-            tar_metadata::print_adam_metadata_stats(&adam_tar_store.tar_metadata_all);
+            let adam_tar_store = match force_filesystem {
+                true => None,
+                false => {
+                    let adam_tar_store = AdamTarFileObjectStore::new_with_locations(
+                        &input_path,
+                        &prefix,
+                        metadata_cache_path.clone(),
+                        None,
+                    );
+                    tar_metadata::print_adam_metadata_stats(&adam_tar_store.tar_metadata_all);
+                    Some(adam_tar_store)
+                }
+            };
 
             std::io::stdout().flush().unwrap();
             let adam_resampler = resampler::ParquetResampler::new(
                 adam_tar_store,
+                input_path.clone(),
                 output_path.clone(),
                 output_format.clone(),
                 input_freq.clone(),
