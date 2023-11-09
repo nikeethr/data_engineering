@@ -2,7 +2,9 @@
 // deserialize
 
 use bytes::Bytes;
-use datafusion::datasource::listing::ListingTableInsertMode;
+
+use datafusion::datasource::file_format::parquet::ParquetFormat;
+use datafusion::datasource::listing::{ListingOptions, ListingTableInsertMode};
 use datafusion::prelude::*;
 
 use object_store::{memory::InMemory, ObjectStore};
@@ -19,32 +21,16 @@ use datafusion::arrow::datatypes::{Schema, SchemaRef};
 const REFERENCE_ENTRY_PATH: &'static str = "mem://reference_entry.pq";
 
 pub fn infer_schema_from_first_obj(
-    input_tar_path: String,
+    input_path: String,
     output_path: String,
     prefix: Option<String>,
+    force_filesystem: bool,
 ) {
     // extract entry
-    let mut ta = Archive::new(File::open(input_tar_path).unwrap());
-
-    let entry = extract_one_entry(&mut ta, prefix).expect("Could not extract a valid entry.");
-
-    let schema = tokio::runtime::Builder::new_multi_thread()
-        .build()
-        .unwrap()
-        .block_on(async move {
-            // TODO: arc objects should probably be created in the context that the data is created..??
-            // i.e. fn(Arc<something>) -> Arc<anotherthing> ??
-            let mut entry = entry;
-            let mem_store = Arc::new(
-                load_into_memory_store(
-                    Arc::get_mut(&mut entry).expect("Unable to get entry as mut"),
-                )
-                .await
-                .unwrap(),
-            );
-
-            get_schema_from_memory_store(mem_store).await.unwrap()
-        });
+    let schema = match force_filesystem {
+        false => infer_from_tar(input_path, prefix),
+        true => infer_from_file(input_path),
+    };
 
     // spit out metadata to file
     serde_json::to_writer(
@@ -99,4 +85,53 @@ fn extract_one_entry<'a>(
             .unwrap(),
         None => ta.entries_with_seek()?.next().unwrap().unwrap(),
     }))
+}
+
+// This is a classic example of, if we have many of these inferences, it may be better to abstract
+//this out into a generic function, instead of using a `match` statement to select things on runtime.
+/// Note: tar store only supports parquet
+fn infer_from_tar(input_tar_path: String, prefix: Option<String>) -> SchemaRef {
+    let mut ta = Archive::new(File::open(input_tar_path).unwrap());
+
+    let entry = extract_one_entry(&mut ta, prefix).expect("Could not extract a valid entry.");
+
+    tokio::runtime::Builder::new_multi_thread()
+        .build()
+        .unwrap()
+        .block_on(async move {
+            // TODO: arc objects should probably be created in the context that the data is created..??
+            // i.e. fn(Arc<something>) -> Arc<anotherthing> ??
+            let mut entry = entry;
+            let mem_store = Arc::new(
+                load_into_memory_store(
+                    Arc::get_mut(&mut entry).expect("Unable to get entry as mut"),
+                )
+                .await
+                .unwrap(),
+            );
+
+            get_schema_from_memory_store(mem_store).await.unwrap()
+        })
+}
+
+fn infer_from_file(input_path: String) -> SchemaRef {
+    tokio::runtime::Builder::new_multi_thread()
+        .build()
+        .unwrap()
+        .block_on(async move {
+            let ctx = SessionContext::new();
+            ctx.register_listing_table(
+                "entry_schema",
+                input_path,
+                ListingOptions::new(Arc::new(ParquetFormat::default()))
+                    .with_file_extension("")
+                    .with_insert_mode(ListingTableInsertMode::Error),
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+            SchemaRef::new(ctx.table("entry_schema").await.unwrap().schema().into())
+        })
 }

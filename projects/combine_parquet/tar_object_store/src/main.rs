@@ -86,14 +86,16 @@ fn main() {
         }
 
         Commands::InferSchema {
-            input_tar_path,
+            input_path,
             output_path,
             prefix,
+            force_filesystem,
         } => {
             schema::infer_schema_from_first_obj(
-                input_tar_path.clone(),
+                input_path.clone(),
                 output_path.clone(),
                 prefix.clone(),
+                *force_filesystem,
             );
         }
     };
