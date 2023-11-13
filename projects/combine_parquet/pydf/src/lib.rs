@@ -4,21 +4,21 @@ extern crate approx;
 use crate::stats::*;
 
 use datafusion::arrow::array::{
-    as_string_array, downcast_array, downcast_temporal_array, Array, ArrayRef, BooleanArray,
-    Float64Array, Int64Array, StringArray, TimestampNanosecondArray, TimestampSecondArray,
+    Array, ArrayRef, BooleanArray,
+    Float64Array, Int64Array, StringArray, TimestampNanosecondArray,
 };
 
-use datafusion::datasource::listing::ListingTableInsertMode;
+
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 
-use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef, TimestampMicrosecondType};
+use datafusion::arrow::datatypes::{DataType, Schema};
 
 use datafusion::arrow::record_batch::{RecordBatch, RecordBatchIterator};
 use datafusion::dataframe::DataFrameWriteOptions;
 use datafusion::execution::disk_manager::DiskManagerConfig;
 use datafusion::execution::memory_pool::FairSpillPool;
 use datafusion::execution::object_store::DefaultObjectStoreRegistry;
-use datafusion::physical_expr::intervals::rounding::next_down;
+
 use datafusion::prelude::*;
 use log::info;
 
@@ -26,11 +26,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use sysinfo::{System, SystemExt};
 
-use pyo3::FromPyObject;
+
 use pyo3::{exceptions::PyNotImplementedError, prelude::*};
 
-use numpy::ndarray::array;
-use numpy::{PyArray, PyArray1, ToPyArray};
+
+use numpy::{PyArray1};
 
 mod stats;
 
