@@ -21,7 +21,7 @@ purposes; without heavy API layers in between.
 
 Currently this tool is not packaged via pip/conda - add this driectory to PYTHONPATH env variable.
 
-Built using pyo3 (crate) and mauritin (pip module).
+Built using pyo3 (crate) and marutin (pip module).
 
 See README for sample usage.
 """
@@ -32,9 +32,13 @@ name = "pydf"
 crate-type = ["cdylib"]
 
 [dependencies]
+approx = "0.5.1"
 chrono = "0.4.31"
 datafusion = "32.0.0"
 log = "0.4.20"
-pyo3 = { version = "0.19.0", features = ["macros"] }
+nalgebra = "0.32.3"
+numpy = "0.20.0"
+pyo3 = { version = "0.19.0", features = ["macros", "extension-module"] }
+rayon = "1.8.0"
 sysinfo = "0.29.10"
 tokio = { version = "1.33.0", features = ["rt-multi-thread"] }

@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate approx;
+
 use datafusion::arrow::array::{
     as_string_array, downcast_array, downcast_temporal_array, Array, ArrayRef, BooleanArray,
     Float64Array, Int64Array, StringArray, TimestampNanosecondArray, TimestampSecondArray,
@@ -23,6 +26,8 @@ use sysinfo::{System, SystemExt};
 
 use pyo3::FromPyObject;
 use pyo3::{exceptions::PyNotImplementedError, prelude::*};
+
+mod stats;
 
 // TODO:
 // [ ] API input - output compatibility
