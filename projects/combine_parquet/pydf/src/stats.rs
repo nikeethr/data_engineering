@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 /// calculate the histogram of a 1-D array given the number of bins
 /// this is overly simplistic and will not work well for sparse intervals
-fn hist_1d(a: &Vec<f64>, bins: u64) -> Vec<(f64, f64, u64)> {
+pub fn hist_1d(a: &Vec<f64>, bins: u64) -> Vec<(f64, f64, u64)> {
     let a_max = a.clone().into_iter().reduce(f64::max).unwrap();
     let a_min = a.clone().into_iter().reduce(f64::min).unwrap();
     let interval = (a_max - a_min) / (bins as f64);
@@ -42,7 +42,7 @@ fn hist_1d(a: &Vec<f64>, bins: u64) -> Vec<(f64, f64, u64)> {
 
 /// fisher's moment coefficient of skewness, we use a simple method of natural biased estimator
 /// reference: https://en.wikipedia.org/wiki/Skewness#Sample_skewness, see equation for b1
-fn skewness_1d(a: &Vec<f64>) -> f64 {
+pub fn skewness_1d(a: &Vec<f64>) -> f64 {
     assert!(a.len() > 3);
 
     let n = a.len();
@@ -74,7 +74,7 @@ fn skewness_1d(a: &Vec<f64>) -> f64 {
 /// Sample kurtosis metho of moments natural biased estimator
 /// reference: https://en.wikipedia.org/wiki/Kurtosis#A_natural_but_biased_estimator
 /// see equation for g2
-fn kurtosis_1d(a: &Vec<f64>) -> f64 {
+pub fn kurtosis_1d(a: &Vec<f64>) -> f64 {
     assert!(a.len() > 3);
 
     let n = a.len();

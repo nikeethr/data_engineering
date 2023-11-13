@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate approx;
 
+use crate::stats::*;
+
 use datafusion::arrow::array::{
     as_string_array, downcast_array, downcast_temporal_array, Array, ArrayRef, BooleanArray,
     Float64Array, Int64Array, StringArray, TimestampNanosecondArray, TimestampSecondArray,
@@ -27,15 +29,10 @@ use sysinfo::{System, SystemExt};
 use pyo3::FromPyObject;
 use pyo3::{exceptions::PyNotImplementedError, prelude::*};
 
-mod stats;
+use numpy::ndarray::array;
+use numpy::{PyArray, PyArray1, ToPyArray};
 
-// TODO:
-// [ ] API input - output compatibility
-// [x] GIL unlock - not needed unless we explicitly want to use python threads or are writting the main function cli
-// [ ] Datafusion query
-// [ ] Python module init
-// [ ] Example code
-// [ ] Docs
+mod stats;
 
 const SUPPORTED_FORMATS: [&'static str; 2] = ["parquet", "csv"];
 
@@ -343,10 +340,28 @@ fn pydf_run_query<'py>(
     Ok(PyDfDictWrapper { inner: res })
 }
 
+#[pyfunction]
+fn pydf_kurtosis_1d<'py>(a: &'py PyArray1<f64>) -> PyResult<f64> {
+    Ok(kurtosis_1d(&a.to_vec().unwrap()))
+}
+
+#[pyfunction]
+fn pydf_skewness_1d<'py>(a: &PyArray1<f64>) -> PyResult<f64> {
+    Ok(skewness_1d(&a.to_vec().unwrap()))
+}
+
+#[pyfunction]
+fn pydf_hist_1d<'py>(a: &PyArray1<f64>, bins: u64) -> PyResult<Vec<(f64, f64, u64)>> {
+    Ok(hist_1d(&a.to_vec().unwrap(), bins))
+}
+
 /// A Python module implemented in Rust.
 #[pymodule]
 fn pydf(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(pydf_run_query, m)?)?;
+    m.add_function(wrap_pyfunction!(pydf_kurtosis_1d, m)?)?;
+    m.add_function(wrap_pyfunction!(pydf_skewness_1d, m)?)?;
+    m.add_function(wrap_pyfunction!(pydf_hist_1d, m)?)?;
     m.add_class::<PyDfDictWrapper>()?;
     Ok(())
 }
