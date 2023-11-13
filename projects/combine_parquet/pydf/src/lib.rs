@@ -4,10 +4,8 @@ extern crate approx;
 use crate::stats::*;
 
 use datafusion::arrow::array::{
-    Array, ArrayRef, BooleanArray,
-    Float64Array, Int64Array, StringArray, TimestampNanosecondArray,
+    Array, ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray, TimestampNanosecondArray,
 };
-
 
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 
@@ -26,11 +24,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use sysinfo::{System, SystemExt};
 
-
 use pyo3::{exceptions::PyNotImplementedError, prelude::*};
 
-
-use numpy::{PyArray1};
+use numpy::PyArray1;
 
 mod stats;
 
