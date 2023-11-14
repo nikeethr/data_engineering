@@ -4,8 +4,18 @@ use std::sync::{Arc, Mutex};
 /// calculate the histogram of a 1-D array given the number of bins
 /// this is overly simplistic and will not work well for sparse intervals
 pub fn hist_1d(a: &Vec<f64>, bins: u64) -> Vec<(f64, f64, u64)> {
-    let a_max = a.clone().into_iter().reduce(f64::max).unwrap();
-    let a_min = a.clone().into_iter().reduce(f64::min).unwrap();
+    let a_max = a
+        .clone()
+        .into_iter()
+        .filter(|x| !x.is_nan())
+        .reduce(f64::max)
+        .unwrap();
+    let a_min = a
+        .clone()
+        .into_iter()
+        .filter(|x| !x.is_nan())
+        .reduce(f64::min)
+        .unwrap();
     let interval = (a_max - a_min) / (bins as f64);
 
     let start = a_min;
@@ -26,7 +36,7 @@ pub fn hist_1d(a: &Vec<f64>, bins: u64) -> Vec<(f64, f64, u64)> {
     intervals.into_par_iter().for_each(|(start, stop, n)| {
         let mut count: u64 = 0;
         for j in 0..a.len() {
-            if a[j] > start && a[j] < stop {
+            if !a[j].is_nan() && a[j] > start && a[j] < stop {
                 count += 1;
             }
         }
@@ -43,12 +53,12 @@ pub fn hist_1d(a: &Vec<f64>, bins: u64) -> Vec<(f64, f64, u64)> {
 /// fisher's moment coefficient of skewness, we use a simple method of natural biased estimator
 /// reference: https://en.wikipedia.org/wiki/Skewness#Sample_skewness, see equation for b1
 pub fn skewness_1d(a: &Vec<f64>) -> f64 {
-    assert!(a.len() > 3);
-
-    let n = a.len();
+    let n = a.iter().filter(|x| !x.is_nan()).count();
+    assert!(n > 3);
     let n_f = n as f64;
-    // mean
-    let x_mu: f64 = a.iter().sum::<f64>() / n_f;
+
+    // moments
+    let x_mu: f64 = a.iter().filter(|x| !x.is_nan()).sum::<f64>() / n_f;
     let m_3 = Mutex::new(0.0);
     let s_3 = Mutex::new(0.0);
     let a = Mutex::new(Arc::new(a));
@@ -57,10 +67,12 @@ pub fn skewness_1d(a: &Vec<f64>) -> f64 {
         (0..n).into_par_iter().for_each(|i| {
             let ptr = a.lock().unwrap().as_ptr();
             let x = ptr.add(i);
-            let mut m_3_ = m_3.lock().unwrap();
-            let mut s_3_ = s_3.lock().unwrap();
-            *m_3_ += (*x - x_mu).powi(3);
-            *s_3_ += (*x - x_mu).powi(2);
+            if !(*x).is_nan() {
+                let mut m_3_ = m_3.lock().unwrap();
+                let mut s_3_ = s_3.lock().unwrap();
+                *m_3_ += (*x - x_mu).powi(3);
+                *s_3_ += (*x - x_mu).powi(2);
+            }
         });
     }
 
@@ -75,12 +87,12 @@ pub fn skewness_1d(a: &Vec<f64>) -> f64 {
 /// reference: https://en.wikipedia.org/wiki/Kurtosis#A_natural_but_biased_estimator
 /// see equation for g2
 pub fn kurtosis_1d(a: &Vec<f64>) -> f64 {
-    assert!(a.len() > 3);
-
-    let n = a.len();
+    let n = a.iter().filter(|x| !x.is_nan()).count();
+    assert!(n > 3);
     let n_f = n as f64;
-    // mean
-    let x_mu: f64 = a.iter().sum::<f64>() / n_f;
+
+    // moments
+    let x_mu: f64 = a.iter().filter(|x| !x.is_nan()).sum::<f64>() / n_f;
     let m_4 = Mutex::new(0.0);
     let m_22 = Mutex::new(0.0);
     let a = Mutex::new(Arc::new(a));
@@ -89,10 +101,12 @@ pub fn kurtosis_1d(a: &Vec<f64>) -> f64 {
         (0..n).into_par_iter().for_each(|i| {
             let ptr = a.lock().unwrap().as_ptr();
             let x = ptr.add(i);
-            let mut m_4_ = m_4.lock().unwrap();
-            let mut m_22_ = m_22.lock().unwrap();
-            *m_4_ += (*x - x_mu).powi(4);
-            *m_22_ += (*x - x_mu).powi(2);
+            if !(*x).is_nan() {
+                let mut m_4_ = m_4.lock().unwrap();
+                let mut m_22_ = m_22.lock().unwrap();
+                *m_4_ += (*x - x_mu).powi(4);
+                *m_22_ += (*x - x_mu).powi(2);
+            }
         });
     }
 

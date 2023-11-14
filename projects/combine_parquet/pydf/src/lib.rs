@@ -43,9 +43,19 @@ macro_rules! to_pydf {
                 .downcast_ref::<$t>()
                 .unwrap()
                 .iter()
-                .map(|x| $u(x.unwrap().into()))
+                .map(|x| $u(x.force_default().unwrap().into()))
                 .collect::<Vec<_>>(),
         )
+    };
+}
+
+macro_rules! force_default_opt {
+    ($t:ty, $e:expr) => {
+        impl ForceDefaultOpt for Option<$t> {
+            fn force_default(self) -> Self {
+                self.or(Some($e))
+            }
+        }
     };
 }
 
@@ -57,6 +67,15 @@ enum PyElem {
     Float(f64),
     Timestamp(i64),
 }
+
+pub trait ForceDefaultOpt {
+    fn force_default(self: Self) -> Self;
+}
+force_default_opt!(f64, f64::NAN);
+force_default_opt!(i64, i64::MIN);
+force_default_opt!(String, "NA".to_string());
+force_default_opt!(&str, "NA");
+force_default_opt!(bool, false);
 
 impl IntoPy<PyObject> for PyElem {
     fn into_py(self, py: Python<'_>) -> PyObject {
