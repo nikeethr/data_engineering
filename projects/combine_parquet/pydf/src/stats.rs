@@ -4,11 +4,7 @@ use std::sync::{Arc, Mutex};
 
 /// calculate the histogram of a 1-D array given the number of bins
 /// this is overly simplistic and will not work well for sparse intervals
-
 pub fn hist_1d(a: &Vec<f64>, bins: u64) -> Vec<(f64, f64, u64)> {
-    let a = a.clone();
-    let a = a.into_iter();
-    let a = a.filter();
     let a_max = a
         .clone()
         .into_iter()
