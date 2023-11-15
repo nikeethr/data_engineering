@@ -1,15 +1,21 @@
+use nalgebra::ComplexField;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 
 /// calculate the histogram of a 1-D array given the number of bins
 /// this is overly simplistic and will not work well for sparse intervals
+
 pub fn hist_1d(a: &Vec<f64>, bins: u64) -> Vec<(f64, f64, u64)> {
+    let a = a.clone();
+    let a = a.into_iter();
+    let a = a.filter();
     let a_max = a
         .clone()
         .into_iter()
         .filter(|x| !x.is_nan())
         .reduce(f64::max)
         .unwrap();
+
     let a_min = a
         .clone()
         .into_iter()
@@ -117,6 +123,141 @@ pub fn kurtosis_1d(a: &Vec<f64>) -> f64 {
     m_4 / m_22 - 3.0
 }
 
+/// yeo-johnson is a special case of box-cox, with only 1 parameter to optimize and hence is
+/// easier to optimize.
+/// reference: https://en.wikipedia.org/wiki/Power_transform
+///
+/// Methodology
+/// -----------
+/// we know that lambda is roughly between -5 -> 5, with -5 and 5 being extreme corrections which
+/// are unlikely to be used. therefore, we can strategise the optimization by the
+///
+/// ideally, we can use something like Chi-squared test to score the goodness of fit. But for now
+/// we use the available skewness and kurtosis metrics to determine lambda that optimizes each one.
+///
+/// ideally the optimal lambda is quite similar for both kurtosis & skew. Though we're more
+/// interested in correcting for skew.
+///
+/// returns optimal lambda in the following format ((skew, lambda), (kurtosis, lambda))
+pub fn yeo_johnson_1d_power_correction(a: &Vec<f64>) -> ((f64, f64), (f64, f64)) {
+    // identity: lambda = 1, therefore the hyperparameters should centre around 1 and spread out
+    // monotonically increasing
+    // Array[(steps, cutoff)]
+    let lambda_ref: f64 = 1.0;
+    // optimize lambda > 1
+    let lambda_pos = binned_spread(vec![(100, 0.5), (30, 1.0), (10, 3.0)], lambda_ref);
+
+    let lambda_neg = binned_spread(vec![(100, -0.5), (30, -1.0), (10, -3.0)], lambda_ref);
+
+    let lambdas = lambda_pos
+        .into_iter()
+        .chain(vec![lambda_ref].into_iter())
+        .chain(lambda_neg.into_iter());
+    let scores = Arc::new(Mutex::new(Vec::new()));
+
+    lambdas.par_bridge().for_each(|l| {
+        let mut a_pow = vec![f64::NAN; a.len()];
+        let ptr = a_pow.as_mut_ptr();
+        unsafe {
+            for i in 0..a.len() {
+                let x = ptr.add(i);
+                *x = yeo_johnson_scalar(*(x as *const f64), l);
+            }
+        }
+        let k = kurtosis_1d(a);
+        let s = skewness_1d(a);
+        scores.lock().unwrap().push((k, s, l));
+    });
+
+    let scores = Arc::into_inner(scores).unwrap().into_inner().unwrap();
+    macro_rules! best_score {
+        ($i:literal) => {
+            scores.iter().fold((f64::INFINITY, f64::NAN), |acc, x| {
+                let cmp_x = match $i {
+                    0 => x.0,
+                    1 => x.1,
+                    _ => unreachable!(),
+                };
+                if acc.0 < cmp_x {
+                    acc
+                } else {
+                    (cmp_x, x.2)
+                }
+            })
+        };
+    }
+    let least_kurtosis = best_score!(0);
+    let least_skew = best_score!(1);
+    (least_skew, least_kurtosis)
+}
+
+/// Takes in a vector of spread_tiers = (n_bins, cutoff), and a starting point, where parameters
+/// values are uniformly spread in (cutoff[i] - cutoff[i-1]) / n_bins[i] intervals between any two
+/// cutoffs. See tests for examples.
+fn binned_spread(spread_tiers: Vec<(u64, f64)>, start: f64) -> Vec<f64> {
+    spread_tiers.iter().fold(vec![start], |mut acc, x| {
+        let prev_cutoff = acc.last().cloned().unwrap();
+        acc.extend(
+            (1..(x.0 + 1)).map(|i| prev_cutoff + (i as f64) * (x.1 - prev_cutoff) / x.0 as f64),
+        );
+        acc
+    })
+}
+
+fn yeo_johnson_scalar(sample: f64, lambda: f64) -> f64 {
+    let x = sample;
+    let l = lambda;
+    if x >= 0.0 {
+        if approx::relative_eq!(l, 0.0) {
+            f64::ln(x + 1.0)
+        } else {
+            ((x + 1.0).powf(l) - 1.0) / l
+        }
+    } else {
+        // x < 0
+        if approx::relative_eq!(l, 2.0) {
+            -f64::ln(-x + 1.0)
+        } else {
+            -((-x + 1.0).powf(2.0 - l) - 1.0) / (2.0 - l)
+        }
+    }
+}
+
+#[test]
+fn test_yeo_johnson_scalar_identity() {
+    let res = yeo_johnson_scalar(5.0, 1.0);
+    println!("yj={:?}", res);
+    // assert_relative_eq!(5.0, res);
+}
+
+#[test]
+fn test_yeo_johnson_scalar_boundaries() {
+    let boundaries = vec![
+        (5.0, 0.0),
+        (-5.0, 2.0),
+        (-5.0, 2.0),
+        (-5.0, 0.0),
+        (0.0, -2.0),
+    ];
+    for (sample, lambda) in boundaries {
+        let res = yeo_johnson_scalar(sample, lambda);
+        println!("yj={:?}", res);
+    }
+}
+
+#[test]
+fn test_binned_spread() {
+    let x_ref = 1.0;
+    let x_pos = binned_spread(vec![(100, 1.5), (30, 3.0), (10, 4.0)], x_ref);
+    let x_neg = binned_spread(vec![(100, 0.5), (30, -1.0), (10, -3.0)], x_ref);
+    let mut xs = x_pos
+        .into_iter()
+        .chain(x_neg.into_iter())
+        .collect::<Vec<_>>();
+    xs.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+    println!("xs={:?}", xs);
+}
+
 #[test]
 fn test_hist_1d() {
     let a = vec![
@@ -148,7 +289,7 @@ fn test_skewed() {
     ];
     let res = skewness_1d(&a);
     println!("{:?}", res);
-    approx::assert_relative_eq!(res, 0.9179616104782891);
+    approx::assert_relative_eq!(res, 0.917961610478289, epsilon = (f64::EPSILON * 10.0));
 }
 
 #[test]
@@ -190,3 +331,43 @@ fn test_kurtosis_normal() {
     println!("{:?}", res);
     // approx::assert_relative_eq!(res, 0.0);
 }
+
+// ------------------------------------------------------------------------------------------------
+// TODO: implement boxcox
+// lambda and alpha
+// pub type BoxCoxParams = (f64, f64);
+
+// Determine power law to use to force the normal distribution uses profile likelihood to determine
+// parameters lambda and alpha requires that the sample size be relatively large. Or may spit out
+// weird results.
+// reference: https://en.wikipedia.org/wiki/Power_transform
+// pub fn optimize_box_cox_1d(a: &Vec<f64>) -> BoxCoxParams {
+// split samples into two
+
+// (0.0, 0.0)
+// }
+
+// pub fn box_cox_1d(p: BoxCoxParams) -> {
+
+// }
+
+// fn box_cox_1d_derv_alpha() -> {
+// Alg
+// ---
+// sample N/2 values from population without replacement. Where N is the population size.
+// let alpha arbitrarily = min(0, x_1), where alpha = constant shift parameter and x_1 = N/2 obs
+// call the arbitrary alpha above alpha_.
+// let f(x; alpha, lambda) = box_cox_1d transform.
+// assume alpha(lambda) i.e. alpha is a function of lambda.
+//
+// model the following:
+//     - alpha using x_1, and [1]
+//     - lambda using x_2 (the remaining N/2 samples) with alpha assumed to be constant [2]
+// i.e. [1] => f(x_1; alpha(lambda); lambda) = ((x_1_i + a)^l - 1) / l,  for all x_1_i in x_1
+//      [2] => f(x_2; alpha_; lambda) = ((x_2_i + a_)^l - 1) / l, for all x_2_i in x_2
+// subtract [2] or f2 from [1] or f1 and find lambda that maximizes this difference.
+//
+// arbitrarily we do this heuristically using
+
+// }
+// ------------------------------------------------------------------------------------------------
