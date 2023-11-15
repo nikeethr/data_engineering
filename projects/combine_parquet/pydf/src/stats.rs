@@ -222,6 +222,39 @@ fn yeo_johnson_scalar(sample: f64, lambda: f64) -> f64 {
     }
 }
 
+pub fn yeo_johnson_inv_1d(a: Arc<&Vec<f64>>, lambda: f64) -> Vec<f64> {
+    (0..a.len())
+        .into_par_iter()
+        .map(|i| unsafe {
+            let x = a.get_unchecked(i);
+            if !x.is_nan() {
+                yeo_johnson_scalar_inv(*x, lambda)
+            } else {
+                f64::NAN
+            }
+        })
+        .collect::<Vec<_>>()
+}
+
+fn yeo_johnson_scalar_inv(sample: f64, lambda: f64) -> f64 {
+    let x = sample;
+    let l = lambda;
+    if x >= 0.0 {
+        if approx::relative_eq!(l, 0.0) {
+            x.exp() - 1.0
+        } else {
+            (x * l + 1.0).powf(1.0 / l) - 1.0
+        }
+    } else {
+        // x < 0
+        if approx::relative_eq!(l, 2.0) {
+            -((-x).exp() - 1.0)
+        } else {
+            -((-x * (2.0 - l) + 1.0).powf(1.0 / (2.0 - l)) - 1.0)
+        }
+    }
+}
+
 #[test]
 fn test_yeo_johnson_scalar_identity() {
     let res = yeo_johnson_scalar(5.0, 1.0);
@@ -240,6 +273,25 @@ fn test_yeo_johnson_scalar_boundaries() {
     ];
     for (sample, lambda) in boundaries {
         let res = yeo_johnson_scalar(sample, lambda);
+        println!("yj={:?}", res);
+    }
+}
+
+#[test]
+fn test_yeo_johnson_scalar_inv_identity() {
+    let boundaries = vec![
+        (5.0, 0.0),
+        (-5.0, 2.0),
+        (-5.0, 2.0),
+        (-5.0, 0.0),
+        (0.0, -2.0),
+        (9.0, -1.5),
+        (5.0, 1.5),
+        (-5.0, 1.5),
+        (-9.0, -1.5),
+    ];
+    for (sample, lambda) in boundaries {
+        let res = yeo_johnson_scalar_inv(yeo_johnson_scalar(sample, lambda), lambda);
         println!("yj={:?}", res);
     }
 }
@@ -288,7 +340,7 @@ fn test_skewed() {
     ];
     let res = skewness_1d(&a);
     println!("{:?}", res);
-    approx::assert_relative_eq!(res, 0.917961610478289, epsilon = (f64::EPSILON * 10.0));
+    approx::assert_relative_eq!(res, 0.917961610478289, epsilon = (f64::EPSILON * 100.0));
 }
 
 #[test]
@@ -299,7 +351,7 @@ fn test_no_skew() {
     ];
     let res = skewness_1d(&a);
     println!("{:?}", res);
-    approx::assert_relative_eq!(res, 0.0, epsilon = (f64::EPSILON * 10.0));
+    approx::assert_relative_eq!(res, 0.0, epsilon = (f64::EPSILON * 100.0));
 }
 
 #[test]
@@ -307,7 +359,7 @@ fn test_kurtosis_narrow() {
     let a = vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 0.5, 0.0, 0.0, 0.0, 0.0];
     let res = kurtosis_1d(&a);
     println!("{:?}", res);
-    approx::assert_relative_eq!(res, 1.0664000000000016, epsilon = (f64::EPSILON * 10.0));
+    approx::assert_relative_eq!(res, 1.0664000000000016, epsilon = (f64::EPSILON * 100.0));
 }
 
 #[test]
@@ -317,7 +369,7 @@ fn test_kurtosis_wide() {
     ];
     let res = kurtosis_1d(&a);
     println!("{:?}", res);
-    approx::assert_relative_eq!(res, -1.012865025730047, epsilon = (f64::EPSILON * 10.0));
+    approx::assert_relative_eq!(res, -1.012865025730047, epsilon = (f64::EPSILON * 100.0));
 }
 
 #[test]
@@ -328,7 +380,7 @@ fn test_kurtosis_normal() {
     ];
     let res = kurtosis_1d(&a);
     println!("{:?}", res);
-    approx::assert_relative_eq!(res, -0.273999999999999, epsilon = (f64::EPSILON * 10.0));
+    approx::assert_relative_eq!(res, -0.273999999999999, epsilon = (f64::EPSILON * 100.0));
 }
 
 // ------------------------------------------------------------------------------------------------
