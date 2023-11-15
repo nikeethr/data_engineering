@@ -370,6 +370,16 @@ fn pydf_hist_1d<'py>(a: &PyArray1<f64>, bins: u64) -> PyResult<Vec<(f64, f64, u6
     Ok(hist_1d(&a.to_vec().unwrap(), bins))
 }
 
+#[pyfunction]
+fn pydf_yj_correction_1d<'py>(a: &PyArray1<f64>, lambda: f64) -> PyResult<Vec<f64>> {
+    Ok(yeo_johnson_1d(Arc::new(&a.to_vec().unwrap()), lambda))
+}
+
+#[pyfunction]
+fn pydf_yj_optimize<'py>(a: &PyArray1<f64>) -> PyResult<((f64, f64), (f64, f64))> {
+    Ok(yeo_johnson_1d_power_correction(&a.to_vec().unwrap()))
+}
+
 /// A Python module implemented in Rust.
 #[pymodule]
 fn pydf(_py: Python, m: &PyModule) -> PyResult<()> {

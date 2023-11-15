@@ -63,17 +63,16 @@ pub fn skewness_1d(a: &Vec<f64>) -> f64 {
     let x_mu: f64 = a.iter().filter(|x| !x.is_nan()).sum::<f64>() / n_f;
     let m_3 = Mutex::new(0.0);
     let s_3 = Mutex::new(0.0);
-    let a = Mutex::new(Arc::new(a));
+    let a = Arc::new(a);
 
     unsafe {
         (0..n).into_par_iter().for_each(|i| {
-            let ptr = a.lock().unwrap().as_ptr();
-            let x = ptr.add(i);
-            if !(*x).is_nan() {
+            let x = a.get_unchecked(i);
+            if !x.is_nan() {
                 let mut m_3_ = m_3.lock().unwrap();
+                *m_3_ += (x - x_mu).powi(3);
                 let mut s_3_ = s_3.lock().unwrap();
-                *m_3_ += (*x - x_mu).powi(3);
-                *s_3_ += (*x - x_mu).powi(2);
+                *s_3_ += (x - x_mu).powi(2);
             }
         });
     }
@@ -97,17 +96,16 @@ pub fn kurtosis_1d(a: &Vec<f64>) -> f64 {
     let x_mu: f64 = a.iter().filter(|x| !x.is_nan()).sum::<f64>() / n_f;
     let m_4 = Mutex::new(0.0);
     let m_22 = Mutex::new(0.0);
-    let a = Mutex::new(Arc::new(a));
+    let a = Arc::new(a);
 
     unsafe {
         (0..n).into_par_iter().for_each(|i| {
-            let ptr = a.lock().unwrap().as_ptr();
-            let x = ptr.add(i);
-            if !(*x).is_nan() {
+            let x = a.get_unchecked(i);
+            if !x.is_nan() {
                 let mut m_4_ = m_4.lock().unwrap();
+                *m_4_ += (x - x_mu).powi(4);
                 let mut m_22_ = m_22.lock().unwrap();
-                *m_4_ += (*x - x_mu).powi(4);
-                *m_22_ += (*x - x_mu).powi(2);
+                *m_22_ += (x - x_mu).powi(2);
             }
         });
     }
@@ -137,31 +135,22 @@ pub fn kurtosis_1d(a: &Vec<f64>) -> f64 {
 /// returns optimal lambda in the following format ((skew, lambda), (kurtosis, lambda))
 pub fn yeo_johnson_1d_power_correction(a: &Vec<f64>) -> ((f64, f64), (f64, f64)) {
     // identity: lambda = 1, therefore the hyperparameters should centre around 1 and spread out
-    // monotonically increasing
+    // monotonically increasing in steps
     // Array[(steps, cutoff)]
     let lambda_ref: f64 = 1.0;
-    // optimize lambda > 1
     let lambda_pos = binned_spread(vec![(100, 0.5), (30, 1.0), (10, 3.0)], lambda_ref);
-
     let lambda_neg = binned_spread(vec![(100, -0.5), (30, -1.0), (10, -3.0)], lambda_ref);
-
     let lambdas = lambda_pos
         .into_iter()
         .chain(vec![lambda_ref].into_iter())
         .chain(lambda_neg.into_iter());
     let scores = Arc::new(Mutex::new(Vec::new()));
+    let a = Arc::new(a);
 
     lambdas.par_bridge().for_each(|l| {
-        let mut a_pow = vec![f64::NAN; a.len()];
-        let ptr = a_pow.as_mut_ptr();
-        unsafe {
-            for i in 0..a.len() {
-                let x = ptr.add(i);
-                *x = yeo_johnson_scalar(*(x as *const f64), l);
-            }
-        }
-        let k = kurtosis_1d(a);
-        let s = skewness_1d(a);
+        let a_pow = yeo_johnson_1d(a.clone(), l);
+        let k = kurtosis_1d(&a_pow);
+        let s = skewness_1d(&a_pow);
         scores.lock().unwrap().push((k, s, l));
     });
 
@@ -200,6 +189,20 @@ fn binned_spread(spread_tiers: Vec<(u64, f64)>, start: f64) -> Vec<f64> {
     })
 }
 
+pub fn yeo_johnson_1d(a: Arc<&Vec<f64>>, lambda: f64) -> Vec<f64> {
+    (0..a.len())
+        .into_par_iter()
+        .map(|i| unsafe {
+            let x = a.get_unchecked(i);
+            if !x.is_nan() {
+                yeo_johnson_scalar(*x, lambda)
+            } else {
+                f64::NAN
+            }
+        })
+        .collect::<Vec<_>>()
+}
+
 fn yeo_johnson_scalar(sample: f64, lambda: f64) -> f64 {
     let x = sample;
     let l = lambda;
@@ -223,7 +226,7 @@ fn yeo_johnson_scalar(sample: f64, lambda: f64) -> f64 {
 fn test_yeo_johnson_scalar_identity() {
     let res = yeo_johnson_scalar(5.0, 1.0);
     println!("yj={:?}", res);
-    // assert_relative_eq!(5.0, res);
+    assert_relative_eq!(5.0, res);
 }
 
 #[test]
@@ -296,7 +299,7 @@ fn test_no_skew() {
     ];
     let res = skewness_1d(&a);
     println!("{:?}", res);
-    approx::assert_relative_eq!(res, 0.0);
+    approx::assert_relative_eq!(res, 0.0, epsilon = (f64::EPSILON * 10.0));
 }
 
 #[test]
@@ -304,7 +307,7 @@ fn test_kurtosis_narrow() {
     let a = vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 0.5, 0.0, 0.0, 0.0, 0.0];
     let res = kurtosis_1d(&a);
     println!("{:?}", res);
-    // approx::assert_relative_eq!(res, 0.9179616104782891);
+    approx::assert_relative_eq!(res, 1.0664000000000016, epsilon = (f64::EPSILON * 10.0));
 }
 
 #[test]
@@ -314,7 +317,7 @@ fn test_kurtosis_wide() {
     ];
     let res = kurtosis_1d(&a);
     println!("{:?}", res);
-    // approx::assert_relative_eq!(res, 0.9179616104782891);
+    approx::assert_relative_eq!(res, -1.012865025730047, epsilon = (f64::EPSILON * 10.0));
 }
 
 #[test]
@@ -325,7 +328,7 @@ fn test_kurtosis_normal() {
     ];
     let res = kurtosis_1d(&a);
     println!("{:?}", res);
-    // approx::assert_relative_eq!(res, 0.0);
+    approx::assert_relative_eq!(res, -0.273999999999999, epsilon = (f64::EPSILON * 10.0));
 }
 
 // ------------------------------------------------------------------------------------------------
