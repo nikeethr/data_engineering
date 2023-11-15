@@ -56,7 +56,9 @@ pub fn hist_1d(a: &Vec<f64>, bins: u64) -> Vec<(f64, f64, u64)> {
 /// reference: https://en.wikipedia.org/wiki/Skewness#Sample_skewness, see equation for b1
 pub fn skewness_1d(a: &Vec<f64>) -> f64 {
     let n = a.iter().filter(|x| !x.is_nan()).count();
-    assert!(n > 3);
+    if n <= 3 {
+        return f64::NAN;
+    }
     let n_f = n as f64;
 
     // moments
@@ -80,8 +82,11 @@ pub fn skewness_1d(a: &Vec<f64>) -> f64 {
     let m_3 = m_3.into_inner().unwrap() / n_f;
     let s_3 = (s_3.into_inner().unwrap() / (n_f - 1.0)).powf(1.5);
 
-    approx::assert_relative_ne!(s_3, 0.0);
-    m_3 / s_3
+    if approx::relative_eq!(s_3, 0.0) {
+        f64::INFINITY
+    } else {
+        m_3 / s_3
+    }
 }
 
 /// Sample kurtosis metho of moments natural biased estimator
@@ -89,7 +94,9 @@ pub fn skewness_1d(a: &Vec<f64>) -> f64 {
 /// see equation for g2
 pub fn kurtosis_1d(a: &Vec<f64>) -> f64 {
     let n = a.iter().filter(|x| !x.is_nan()).count();
-    assert!(n > 3);
+    if n <= 3 {
+        return f64::NAN;
+    }
     let n_f = n as f64;
 
     // moments
@@ -113,8 +120,11 @@ pub fn kurtosis_1d(a: &Vec<f64>) -> f64 {
     let m_4 = m_4.into_inner().unwrap() / n_f;
     let m_22 = (m_22.into_inner().unwrap() / n_f).powi(2);
 
-    approx::assert_relative_ne!(m_22, 0.0);
-    m_4 / m_22 - 3.0
+    if approx::relative_eq!(m_22, 0.0) {
+        f64::INFINITY
+    } else {
+        m_4 / m_22 - 3.0
+    }
 }
 
 /// yeo-johnson is a special case of box-cox, with only 1 parameter to optimize and hence is
@@ -134,6 +144,10 @@ pub fn kurtosis_1d(a: &Vec<f64>) -> f64 {
 ///
 /// returns optimal lambda in the following format ((skew, lambda), (kurtosis, lambda))
 pub fn yeo_johnson_1d_power_correction(a: &Vec<f64>) -> ((f64, f64), (f64, f64)) {
+    let n = a.iter().filter(|x| !x.is_nan()).count();
+    if n <= 3 {
+        return ((f64::NAN, f64::NAN), (f64::NAN, f64::NAN));
+    }
     // identity: lambda = 1, therefore the hyperparameters should centre around 1 and spread out
     // monotonically increasing in steps
     // Array[(steps, cutoff)]
