@@ -163,7 +163,7 @@ pub fn yeo_johnson_1d_power_correction(a: &Vec<f64>) -> ((f64, f64), (f64, f64))
                     1 => x.1,
                     _ => unreachable!(),
                 };
-                if acc.0 < cmp_x {
+                if acc.0 < f64::abs(cmp_x) {
                     acc
                 } else {
                     (cmp_x, x.2)

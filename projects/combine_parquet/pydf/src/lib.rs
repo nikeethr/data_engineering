@@ -387,6 +387,8 @@ fn pydf(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(pydf_kurtosis_1d, m)?)?;
     m.add_function(wrap_pyfunction!(pydf_skewness_1d, m)?)?;
     m.add_function(wrap_pyfunction!(pydf_hist_1d, m)?)?;
+    m.add_function(wrap_pyfunction!(pydf_yj_optimize, m)?)?;
+    m.add_function(wrap_pyfunction!(pydf_yj_correction_1d, m)?)?;
     m.add_class::<PyDfDictWrapper>()?;
     Ok(())
 }
