@@ -380,6 +380,11 @@ fn pydf_yj_optimize<'py>(a: &PyArray1<f64>) -> PyResult<((f64, f64), (f64, f64))
     Ok(yeo_johnson_1d_power_correction(&a.to_vec().unwrap()))
 }
 
+#[pyfunction]
+fn pydf_yj_invert_1d<'py>(a: &PyArray1<f64>, lambda: f64) -> PyResult<Vec<f64>> {
+    Ok(yeo_johnson_inv_1d(Arc::new(&a.to_vec().unwrap()), lambda))
+}
+
 /// A Python module implemented in Rust.
 #[pymodule]
 fn pydf(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -389,6 +394,7 @@ fn pydf(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(pydf_hist_1d, m)?)?;
     m.add_function(wrap_pyfunction!(pydf_yj_optimize, m)?)?;
     m.add_function(wrap_pyfunction!(pydf_yj_correction_1d, m)?)?;
+    m.add_function(wrap_pyfunction!(pydf_yj_invert_1d, m)?)?;
     m.add_class::<PyDfDictWrapper>()?;
     Ok(())
 }
